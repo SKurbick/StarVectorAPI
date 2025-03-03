@@ -42,10 +42,19 @@ class ListOfGoodsPricesAndDiscounts:
                     async with ClientSession() as session:
                         async with session.get(url, headers=self.headers, params=params) as response:
                             response_result = await response.json()
+                            pprint(response_result)
                             print(f"[func] details_upload_task status - {response.status}")
                             if "data" in response_result:
                                 if response_result['data'] is not None:
-                                    result.extend(response_result['data']['historyGoods'])
+                                    for history_good in response_result['data']['historyGoods']:
+                                        result.append(
+                                            {
+                                                "article_id": history_good['nmID'],
+                                                "price": history_good.get("price", None),
+                                                "discount": history_good.get("discount", None)
+                                            }
+                                        )
+                                    # result.extend(response_result['data']['historyGoods'])
                                     break
                                 else:
                                     break
@@ -61,7 +70,7 @@ class ListOfGoodsPricesAndDiscounts:
                     print(e, "sleep 36 sec")
                     await asyncio.sleep(36)
             if i == 9 or "data" not in response_result or response_result['data'] is None or \
-                    response_result["data"]["listGoods"] is None or len(response_result["data"]["listGoods"]) == 0:
+                    response_result["data"]["historyGoods"] is None or len(response_result["data"]["historyGoods"]) == 0:
                 print("прерывание бесконечного цикла")
                 # для того что бы прервать бесконечный цикл
                 break

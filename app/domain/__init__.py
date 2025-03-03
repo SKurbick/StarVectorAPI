@@ -1,3 +1,3 @@
-from .models import CardData, ArticleDetails
+from .models import CardData, ArticleDetails, OrdersRevenues
 
-__all__ = ["CardData", "ArticleDetails"]
+__all__ = ["CardData", "ArticleDetails", "OrdersRevenues"]

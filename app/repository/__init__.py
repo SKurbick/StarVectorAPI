@@ -1,4 +1,4 @@
 from .article import ArticleRepository
 from .card_data import CardDataRepository
-
-__all__ = ["ArticleRepository", "CardDataRepository"]
+from .orders_revenues import  OrdersRevenuesRepository
+__all__ = ["ArticleRepository", "CardDataRepository", "OrdersRevenuesRepository"]

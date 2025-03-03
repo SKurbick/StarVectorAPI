@@ -1,28 +1,24 @@
 from typing import List, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
-from app.domain.models import PriceDiscountResponseModel, PriceDiscountContainer
-from app.service import CardDataService
-from app.dependencies import get_card_data_service
-from app.use_cases.price_discount_use_case import PriceDiscountUseCase
+from app.domain.models import PriceDiscountResponseModel, PriceDiscountContainer, ResponseMessage
+from app.dependencies import get_price_discount_service
+from app.service.price_discount import PriceDiscountService
+
 router = APIRouter(tags=["Price and Discount"])
 
 
-@router.post("/price_discount", response_model=PriceDiscountResponseModel)
+@router.post("/price_discount", response_model=ResponseMessage)
 async def update_price_discount(
         data: PriceDiscountResponseModel,
-        # data: List[Dict[str, PriceDiscountContainer]]
-        # use_case: PriceDiscountUseCase
+        service: PriceDiscountService = Depends(get_price_discount_service)
+
 ):
-    # result = await use_case.update_data(data)# нельзя раскоментировать
-
-    print(data)
-
-    if not data:
-        raise HTTPException(status_code=400, detail="Ошибка обновления данных")
-    return data
-
-
-    # print("попал")
-    # print(data.dict())
-    # return await service.get_card_data_by_article_id(article_id)
+    try:
+        await service.update(data=data)
+        return {
+            "status": 200,
+            "message": "успешно ебать 👍 поздравляю"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Ошибка обновления данных. Error: {e}")

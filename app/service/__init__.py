@@ -1,3 +1,3 @@
 from .card_data import CardDataService
-
-__all__ = ["CardDataService"]
+from .orders_revenues import OrdersRevenuesService
+__all__ = ["CardDataService", "OrdersRevenuesService"]

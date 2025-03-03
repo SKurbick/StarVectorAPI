@@ -28,6 +28,11 @@ field_configs = {
 }
 
 
+class ResponseMessage(BaseModel):
+    status: int
+    message: str
+
+
 class ArticleBase(BaseModel):
     article_id: int = field_configs['article_id']
 
@@ -58,8 +63,9 @@ class CardData(ArticleBase):
     class Config:
         json_schema_extra = {
             "examples": [{
+                "article_id": 174998583,
                 "subject_name": "Мультиварки",
-                "photo_link": "",
+                "photo_link": "https://basket-12.wbbasket.ru/vol1749/part174998/174998583/images/tm/1.webp",
                 "price": 123,
                 "discount": 123,
                 "length": 12,
@@ -98,7 +104,7 @@ class ArticleDetails(AccountBase, CostPrice, CardData):
     class Config:
         json_schema_extra = {
             "examples": [
-                {"article_id": 12345678,
+                {"article_id": 174998583,
                  "account": "ТОНОЯН",
                  "local_vendor_code": "wild123",
                  "purchase_price": 1999,
@@ -118,16 +124,15 @@ class ArticleDetails(AccountBase, CostPrice, CardData):
         }
 
 
-class PriceDiscount(BaseModel):
+class PriceDiscountDB(ArticleBase):
     price: Optional[int] = None
     discount: Optional[int] = None
 
 
-class CreatePriceDiscount(PriceDiscount):
+class CreatePriceDiscount(BaseModel):
     nmID: int
-
-    # price: Optional[int] = None
-    # discount: Optional[int] = None
+    price: Optional[int] = None
+    discount: Optional[int] = None
 
     @classmethod
     @field_validator('price', 'discount', mode='before')
@@ -191,24 +196,31 @@ class PriceDiscountResponseModel(BaseModel):
                 }
             }
         }
-        # json_schema_extra = {
-        #     "example": {
-        #
-        #             "ТОНОЯН": {
-        #                 "data": [
-        #                     {"nmID": 123, "price": 999, "discount": 30}
-        #                 ]},
-        #             "Пилосян": {
-        #                 "data": [
-        #                     {"nmID": 123, "price": 999, "discount": 30}
-        #                 ]}
-        #
-        #     }
-        # }
 
 
+class OrdersRevenues(ArticleBase):
+    date: datetime  #
+    orders_sum_rub: int  # заказали на сумму в руб.
+    orders_count: int  # заказали товаров, шт
+    open_card_count: int  # количество переходов в карточку товара
+    add_to_cart_count: int  # положили в корзину, штук
+    buyouts_count: int  # выкупили товаров
+    buyouts_sum_rub: int  # выкупили на сумму в руб
+    cancel_count: int  # отменили товаров шт.
+    cancel_sum_rub: int  # отменили на сумму в руб
 
-#
-# class PriceDiscountUploadModel():
-#
-#     pass
+    class Config:
+        json_schema_extra = {
+            "example": {
+                'article_id': 123123123,
+                'date': '2024-12-12',
+                'orders_sum_rub': 123,
+                'orders_count': 123,
+                'open_card_count': 123,
+                'add_to_cart_count': 123,
+                'buyouts_count': 123,
+                'buyouts_sum_rub': 123,
+                'cancel_count': 123,
+                'cancel_sum_rub': 123,
+            }
+        }
