@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     POSTGRES_HOST: str
     POSTGRES_PORT: str
     TOKENS_FILE_NAME: str
+    APP_IP_ADDRESS: str
+    APP_PORT: int
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

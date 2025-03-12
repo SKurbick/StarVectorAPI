@@ -8,7 +8,7 @@ from app.dependencies import get_article_service
 router = APIRouter(tags=['Articles'])
 
 
-@router.get("/article_details", response_model=List[ArticleDetails], description="somed")
+@router.get("/article_details", response_model=List[ArticleDetails], description="some_data")
 async def get_article_details(
         service: ArticleService = Depends(get_article_service)
 ):

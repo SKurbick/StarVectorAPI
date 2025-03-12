@@ -47,16 +47,16 @@ class ArticleInDB(ArticleBase, AccountBase):
 
 
 class CardData(ArticleBase):
-    subject_name: str = field_configs['subject_name']
-    photo_link: str = field_configs['photo_link']
+    subject_name: Union[str, None] = field_configs['subject_name']
+    photo_link: Union[str, None] = field_configs['photo_link']
     price: Union[int, None] = field_configs['price']
     discount: Union[int, None] = field_configs['discount']
-    length: int = field_configs['length']
-    width: int = field_configs['width']
-    height: int = field_configs['height']
-    barcode: str = field_configs['barcode']
-    logistic_from_wb_wh_to_opp: float = field_configs['logistic_from_wb_wh_to_opp']
-    commission_wb: float = field_configs['commission_wb']
+    length: Union[int, None] = field_configs['length']
+    width: Union[int, None] = field_configs['width']
+    height: Union[int, None] = field_configs['height']
+    barcode: Union[str, None] = field_configs['barcode']
+    logistic_from_wb_wh_to_opp: Union[float, None] = field_configs['logistic_from_wb_wh_to_opp']
+    commission_wb: Union[float, None] = field_configs['commission_wb']
 
     # last_update_time: datetime = field_configs['last_update_time']
 
@@ -188,11 +188,34 @@ class PriceDiscountResponseModel(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "update_data": {"ТОНОЯН": {
-                    "data": [
-                        {"nmID": 123, "price": 999, "discount": 30}
-                    ]
-                }
+                "update_data": {
+                    "ТОНОЯН": {
+                        "data": [
+                            {
+                                "nmID": 1234,
+                                "price": 63,
+                                "discount": 63
+                            }
+                        ]
+                    },
+                    "ХАЧАТРЯН": {
+                        "data": [
+                            {
+                                "nmID": 5678,
+                                "price": 63,
+                                "discount": 63
+                            }
+                        ]
+                    },
+                    "ПИЛОСЯН": {
+                        "data": [
+                            {
+                                "nmID": 9101,
+                                "price": 63,
+                                "discount": 63
+                            }
+                        ]
+                    }
                 }
             }
         }

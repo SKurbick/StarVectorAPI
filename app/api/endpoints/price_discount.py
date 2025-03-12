@@ -1,3 +1,5 @@
+import asyncio
+from pprint import pprint
 from typing import List, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,7 +17,9 @@ async def update_price_discount(
 
 ):
     try:
-        await service.update(data=data)
+        # await service.update(data=data)
+        pprint(data.model_dump())
+        await asyncio.sleep(3)
         return {
             "status": 200,
             "message": "успешно ебать 👍 поздравляю"

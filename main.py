@@ -4,7 +4,7 @@ from app.infrastructure.database import init_db, close_db
 from app.api.endpoints import article_router, card_data_router, price_discount_router, orders_revenues_router
 from contextlib import asynccontextmanager
 import uvicorn
-
+from app.config.settings import settings
 
 # Контекстный менеджер для управления жизненным циклом приложения
 @asynccontextmanager
@@ -25,7 +25,8 @@ app.include_router(price_discount_router, prefix="/api")
 app.include_router(orders_revenues_router, prefix="/api")
 origins = [
     # "http://192.168.2.47:5173",
-    "*"
+    # "*",
+    "http://192.168.2.49:5173"
 ]
 
 app.add_middleware(
@@ -36,4 +37,7 @@ app.add_middleware(
     allow_headers=["*"],  # Разрешить все заголовки
 )
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+    uvicorn.run("main:app", host=settings.APP_IP_ADDRESS, port=settings.APP_PORT, reload=True)
+
+
+
