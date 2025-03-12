@@ -165,23 +165,6 @@ class PriceDiscountContainer(BaseModel):
     data: List[CreatePriceDiscount]
 
 
-ALLOWED_KEYS = Literal["ТОНОЯН", "ПИЛОСЯН"]
-
-
-# class PriceDiscountResponseModel(BaseModel):
-#     root: Dict[ALLOWED_KEYS, PriceDiscountContainer]
-#
-#     # Переопределяем метод dict() для корректного преобразования в словарь
-#     class Config:
-#         json_schema_extra = {
-#             "example": {
-#                 "ТОНОЯН": {
-#                     "data": [
-#                         {"nmID": 123, "price": 999, "discount": 30}
-#                     ]
-#                 }
-#             }
-#         }
 class PriceDiscountResponseModel(BaseModel):
     update_data: Dict[str, PriceDiscountContainer]
 
@@ -222,7 +205,7 @@ class PriceDiscountResponseModel(BaseModel):
 
 
 class OrdersRevenues(ArticleBase):
-    date: datetime  #
+    date: datetime.date  #
     orders_sum_rub: int  # заказали на сумму в руб.
     orders_count: int  # заказали товаров, шт
     open_card_count: int  # количество переходов в карточку товара
@@ -247,3 +230,18 @@ class OrdersRevenues(ArticleBase):
                 'cancel_sum_rub': 123,
             }
         }
+
+
+class UnitEconomics(PriceDiscountDB, ArticleBase):
+    discounted_price: Union[float, None]
+    will_be_credited_bank_account: Union[float, None]
+    logistics_from_wb_wh_to_opp: Union[float, None]
+    commission_wb: Union[float, None]
+    simplified_tax_system: Union[float, None]
+    percent_by_tax: Union[int, None]
+    will_receive_wb: Union[float, None]
+    wb_expenses: Union[float, None]
+    profitability_percent: Union[float, None]
+    marginality_percent: Union[float, None]
+    net_profit: Union[float, None]
+    cost_price: Union[int, None]
