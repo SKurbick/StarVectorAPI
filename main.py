@@ -1,10 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.infrastructure.database import init_db, close_db
-from app.api.endpoints import article_router, card_data_router, price_discount_router, orders_revenues_router
+from app.api.endpoints import article_router, card_data_router, price_discount_router, orders_revenues_router, unit_economics_router, net_profit_router
 from contextlib import asynccontextmanager
 import uvicorn
 from app.config.settings import settings
+
 
 # Контекстный менеджер для управления жизненным циклом приложения
 @asynccontextmanager
@@ -23,6 +24,9 @@ app.include_router(card_data_router, prefix="/api")
 app.include_router(article_router, prefix="/api")
 app.include_router(price_discount_router, prefix="/api")
 app.include_router(orders_revenues_router, prefix="/api")
+app.include_router(unit_economics_router, prefix="/api")
+app.include_router(net_profit_router, prefix="/api")
+
 origins = [
     # "http://192.168.2.47:5173",
     # "*",
@@ -38,6 +42,3 @@ app.add_middleware(
 )
 if __name__ == "__main__":
     uvicorn.run("main:app", host=settings.APP_IP_ADDRESS, port=settings.APP_PORT, reload=True)
-
-
-

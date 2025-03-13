@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional, List, Union, Dict, Literal
 
 from pydantic import BaseModel, field_validator, model_validator, RootModel
@@ -204,8 +204,8 @@ class PriceDiscountResponseModel(BaseModel):
         }
 
 
-class OrdersRevenues(ArticleBase):
-    date: datetime.date  #
+class OrdersRevenues(BaseModel):
+    date: date
     orders_sum_rub: int  # заказали на сумму в руб.
     orders_count: int  # заказали товаров, шт
     open_card_count: int  # количество переходов в карточку товара
@@ -232,10 +232,14 @@ class OrdersRevenues(ArticleBase):
         }
 
 
-class UnitEconomics(PriceDiscountDB, ArticleBase):
+class OrdersRevenuesResponseModel(ArticleBase):
+    data: List[OrdersRevenues]
+
+
+class UnitEconomics(PriceDiscountDB):
     discounted_price: Union[float, None]
     will_be_credited_bank_account: Union[float, None]
-    logistics_from_wb_wh_to_opp: Union[float, None]
+    logistic_from_wb_wh_to_opp: Union[float, None]
     commission_wb: Union[float, None]
     simplified_tax_system: Union[float, None]
     percent_by_tax: Union[int, None]
@@ -245,3 +249,17 @@ class UnitEconomics(PriceDiscountDB, ArticleBase):
     marginality_percent: Union[float, None]
     net_profit: Union[float, None]
     cost_price: Union[int, None]
+
+
+class PeriodRequestModel(BaseModel):
+    date_from: date
+    date_to: date = Field(default_factory=date.today)
+
+
+class ProfitData(BaseModel):
+    date: date
+    net_profit: int
+
+
+class NetProfitResponseModel(ArticleBase):
+    data: List[ProfitData]

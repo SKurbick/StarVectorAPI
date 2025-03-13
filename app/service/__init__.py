@@ -1,3 +1,5 @@
 from .card_data import CardDataService
 from .orders_revenues import OrdersRevenuesService
-__all__ = ["CardDataService", "OrdersRevenuesService"]
+from .unit_economics import UnitEconomicsService
+from .net_profit import NetProfitService
+__all__ = ["CardDataService", "OrdersRevenuesService", "UnitEconomicsService", "NetProfitService"]

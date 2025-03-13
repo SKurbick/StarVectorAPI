@@ -1,7 +1,5 @@
 import asyncio
-
-# from app
-# from app
+'''Модуль пока не участвует в разработке'''
 
 from app.config.settings import get_wb_tokens
 from app.domain.models import PriceDiscountResponseModel

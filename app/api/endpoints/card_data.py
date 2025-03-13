@@ -1,5 +1,4 @@
 from typing import List
-
 from fastapi import APIRouter, Depends
 from app.domain import CardData
 from app.service import CardDataService
