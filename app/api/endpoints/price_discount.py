@@ -14,15 +14,28 @@ router = APIRouter(tags=["Price and Discount"])
 async def update_price_discount(
         data: PriceDiscountResponseModel,
         service: PriceDiscountService = Depends(get_price_discount_service)
-
 ):
-    try:
-        # await service.update(data=data)
-        pprint(data.model_dump())
-        await asyncio.sleep(3)
-        return {
-            "status": 200,
-            "message": "успешно ебать 👍 поздравляю"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Ошибка обновления данных. Error: {e}")
+    print(data.model_dump())
+    return {
+        "status": 200,
+        "message": "успешно ебать 👍 поздравляю"
+    }
+
+# try:
+#     test_article = [255950221, 156164094]
+#     # await service.update(data=data)
+#     articles = []
+#     for account, inner_data in data.model_dump()['update_data'].items():
+#         for article_data in inner_data['data']:
+#             nm_id = article_data['nmID']
+#             articles.append(nm_id)
+#             if nm_id not in test_article:
+#                 raise HTTPException(status_code=401, detail=f"Вы используете Артикулы не из списка для тестирования. Исключите их из запроса")
+#     # await asyncio.sleep(3)
+#     print(data.model_dump()['update_data'])
+#     return {
+#         "status": 200,
+#         "message": "успешно ебать 👍 поздравляю"
+#     }
+# except Exception as e:
+#     raise HTTPException(status_code=400, detail=f"Ошибка обновления данных. Error: {e}")

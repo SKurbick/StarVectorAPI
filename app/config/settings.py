@@ -12,7 +12,8 @@ class Settings(BaseSettings):
     TOKENS_FILE_NAME: str
     APP_IP_ADDRESS: str
     APP_PORT: int
-
+    FRONTEND_API_ADDRESS: str
+    FRONTEND_PORT: int
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

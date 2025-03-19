@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.infrastructure.database import init_db, close_db
-from app.api.endpoints import article_router, card_data_router, price_discount_router, orders_revenues_router, unit_economics_router, net_profit_router
+from app.api.endpoints import (article_router,card_data_router, price_discount_router,
+                               orders_revenues_router, unit_economics_router, net_profit_router, percent_by_tax_router)
 from contextlib import asynccontextmanager
 import uvicorn
 from app.config.settings import settings
@@ -26,11 +27,12 @@ app.include_router(price_discount_router, prefix="/api")
 app.include_router(orders_revenues_router, prefix="/api")
 app.include_router(unit_economics_router, prefix="/api")
 app.include_router(net_profit_router, prefix="/api")
+app.include_router(percent_by_tax_router, prefix="/api")
 
 origins = [
-    # "http://192.168.2.47:5173",
-    # "*",
     "http://192.168.2.49:5173"
+    f"http://{settings.FRONTEND_API_ADDRESS}:{settings.FRONTEND_PORT}"
+
 ]
 
 app.add_middleware(

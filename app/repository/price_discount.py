@@ -29,7 +29,7 @@ class PriceDiscountRepository:
                     SELECT * FROM UNNEST($1::INT[], $2::INT[], $3::INT[]);
                 """, a_ids, prices, discounts)
 
-                # Шаг 3: Обновляем основную таблицу
+                # Шаг 3: Обновляем таблицу в card_data
                 await conn.execute("""
                     UPDATE card_data AS cd
                     SET 
@@ -37,4 +37,13 @@ class PriceDiscountRepository:
                         discount = COALESCE(t.discount, cd.discount)
                     FROM _temp_articles AS t
                     WHERE cd.article_id = t.article_id;
+                """)
+                # Шаг 4: Обновляем таблицу unit_economics
+                await conn.execute("""
+                    UPDATE unit_economics AS ue
+                    SET 
+                        price = COALESCE(t.price, ue.price),
+                        discount = COALESCE(t.discount, ue.discount)
+                    FROM _temp_articles AS t
+                    WHERE ue.article_id = t.article_id;
                 """)

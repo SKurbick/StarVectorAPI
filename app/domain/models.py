@@ -172,7 +172,7 @@ class PriceDiscountResponseModel(BaseModel):
         json_schema_extra = {
             "example": {
                 "update_data": {
-                    "ТОНОЯН": {
+                    "ЛОПАТИНА": {
                         "data": [
                             {
                                 "nmID": 1234,
@@ -263,3 +263,11 @@ class ProfitData(BaseModel):
 
 class NetProfitResponseModel(ArticleBase):
     data: List[ProfitData]
+
+
+class PercentByTaxResponseModel(ArticleBase):
+    percent_by_tax: int
+
+
+class DefaultPercentByTaxResponseModel(BaseModel):
+    default_percent_by_tax: int
