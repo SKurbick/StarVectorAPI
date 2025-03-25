@@ -271,3 +271,7 @@ class PercentByTaxResponseModel(ArticleBase):
 
 class DefaultPercentByTaxResponseModel(BaseModel):
     default_percent_by_tax: int
+
+
+class StocksQuantity(ArticleBase):
+    data: Dict[str,Union[None, int]]
