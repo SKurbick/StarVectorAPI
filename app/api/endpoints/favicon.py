@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from starlette.responses import RedirectResponse, FileResponse
+from fastapi.responses import FileResponse
 
 from fastapi.staticfiles import StaticFiles
 

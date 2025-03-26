@@ -1,7 +1,7 @@
 from datetime import datetime, date
 from typing import Optional, List, Union, Dict, Literal
 
-from pydantic import BaseModel, field_validator, model_validator, RootModel
+from pydantic import BaseModel, field_validator, model_validator, RootModel, field_validator
 from pydantic import ConfigDict
 
 from pydantic import Field
@@ -82,6 +82,7 @@ class CostPrice(BaseModel):
     local_vendor_code: str = field_configs['local_vendor_code']
     purchase_price: Optional[int] = field_configs['purchase_price']
     status_by_lvc: Optional[str] = field_configs['status_by_lvc']
+
     # purchase_price: Optional[int] = Field(default=None, description="Закупочная стоимость")
     # status_by_lvc: Optional[str] = Field(default=None, description="Состояние если нет закупочной стоимости")
 
@@ -251,6 +252,26 @@ class UnitEconomics(PriceDiscountDB):
     marginality_percent: Union[float, None]
     net_profit: Union[float, None]
     cost_price: Union[int, None]
+
+    @field_validator(
+        'discounted_price',
+        'will_be_credited_bank_account',
+        'logistic_from_wb_wh_to_opp',
+        'commission_wb',
+        'simplified_tax_system',
+        'will_receive_wb',
+        'wb_expenses',
+        'profitability_percent',
+        'marginality_percent',
+        'net_profit',
+        mode='before')
+    def round_float_values(cls, v: Optional[Union[float, str]]) -> Optional[float]:
+        if v is None or v == '':
+            return None
+        try:
+            return round(float(v), 2)
+        except (ValueError, TypeError):
+            return None
 
 
 class PeriodRequestModel(BaseModel):
