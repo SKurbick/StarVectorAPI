@@ -30,7 +30,7 @@ app.include_router(net_profit_router, prefix="/api")
 app.include_router(percent_by_tax_router, prefix="/api")
 app.include_router(stocks_quantity_router, prefix="/api")
 origins = [
-    "http://192.168.2.49:5173"
+    # "http://192.168.2.49:5173",
     f"http://{settings.FRONTEND_API_ADDRESS}:{settings.FRONTEND_PORT}"
 
 ]
