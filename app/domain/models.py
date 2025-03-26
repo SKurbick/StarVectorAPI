@@ -23,8 +23,8 @@ field_configs = {
     "vendor_code": Field(..., description="Артикул продавца"),
     "local_vendor_code": Field(..., description="Wild. Локальный артикул продавца"),
     "photo_link": Field(..., description="Ссылка на фотографию товара"),
-    "purchase_price": Field(..., description="Закупочная стоимость"),
-    "status_by_lvc": Field(..., description="Состояние если нет закупочной стоимости")
+    "purchase_price": Field(default=None, description="Закупочная стоимость"),
+    "status_by_lvc": Field(default=None, description="Состояние если нет закупочной стоимости")
 }
 
 
@@ -80,8 +80,10 @@ class CardData(ArticleBase):
 
 class CostPrice(BaseModel):
     local_vendor_code: str = field_configs['local_vendor_code']
-    purchase_price: Optional[int] = [field_configs['purchase_price'], None]
-    status_by_lvc: Optional[str] = [field_configs['status_by_lvc'], None]
+    purchase_price: Optional[int] = field_configs['purchase_price']
+    status_by_lvc: Optional[str] = field_configs['status_by_lvc']
+    # purchase_price: Optional[int] = Field(default=None, description="Закупочная стоимость")
+    # status_by_lvc: Optional[str] = Field(default=None, description="Состояние если нет закупочной стоимости")
 
     class Config:
         json_schema_extra = {
@@ -274,4 +276,13 @@ class DefaultPercentByTaxResponseModel(BaseModel):
 
 
 class StocksQuantity(ArticleBase):
-    data: Dict[str,Union[None, int]]
+    data: Dict[str, Union[None, int]]
+
+
+class SkuAmountResponseModel(BaseModel):
+    sku: str
+    amount: int
+
+
+class UpdateStocksQuantityResponseModel(BaseModel):
+    stocks: List[SkuAmountResponseModel]

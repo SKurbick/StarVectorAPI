@@ -1,16 +1,65 @@
+import asyncio
 import datetime
-from typing import List
+from pprint import pprint
+from typing import List, Dict
 
+from app.config.settings import get_wb_tokens
 from app.repository import StocksQuantityRepository
-from app.domain.models import StocksQuantity
+from app.domain.models import StocksQuantity, UpdateStocksQuantityResponseModel
+from app.infrastructure.WildberriesAPI.marketplace import WarehouseMarketplaceWB, LeftoversMarketplace
 
 
 class StocksQuantityService:
-    def __init__(self, stocks_quantity: StocksQuantityRepository):
-        self.stocks_quantity = stocks_quantity
+    def __init__(self, stocks_quantity_repository: StocksQuantityRepository):
+        self.stocks_quantity_repository = stocks_quantity_repository
 
     async def get_all_data(self) -> List[StocksQuantity]:
-        return await self.stocks_quantity.get_all_data()
+        return await self.stocks_quantity_repository.get_all_data()
 
-    # async def get_orders_revenues(self) -> List[OrdersRevenues]:  # todo решить за какое время
-    #     return await self.orders_revenues_repository.get_orders_revenues()
+    #
+    async def edit_stocks_quantity(self, edit_data: Dict[str, UpdateStocksQuantityResponseModel]):
+        api_tokens = await get_wb_tokens()  # получение всех токенов
+        tasks = []
+        actualize_data = {}
+        # todo запрос на изменение остатков
+        print("TEST", edit_data['ХАЧАТРЯН'].model_dump(include={"stocks": {"__all__": {"sku"}}}))
+        print("TEST", edit_data['ХАЧАТРЯН'].model_dump()['stocks'])
+
+        for account, account_data in edit_data.items():
+            skus = [stocks_data.sku for stocks_data in account_data.stocks]
+            actualize_data[account] = skus
+            token = api_tokens[account.capitalize()]
+            warehouses = await WarehouseMarketplaceWB(token=token).get_account_warehouse()
+            qty_edit = LeftoversMarketplace(token=token, account=account)
+            print(account)
+            print(account_data.model_dump())
+            task = asyncio.create_task(qty_edit.edit_amount_from_warehouses(warehouse_id=warehouses[0]["id"],
+                                                                            edit_barcodes_list=account_data.model_dump()['stocks']))
+
+            print(actualize_data)
+
+            tasks.append(task)
+
+        gather_result = await asyncio.gather(*tasks)  # возможно пригодится ответ от WB
+
+        tasks = []
+        for account, account_data in actualize_data.items():
+            token = api_tokens[account.capitalize()]
+            qty_state = LeftoversMarketplace(token, account=account)
+            warehouses = await WarehouseMarketplaceWB(token=token).get_account_warehouse()
+            task = asyncio.create_task(qty_state.get_amount_from_warehouses(warehouse_id=warehouses[0]['id'], barcodes=account_data))
+            tasks.append(task)
+        gather_result = await asyncio.gather(*tasks)  # получение новых остатков
+        data_to_update = []
+        last_datetime = datetime.datetime.today()
+        for gr in gather_result:
+            for account, account_data in gr.items():
+                for quantity_data in account_data:
+                    print(account_data)
+                    data_to_update.append(
+                        (account, str(quantity_data['sku']), "ФБС", quantity_data['amount'], last_datetime)
+                    )
+
+        pprint(data_to_update)
+        # todo обновление остатков в БД
+        await self.stocks_quantity_repository.update_fbs_data(data_to_update)

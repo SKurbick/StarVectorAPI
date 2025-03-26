@@ -10,10 +10,7 @@ from app.infrastructure.WildberriesAPI.price_discount import ListOfGoodsPricesAn
 
 
 class PriceDiscountService:
-    def __init__(
-            self,
-            price_discount_repository: PriceDiscountRepository,
-    ):
+    def __init__(self,price_discount_repository: PriceDiscountRepository,):
         self.price_discount_repository = price_discount_repository
 
     async def update(self, data: PriceDiscountResponseModel):
