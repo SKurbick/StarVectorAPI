@@ -7,6 +7,7 @@ from .net_profit import router as net_profit_router
 from .percent_by_tax import router as percent_by_tax_router
 from .stocks_quantity import router as stocks_quantity_router
 from .favicon import router as favicon_router
+from .turnover import router as turnover_router
 __all__ = [
     'card_data_router',
     'article_router',
@@ -16,5 +17,6 @@ __all__ = [
     'net_profit_router',
     'percent_by_tax_router',
     'stocks_quantity_router',
-    'favicon_router'
+    'favicon_router',
+    'turnover_router',
 ]

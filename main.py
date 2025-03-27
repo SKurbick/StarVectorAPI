@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.infrastructure.database import init_db, close_db
-from app.api.endpoints import (article_router, card_data_router, price_discount_router, favicon_router,
+from app.api.endpoints import (article_router, card_data_router, price_discount_router, favicon_router, turnover_router,
                                orders_revenues_router, unit_economics_router, net_profit_router, percent_by_tax_router, stocks_quantity_router)
 from contextlib import asynccontextmanager
 import uvicorn
@@ -21,6 +21,7 @@ async def lifespan(app: FastAPI):
 
 # Создаем экземпляр FastAPI с использованием lifespan
 app = FastAPI(lifespan=lifespan, title="VectorAPI")
+app.include_router(turnover_router, prefix="/api")
 app.include_router(card_data_router, prefix="/api")
 app.include_router(article_router, prefix="/api")
 app.include_router(price_discount_router, prefix="/api")

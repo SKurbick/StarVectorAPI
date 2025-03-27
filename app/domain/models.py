@@ -307,3 +307,83 @@ class SkuAmountResponseModel(BaseModel):
 
 class UpdateStocksQuantityResponseModel(BaseModel):
     stocks: List[SkuAmountResponseModel]
+
+
+# Модель для данных внутри каждого федерального округа
+class FederalDistrictData(BaseModel):
+    daily_average: Optional[float] = None
+    balance_for_number_of_days: Optional[float] = None
+
+    @field_validator('daily_average', 'balance_for_number_of_days', mode='before')
+    def round_float_values(cls, v: Optional[Union[float, str]]) -> Optional[float]:
+        if v is None or v == '':
+            return 0
+        try:
+            return round(float(v), 2)
+        except (ValueError, TypeError):
+            return None
+
+
+# Модель для данных по каждому федеральному округу (словарь с ключами - названиями округов)
+class TurnoverByFederalDistrict(RootModel):
+    root: Dict[str, FederalDistrictData]
+
+    def __getitem__(self, item):
+        return self.root[item]
+
+    def __iter__(self):
+        return iter(self.root)
+
+    def __len__(self):
+        return len(self.root)
+
+
+# Модель для всего набора данных (внешний словарь с ключами - числами)
+class TurnoverByFederalDistrictData(RootModel):
+    root: Dict[int, TurnoverByFederalDistrict]
+
+    def __getitem__(self, item):
+        return self.root[item]
+
+    def __iter__(self):
+        return iter(self.root)
+
+    def __len__(self):
+        return len(self.root)
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                123455677: {
+                    "Центральный":
+                        {"daily_average": 500,
+                         "balance_for_number_of_days": 50},
+                    "Северо-Кавказский":
+                        {"daily_average": 500,
+                         "balance_for_number_of_days": 50},
+                },
+                765432112: {
+                    "Центральный":
+                        {"daily_average": 500,
+                         "balance_for_number_of_days": 50},
+                    "Приволжский":
+                        {"daily_average": 500,
+                         "balance_for_number_of_days": 50},
+                },
+            }
+        }
+
+
+def transform_asyncpg_data(asyncpg_data: List[dict]) -> Dict[int, Dict[str, FederalDistrictData]]:
+    transformed_data = {}
+    for row in asyncpg_data:
+        id_ = row["article_id"]
+        district = row["federal_district"]
+        data = FederalDistrictData(
+            daily_average=row["daily_average"],
+            balance_for_number_of_days=row["balance_for_number_of_days"]
+        )
+        if id_ not in transformed_data:
+            transformed_data[id_] = {}
+        transformed_data[id_][district] = data
+    return transformed_data
