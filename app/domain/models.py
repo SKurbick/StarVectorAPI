@@ -24,7 +24,8 @@ field_configs = {
     "local_vendor_code": Field(..., description="Wild. Локальный артикул продавца"),
     "photo_link": Field(..., description="Ссылка на фотографию товара"),
     "purchase_price": Field(default=None, description="Закупочная стоимость"),
-    "status_by_lvc": Field(default=None, description="Состояние если нет закупочной стоимости")
+    "status_by_lvc": Field(default=None, description="Состояние если нет закупочной стоимости"),
+    "rating": Field(default=None, description="Рейтинг")
 }
 
 
@@ -57,6 +58,7 @@ class CardData(ArticleBase):
     barcode: Union[str, None] = field_configs['barcode']
     logistic_from_wb_wh_to_opp: Union[float, None] = field_configs['logistic_from_wb_wh_to_opp']
     commission_wb: Union[float, None] = field_configs['commission_wb']
+    rating: Union[float, None] = field_configs['commission_wb']
 
     # last_update_time: datetime = field_configs['last_update_time']
 
@@ -122,6 +124,7 @@ class ArticleDetails(AccountBase, CostPrice, CardData):
                  "barcode": "123456789123",
                  "logistic_from_wb_wh_to_opp": 123.12,
                  "commission_wb": 12.12,
+                 "rating": 4.99,
                  },
             ]
         }
@@ -311,8 +314,8 @@ class UpdateStocksQuantityResponseModel(BaseModel):
 
 # Модель для данных внутри каждого федерального округа
 class FederalDistrictData(BaseModel):
-    daily_average: Optional[float] = None
-    balance_for_number_of_days: Optional[float] = None
+    daily_average: Union[float, None]
+    balance_for_number_of_days: Union[float, None]
 
     @field_validator('daily_average', 'balance_for_number_of_days', mode='before')
     def round_float_values(cls, v: Optional[Union[float, str]]) -> Optional[float]:
