@@ -47,5 +47,6 @@ class TurnoverRepository:
             async with conn.transaction():
                 await conn.execute(temp_table_query, start_date, end_date)
                 result = await conn.fetch(select_avg_query)
+                await conn.execute("""DROP TABLE temp_avg_data;""")
         transform_data = transform_asyncpg_data(result)
         return TurnoverByFederalDistrictData.model_validate(transform_data)
