@@ -390,3 +390,23 @@ def transform_asyncpg_data(asyncpg_data: List[dict]) -> Dict[int, Dict[str, Fede
             transformed_data[id_] = {}
         transformed_data[id_][district] = data
     return transformed_data
+
+
+class WeeklyOrdersResponse(RootModel[Dict[int, Dict[str, int]]]):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [{
+                # "description": "Ключи словаря - целые числа (article_id)",
+                "value": {
+                    12345678: {
+                        "03.24-03.30": 15000,
+                        "03.17-03.23": 7800
+                    },
+                    87654321: {
+                        "03.24-03.30": 4200
+                    }
+                },
+                "summary": "Пример успешного ответа"
+            }]
+        }
+    )

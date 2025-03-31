@@ -10,6 +10,19 @@ class OrdersRevenuesRepository:
     def __init__(self, pool: Pool):
         self.pool = pool
 
+    async def get_last_week_data(self, start, end):
+        query = """
+        SELECT 
+            article_id,
+            SUM(orders_sum_rub) as total_orders_sum_rub
+        FROM orders_revenues
+        WHERE date BETWEEN $1 AND $2
+        GROUP BY article_id
+        ORDER BY total_orders_sum_rub desc;
+        """
+        async with self.pool.acquire() as conn:
+            return await conn.fetch(query, start, end)
+
     async def get_data_by_period(self, period: PeriodRequestModel) -> List[OrdersRevenuesResponseModel]:
         async with self.pool.acquire() as conn:
             query = """
