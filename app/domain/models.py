@@ -255,6 +255,8 @@ class UnitEconomics(PriceDiscountDB):
     marginality_percent: Union[float, None]
     net_profit: Union[float, None]
     cost_price: Union[int, None]
+    net_profit_by_personal_terms: Union[float, None]
+    marginality_percent_on_personal_terms: Union[float, None]
 
     @field_validator(
         'discounted_price',
@@ -267,6 +269,8 @@ class UnitEconomics(PriceDiscountDB):
         'profitability_percent',
         'marginality_percent',
         'net_profit',
+        'net_profit_by_personal_terms',
+        'marginality_percent_on_personal_terms',
         mode='before')
     def round_float_values(cls, v: Optional[Union[float, str]]) -> Optional[float]:
         if v is None or v == '':
