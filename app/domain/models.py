@@ -48,6 +48,7 @@ class ArticleInDB(ArticleBase, AccountBase):
 
 
 class CardData(ArticleBase):
+    local_card_name: Union[str, None]
     manager: Union[str, None]
     subject_name: Union[str, None] = field_configs['subject_name']
     photo_link: Union[str, None] = field_configs['photo_link']
@@ -66,6 +67,8 @@ class CardData(ArticleBase):
     class Config:
         json_schema_extra = {
             "examples": [{
+                "local_card_name": "Мультиварка супер power editions пяу мяу",
+                "manager": "Андрей Мухоморов",
                 "article_id": 174998583,
                 "subject_name": "Мультиварки",
                 "photo_link": "https://basket-12.wbbasket.ru/vol1749/part174998/174998583/images/tm/1.webp",
@@ -113,8 +116,9 @@ class ArticleDetails(AccountBase, CostPrice, CardData):
         json_schema_extra = {
             "examples": [
                 {"article_id": 174998583,
-                 "account": "ТОНОЯН",
+                 "local_card_name": "Мультиварка супер power editions пяу мяу",
                  "manager": "Андрей Мухоморов",
+                 "account": "ТОНОЯН",
                  "local_vendor_code": "wild123",
                  # "purchase_price": 1999,
                  "status_by_lvc": None,
