@@ -50,6 +50,7 @@ class ArticleRepository:
                 cd.height,
                 cd.barcode,
                 cd.rating,
+                cd.manager,
                 -- Добавляем остальные нужные поля из card_data...
                 crfs.stocks_quantity
             FROM 

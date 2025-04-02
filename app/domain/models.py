@@ -48,6 +48,7 @@ class ArticleInDB(ArticleBase, AccountBase):
 
 
 class CardData(ArticleBase):
+    manager: Union[str, None]
     subject_name: Union[str, None] = field_configs['subject_name']
     photo_link: Union[str, None] = field_configs['photo_link']
     # price: Union[int, None] = field_configs['price']
@@ -113,6 +114,7 @@ class ArticleDetails(AccountBase, CostPrice, CardData):
             "examples": [
                 {"article_id": 174998583,
                  "account": "ТОНОЯН",
+                 "manager": "Андрей Мухоморов",
                  "local_vendor_code": "wild123",
                  # "purchase_price": 1999,
                  "status_by_lvc": None,
