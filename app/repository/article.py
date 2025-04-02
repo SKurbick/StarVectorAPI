@@ -15,30 +15,54 @@ class ArticleRepository:
         async with self.pool.acquire() as conn:
             query = """
             WITH LatestCostPrice AS (
+                SELECT 
+                    local_vendor_code,
+                    purchase_price,
+                    status_by_lvc,
+                    created_at
+                FROM (
                     SELECT 
-                        *,
+                        local_vendor_code,
+                        purchase_price,
+                        status_by_lvc,
+                        created_at,
                         ROW_NUMBER() OVER (
                             PARTITION BY local_vendor_code 
                             ORDER BY created_at DESC
                         ) AS rn
                     FROM cost_price
-                )
-                SELECT 
-                    article.account, 
-                    lcp.purchase_price,
-                    lcp.status_by_lvc,
-                    lcp.local_vendor_code,
-                    cd.*
-                FROM 
-                    article
-                INNER JOIN 
-                    LatestCostPrice lcp
-                ON 
-                    article.local_vendor_code = lcp.local_vendor_code
-                join card_data cd
-                on article.nm_id = cd.article_id
-                WHERE 
-                    lcp.rn = 1;
+                ) t
+                WHERE rn = 1
+            )
+            SELECT 
+                a.account, 
+                lcp.purchase_price,
+                lcp.status_by_lvc,
+                lcp.local_vendor_code,
+                -- Явно перечисляем нужные поля из card_data вместо cd.*
+                cd.article_id,
+                cd.barcode,
+                cd.article_id,
+                cd.subject_name,
+                cd.photo_link,
+                cd.length,
+                cd.width,
+                cd.height,
+                cd.barcode,
+                cd.rating,
+                -- Добавляем остальные нужные поля из card_data...
+                crfs.stocks_quantity
+            FROM 
+                article a
+            INNER JOIN 
+                LatestCostPrice lcp
+                ON a.local_vendor_code = lcp.local_vendor_code
+            INNER JOIN 
+                card_data cd
+                ON a.nm_id = cd.article_id
+            LEFT JOIN 
+                current_real_fbs_stocks_qty crfs 
+                ON a.local_vendor_code = crfs.local_vendor_code;
                             """
             rows = await conn.fetch(query)
             result = []

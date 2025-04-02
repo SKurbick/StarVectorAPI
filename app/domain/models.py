@@ -50,14 +50,14 @@ class ArticleInDB(ArticleBase, AccountBase):
 class CardData(ArticleBase):
     subject_name: Union[str, None] = field_configs['subject_name']
     photo_link: Union[str, None] = field_configs['photo_link']
-    price: Union[int, None] = field_configs['price']
-    discount: Union[int, None] = field_configs['discount']
+    # price: Union[int, None] = field_configs['price']
+    # discount: Union[int, None] = field_configs['discount']
     length: Union[int, None] = field_configs['length']
     width: Union[int, None] = field_configs['width']
     height: Union[int, None] = field_configs['height']
     barcode: Union[str, None] = field_configs['barcode']
-    logistic_from_wb_wh_to_opp: Union[float, None] = field_configs['logistic_from_wb_wh_to_opp']
-    commission_wb: Union[float, None] = field_configs['commission_wb']
+    # logistic_from_wb_wh_to_opp: Union[float, None] = field_configs['logistic_from_wb_wh_to_opp']
+    # commission_wb: Union[float, None] = field_configs['commission_wb']
     rating: Union[float, None] = field_configs['commission_wb']
 
     # last_update_time: datetime = field_configs['last_update_time']
@@ -82,7 +82,7 @@ class CardData(ArticleBase):
 
 class CostPrice(BaseModel):
     local_vendor_code: str = field_configs['local_vendor_code']
-    purchase_price: Optional[int] = field_configs['purchase_price']
+    # purchase_price: Optional[int] = field_configs['purchase_price']
     status_by_lvc: Optional[str] = field_configs['status_by_lvc']
 
     # purchase_price: Optional[int] = Field(default=None, description="Закупочная стоимость")
@@ -106,25 +106,28 @@ class CostPrice(BaseModel):
 
 
 class ArticleDetails(AccountBase, CostPrice, CardData):
+    stocks_quantity: Union[int, None]
+
     class Config:
         json_schema_extra = {
             "examples": [
                 {"article_id": 174998583,
                  "account": "ТОНОЯН",
                  "local_vendor_code": "wild123",
-                 "purchase_price": 1999,
+                 # "purchase_price": 1999,
                  "status_by_lvc": None,
                  "subject_name": "Фены",
                  "photo_link": "https://basket-12.wbbasket.ru/vol1749/part174998/174998583/images/tm/1.webp",
-                 "price": 123,
-                 "discount": 123,
+                 # "price": 123,
+                 # "discount": 123,
                  "length": 12,
                  "width": 12,
                  "height": 12,
                  "barcode": "123456789123",
-                 "logistic_from_wb_wh_to_opp": 123.12,
-                 "commission_wb": 12.12,
+                 # "logistic_from_wb_wh_to_opp": 123.12,
+                 # "commission_wb": 12.12,
                  "rating": 4.99,
+                 "stocks_quantity": 123
                  },
             ]
         }
