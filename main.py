@@ -33,6 +33,7 @@ app.include_router(stocks_quantity_router, prefix="/api")
 app.include_router(favicon_router)
 origins = [
     # "http://192.168.2.49:5173",
+    "*",  # временное решение
     f"http://{settings.FRONTEND_API_ADDRESS}:{settings.FRONTEND_PORT}"
 
 ]
