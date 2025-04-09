@@ -1,7 +1,13 @@
 version: '3.8'
 
 services:
-  app:
-    build: .
+  star_vector_api:
+    build: ./StarVectorAPI  # Путь к Dockerfile FastAPI
     ports:
-      - "8002:8002"
+      - "8000:8000"
+    networks:
+      - dumpnewvectordbtest_default  # Имя сети из docker inspect
+
+networks:
+  dumpnewvectordbtest_default:
+    external: true  # Используем существующую сеть
