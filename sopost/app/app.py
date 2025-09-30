@@ -4,16 +4,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api import sopost_router
+from infrastructure.database import init_db, close_db
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Инициализация пула соединений при старте приложения
-    pass
+    pool = await init_db()
+    app.state.pool = pool
 
     yield
     # Закрытие пула соединений при завершении работы приложения
-    pass
+    await close_db(pool)
 
 
 origins = [
