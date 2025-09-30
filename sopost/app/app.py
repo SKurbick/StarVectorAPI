@@ -3,6 +3,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from api import sopost_router
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -21,7 +23,6 @@ origins = [
 
 app = FastAPI(lifespan=lifespan, title="SopostAPI")
 
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,  # Список разрешённых origin
@@ -29,3 +30,5 @@ app.add_middleware(
     allow_methods=["*"],  # Разрешить все HTTP методы (GET, POST, PUT, DELETE и т.д.)
     allow_headers=["*"],  # Разрешить все заголовки
 )
+
+app.include_router(sopost_router)
