@@ -17,29 +17,32 @@ class ProductRepository:
         """Получить список товаров с группировкой по предметам."""
         async with self.pool.acquire() as connection:
             query = """
-            WITH distinct_vendors AS (
-                SELECT DISTINCT ON (local_vendor_code)
-                    nm_id,
-                    local_vendor_code
-                FROM article
-            )
             SELECT
-                cd.subject_name,
                 p.id,
                 p.name,
                 p.photo_link,
+                cd.article_id,
+                cd.subject_name,
+                cd.photo_link as card_photo_link,
+                cd.price,
+                cd.discount,
                 cd.length,
                 cd.width,
                 cd.height,
+                cd.barcode,
+                cd.rating,
                 cd.manager
             FROM 
                 products p
-            LEFT JOIN
-                distinct_vendors dv
-                ON p.id = dv.local_vendor_code
+            LEFT JOIN (
+                select
+                    a.nm_id,
+                    a.local_vendor_code 
+                from article a
+            ) lvc on p.id = lvc.local_vendor_code
             LEFT JOIN
                 card_data cd
-                ON dv.nm_id = cd.article_id
+                ON lvc.nm_id = cd.article_id
             ORDER BY
                 cd.subject_name,
                 p.id
