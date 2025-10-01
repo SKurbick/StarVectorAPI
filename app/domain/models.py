@@ -25,7 +25,10 @@ field_configs = {
     "photo_link": Field(..., description="Ссылка на фотографию товара"),
     "purchase_price": Field(default=None, description="Закупочная стоимость"),
     "status_by_lvc": Field(default=None, description="Состояние если нет закупочной стоимости"),
-    "rating": Field(default=None, description="Рейтинг")
+    "rating": Field(default=None, description="Рейтинг"),
+    "manager": Field(..., description="Мэнеджер"),
+    "product_name": Field(..., description="Наименование товара"),
+    "products_list": Field(..., description="Список товаров"),
 }
 
 
@@ -421,5 +424,62 @@ class WeeklyOrdersResponse(RootModel[Dict[int, Dict[str, int]]]):
                 },
                 "summary": "Пример успешного ответа"
             }]
+        }
+    )
+
+
+class ProductResponse(BaseModel):
+    """Модель ответа с данными товара."""
+
+    id: str = field_configs["local_vendor_code"]
+    name: str = field_configs["product_name"] 
+    photo_link: str | None = field_configs["photo_link"]
+    length: int | None = field_configs["length"]
+    width: int | None = field_configs["width"]
+    height: int | None = field_configs["height"]
+    manager: str | None = field_configs["manager"]
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "id": "wild123",
+                    "name": "Монитор Redmi",
+                    "photo_link": "https://example.com/images/tm/1.webp",
+                    "length": 100,
+                    "width": 50,
+                    "height": 20,
+                    "manager": "Иванов Иван"
+                }
+            ]
+        }
+    )
+
+
+class SubjectDataWithProductsResponse(BaseModel):
+    """Модель ответа с данными предмета и списком товаров."""
+
+    subject_name: str | None = field_configs["subject_name"]
+    products: list[ProductResponse] = field_configs["products_list"]
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "subject_name": "Мониторы",
+                    "products": [
+                        ProductResponse.model_config['json_schema_extra']['examples'][0],
+                        {
+                            "id": "wild456",
+                            "name": "Монитор ACER",
+                            "photo_link": "https://example.com/images/tm/2.webp", 
+                            "length": 300,
+                            "width": 200,
+                            "height": 15,
+                            "manager": "Сидорова Мария"
+                        }
+                    ]
+                }
+            ]
         }
     )

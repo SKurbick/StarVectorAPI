@@ -1,17 +1,20 @@
 from asyncpg import Pool, Record
 
-from domain.shemas.sopost import SubjectsResponse
+from app.domain.models import SubjectDataWithProductsResponse
 
 
-class SopostRepository:
+class ProductRepository:
+    """Репозиторий для работы с товарами в базе данных."""
+
     def __init__(self, pool: Pool):
         self.pool = pool
 
-    async def get_sopost_items(
+    async def get_products_grouped_by_subjects(
         self,
-        limit: int = 100, 
+        limit: int = 1000,
         offset: int = 0,
-    ) -> list[SubjectsResponse]:
+    ) -> list[SubjectDataWithProductsResponse]:
+        """Получить список товаров с группировкой по предметам."""
         async with self.pool.acquire() as connection:
             query = """
             WITH distinct_vendors AS (
@@ -44,26 +47,27 @@ class SopostRepository:
             OFFSET $2;
             """
 
-            rows = await connection.fetch(query, limit, offset)
-        return self.__rows_to_subject_of_sopost_items(rows)
-    
+            data = await connection.fetch(query, limit, offset)
+
+        return self.__transform_asyncpg_data(data)
+
     @staticmethod
-    def __rows_to_subject_of_sopost_items(
-        rows: list[Record]
-    ) -> SubjectsResponse:
-        """Конвертировать объекты Record в список SopostItemResponse."""
+    def __transform_asyncpg_data(
+        data: list[Record]
+    ) -> SubjectDataWithProductsResponse:
+        """Привести сырые данные из БД в структурированный ответ."""
         subjects = {}
 
-        for row in rows:
+        for row in data:
             data = dict(row)
             subject_name = data.pop("subject_name")
 
             subjects.setdefault(subject_name, []).append(data)
 
         return [
-            SubjectsResponse(
+            SubjectDataWithProductsResponse(
                 subject_name=name,
-                sopost_items=items
+                products=products
             )
-            for name, items in subjects.items()
+            for name, products in subjects.items()
         ]
