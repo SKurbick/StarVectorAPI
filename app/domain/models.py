@@ -29,6 +29,7 @@ field_configs = {
     "manager": Field(..., description="Мэнеджер"),
     "product_name": Field(..., description="Наименование товара"),
     "products_list": Field(..., description="Список товаров"),
+    "articles_list": Field(..., description="Список карточек товара"),
 }
 
 
@@ -428,6 +429,31 @@ class WeeklyOrdersResponse(RootModel[Dict[int, Dict[str, int]]]):
     )
 
 
+class ArticleResponse(ArticleBase):
+    """Модель ответа с данными карточки товара."""
+
+    photo_link: str | None = field_configs["photo_link"]
+    price: int | None = field_configs["price"]
+    discount: int | None = field_configs["discount"]
+    barcode: str | None = field_configs["barcode"]
+    rating: float | None = field_configs["rating"]
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "article_id": 176869522,
+                    "photo_link": "https://example.com/images/tm/1.webp",
+                    "price": 10000.00,
+                    "discount": 50,
+                    "barcode": 2038611318861,
+                    "rating": 5,
+                }
+            ]
+        }
+    )
+
+
 class ProductResponse(BaseModel):
     """Модель ответа с данными товара."""
 
@@ -439,6 +465,8 @@ class ProductResponse(BaseModel):
     height: int | None = field_configs["height"]
     manager: str | None = field_configs["manager"]
 
+    articles: list[ArticleResponse] = field_configs["articles_list"]
+
     model_config = ConfigDict(
         json_schema_extra={
             "examples": [
@@ -449,7 +477,18 @@ class ProductResponse(BaseModel):
                     "length": 100,
                     "width": 50,
                     "height": 20,
-                    "manager": "Иванов Иван"
+                    "manager": "Иванов Иван",
+                    "articles": [
+                        ArticleResponse.model_config['json_schema_extra']['examples'][0],
+                        {
+                            "article_id": 176869523,
+                            "photo_link": "https://example.com/images/tm/1.webp",
+                            "price": 10000.00,
+                            "discount": 50,
+                            "barcode": 2038611318861,
+                            "rating": 5,
+                        }
+                    ]
                 }
             ]
         }
@@ -460,6 +499,7 @@ class SubjectDataWithProductsResponse(BaseModel):
     """Модель ответа с данными предмета и списком товаров."""
 
     subject_name: str | None = field_configs["subject_name"]
+
     products: list[ProductResponse] = field_configs["products_list"]
 
     model_config = ConfigDict(
@@ -476,7 +516,18 @@ class SubjectDataWithProductsResponse(BaseModel):
                             "length": 300,
                             "width": 200,
                             "height": 15,
-                            "manager": "Сидорова Мария"
+                            "manager": "Сидорова Мария",
+                            "articles": [
+                                ArticleResponse.model_config['json_schema_extra']['examples'][0],
+                                {
+                                    "article_id": 176869523,
+                                    "photo_link": "https://example.com/images/tm/1.webp",
+                                    "price": 10000.00,
+                                    "discount": 50,
+                                    "barcode": 2038611318861,
+                                    "rating": 5,
+                                }
+                            ]
                         }
                     ]
                 }
