@@ -119,18 +119,25 @@ class ProductRepository:
             if product_id not in subjects_data[subject_name]:
                 subjects_data[subject_name][product_id] = cls.__get_product_dict_from_all_data(row_data)
 
-            article_data = ArticleResponse(
-                **cls.__get_article_dict_from_all_data(row_data)
-            )
+            article_data = cls.__get_article_dict_from_all_data(row_data)
 
-            # добавляем данные о карточке товара в список
-            subjects_data[subject_name][product_id]["articles"].append(article_data)
+            if article_data:
+                new_article = ArticleResponse(
+                    **cls.__get_article_dict_from_all_data(row_data)
+                )
+
+                # добавляем данные о карточке товара в список
+                subjects_data[subject_name][product_id]["articles"].append(new_article)
 
         return subjects_data
     
     @staticmethod
-    def __get_article_dict_from_all_data(data: dict) -> dict[str, Any]:
-        article_id = data["article_id"]
+    def __get_article_dict_from_all_data(data: dict) -> dict[str, Any] | None:
+        article_id = data.get("article_id")
+
+        if not article_id:
+            return None
+
         article_photo_link = data["article_photo_link"]
         price = data["price"]
         discount = data["discount"]
