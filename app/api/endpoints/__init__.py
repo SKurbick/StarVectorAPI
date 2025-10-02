@@ -8,6 +8,9 @@ from .percent_by_tax import router as percent_by_tax_router
 from .stocks_quantity import router as stocks_quantity_router
 from .favicon import router as favicon_router
 from .turnover import router as turnover_router
+from .product import router as product_router
+
+
 __all__ = [
     'card_data_router',
     'article_router',
@@ -19,4 +22,5 @@ __all__ = [
     'stocks_quantity_router',
     'favicon_router',
     'turnover_router',
+    'product_router',
 ]
