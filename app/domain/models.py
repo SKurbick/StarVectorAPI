@@ -13,9 +13,9 @@ field_configs = {
     "subject_name": Field(description="Предмет"),
     "price": Field(description="Цена товара"),
     "discount": Field(description="Скидка на товар"),
-    "length": Field(description="Длина (в см)"),
-    "width": Field(description="Ширина (в см)"),
-    "height": Field(description="Высота (в см)"),
+    "length": Field(description="Длина (в см)", ge=1),
+    "width": Field(description="Ширина (в см)", ge=1),
+    "height": Field(description="Высота (в см)", ge=1),
     "barcode": Field(..., description="Баркод", min_length=8, max_length=128),
     "logistic_from_wb_wh_to_opp": Field(..., description="Логистика от склада WB до ПВЗ", ge=1),
     "commission_wb": Field(..., description="Комиссия WB"),
@@ -26,8 +26,8 @@ field_configs = {
     "purchase_price": Field(default=None, description="Закупочная стоимость"),
     "status_by_lvc": Field(default=None, description="Состояние если нет закупочной стоимости"),
     "rating": Field(default=None, description="Рейтинг"),
-    "manager": Field(..., description="Мэнеджер"),
-    "product_name": Field(..., description="Наименование товара"),
+    "manager": Field(..., description="Мэнеджер", min_length=2, max_length=100),
+    "product_name": Field(..., description="Наименование товара", min_length=2, max_length=255),
     "products_list": Field(..., description="Список товаров"),
     "articles_list": Field(..., description="Список карточек товара"),
 }
@@ -442,11 +442,11 @@ class ArticleResponse(ArticleBase):
         json_schema_extra={
             "examples": [
                 {
-                    "article_id": 176869522,
+                    "article_id": "176869522",
                     "photo_link": "https://example.com/images/tm/1.webp",
                     "price": 10000.00,
                     "discount": 50,
-                    "barcode": 2038611318861,
+                    "barcode": "2038611318861",
                     "rating": 5,
                 }
             ]
@@ -481,11 +481,11 @@ class ProductResponse(BaseModel):
                     "articles": [
                         ArticleResponse.model_config['json_schema_extra']['examples'][0],
                         {
-                            "article_id": 176869523,
+                            "article_id": "176869523",
                             "photo_link": "https://example.com/images/tm/1.webp",
                             "price": 10000.00,
                             "discount": 50,
-                            "barcode": 2038611318861,
+                            "barcode": "2038611318861",
                             "rating": 5,
                         }
                     ]
@@ -520,11 +520,11 @@ class SubjectDataWithProductsResponse(BaseModel):
                             "articles": [
                                 ArticleResponse.model_config['json_schema_extra']['examples'][0],
                                 {
-                                    "article_id": 176869523,
+                                    "article_id": "176869523",
                                     "photo_link": "https://example.com/images/tm/1.webp",
                                     "price": 10000.00,
                                     "discount": 50,
-                                    "barcode": 2038611318861,
+                                    "barcode": "2038611318861",
                                     "rating": 5,
                                 }
                             ]
@@ -534,3 +534,12 @@ class SubjectDataWithProductsResponse(BaseModel):
             ]
         }
     )
+
+
+class CreateProduct(BaseModel):
+    name: str = field_configs["product_name"]
+    photo_link: str | None = field_configs["photo_link"]
+    length: int | None = field_configs["length"]
+    width: int | None = field_configs["width"]
+    height: int | None = field_configs["height"]
+    manager: str | None = field_configs["manager"]
