@@ -21,14 +21,14 @@ class ProductService:
         product_id: str,
         repository: ProductRepository,
     ) -> ProductResponse | None:
-        pass
+        return await repository.get_product(product_id)
 
     async def create_product(
         self,
         repository: ProductRepository,
-        data: CreateProduct
+        data: CreateProduct,
     ) -> ProductResponse:
-        pass
+        return await repository.create_product(data)
 
     async def update_product(
         self,
@@ -36,11 +36,14 @@ class ProductService:
         data: CreateProduct,
         repository: ProductRepository,
     ) -> ProductResponse:
-        pass
+        return repository.update_product(
+            product_id=product_id,
+            data=data,
+        )
 
     async def delete_product(
         self,
         product_id: str,
         repository: ProductRepository,
     ) -> None:
-        pass
+        repository.delete_product(product_id)

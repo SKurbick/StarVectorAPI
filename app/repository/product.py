@@ -2,7 +2,7 @@ from asyncpg import Pool, Record
 from collections import defaultdict
 from typing import Any
 
-from app.domain.models import  ArticleResponse, ProductResponse, SubjectDataWithProductsResponse
+from app.domain.models import  ArticleResponse, ProductResponse, SubjectDataWithProductsResponse, CreateProduct
 
 
 ProductsData = defaultdict[str, str | int | None | list[ArticleResponse]]
@@ -14,6 +14,18 @@ class ProductRepository:
 
     def __init__(self, pool: Pool):
         self.pool = pool
+
+    async def get_product(self, product_id: str) -> ProductResponse:
+        pass
+
+    async def create_product(self, data: CreateProduct) -> ProductResponse:
+        pass
+
+    async def update_product(self, product_id: str, data: CreateProduct) -> ProductResponse:
+        pass
+
+    async def delete_product(self, product_id: str) -> ProductResponse:
+        pass
 
     async def get_products_grouped_by_subjects(
         self,
