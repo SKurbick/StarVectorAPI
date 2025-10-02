@@ -63,7 +63,7 @@ async def delete_product(
     product_id: str,
     service: Annotated[ProductService, Depends(get_product_service)],
 ) -> ResponseMessage:
-    await service.delete(product_id)
+    await service.delete_product(product_id)
 
     return ResponseMessage(
         status=status.HTTP_200_OK,

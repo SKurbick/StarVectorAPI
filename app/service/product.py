@@ -19,24 +19,21 @@ class ProductService:
     async def get_product(
         self,
         product_id: str,
-        repository: ProductRepository,
     ) -> ProductResponse | None:
-        return await repository.get_product(product_id)
+        return await self.repository.get_product(product_id)
 
     async def create_product(
         self,
-        repository: ProductRepository,
         data: CreateProduct,
     ) -> ProductResponse:
-        return await repository.create_product(data)
+        return await self.repository.create_product(data)
 
     async def update_product(
         self,
         product_id: str,
         data: CreateProduct,
-        repository: ProductRepository,
     ) -> ProductResponse:
-        return repository.update_product(
+        return await self.repository.update_product(
             product_id=product_id,
             data=data,
         )
@@ -44,6 +41,5 @@ class ProductService:
     async def delete_product(
         self,
         product_id: str,
-        repository: ProductRepository,
     ) -> None:
-        repository.delete_product(product_id)
+        await self.repository.delete_product(product_id)
