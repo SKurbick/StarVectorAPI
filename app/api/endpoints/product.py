@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, status, HTTPException
 
 from app.dependencies.product import get_product_service
-from app.domain.models import ResponseMessage, CreateProduct, ProductResponse, SubjectDataWithProductsResponse
+from app.domain.models import ResponseMessage, ProductCreate, ProductUpdate, ProductResponse, SubjectDataWithProductsResponse
 from app.service.product import ProductService
 
 router = APIRouter(prefix="/products", tags=["Products"])
@@ -36,7 +36,7 @@ async def get_product(
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_product(
-    data: CreateProduct,
+    data: ProductCreate,
     service: Annotated[ProductService, Depends(get_product_service)],
 ) -> ProductResponse:
     product = await service.create_product(data)
@@ -47,7 +47,7 @@ async def create_product(
 @router.put("/{product_id}", status_code=status.HTTP_200_OK)
 async def update_product(
     product_id: str,
-    data: CreateProduct,
+    data: ProductUpdate,
     service: Annotated[ProductService, Depends(get_product_service)],
 ) -> ProductResponse:
     product = await service.update_product(

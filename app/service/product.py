@@ -1,4 +1,4 @@
-from app.domain.models import CreateProduct, ProductResponse, SubjectDataWithProductsResponse
+from app.domain.models import ProductCreate, ProductUpdate, ProductResponse, SubjectDataWithProductsResponse
 from app.repository.product import ProductRepository
 
 
@@ -20,18 +20,18 @@ class ProductService:
         self,
         product_id: str,
     ) -> ProductResponse | None:
-        return await self.repository.get_product(product_id)
+        return await self.repository.get(product_id)
 
     async def create_product(
         self,
-        data: CreateProduct,
+        data: ProductCreate,
     ) -> ProductResponse:
         return await self.repository.create_product(data)
 
     async def update_product(
         self,
         product_id: str,
-        data: CreateProduct,
+        data: ProductUpdate,
     ) -> ProductResponse:
         return await self.repository.update_product(
             product_id=product_id,

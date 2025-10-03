@@ -1,5 +1,5 @@
 from datetime import datetime, date
-from typing import Optional, List, Union, Dict, Literal
+from typing import Annotated, Optional, List, Union, Dict, Literal
 
 from pydantic import BaseModel, field_validator, model_validator, RootModel, field_validator
 from pydantic import ConfigDict
@@ -429,7 +429,21 @@ class WeeklyOrdersResponse(RootModel[Dict[int, Dict[str, int]]]):
     )
 
 
-class ArticleResponse(ArticleBase):
+class CardDataBase(ArticleBase):
+    """Модель ответа с данными карточки товара."""
+
+    photo_link: str | None = field_configs["photo_link"]
+    price: int | None = field_configs["price"]
+    discount: int | None = field_configs["discount"]
+    barcode: str | None = field_configs["barcode"]
+    rating: float | None = field_configs["rating"]
+
+
+class CardDataDB(CardDataBase):
+    pass
+
+
+class CardDataResponse(CardDataBase):
     """Модель ответа с данными карточки товара."""
 
     photo_link: str | None = field_configs["photo_link"]
@@ -454,18 +468,25 @@ class ArticleResponse(ArticleBase):
     )
 
 
-class ProductResponse(BaseModel):
-    """Модель ответа с данными товара."""
-
-    id: str = field_configs["local_vendor_code"]
-    name: str = field_configs["product_name"] 
+class ProductBase(BaseModel):
+    name: str = field_configs["product_name"]
     photo_link: str | None = field_configs["photo_link"]
     length: int | None = field_configs["length"]
     width: int | None = field_configs["width"]
     height: int | None = field_configs["height"]
     manager: str | None = field_configs["manager"]
 
-    articles: list[ArticleResponse] = field_configs["articles_list"]
+
+class ProductDB(ProductBase):
+    id: str = field_configs["local_vendor_code"]
+    articles: list[CardDataResponse] = field_configs["articles_list"]
+
+
+class ProductResponse(ProductBase):
+    """Модель ответа с данными товара."""
+
+    id: str = field_configs["local_vendor_code"]
+    articles: list[CardDataResponse] = field_configs["articles_list"]
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -479,7 +500,7 @@ class ProductResponse(BaseModel):
                     "height": 20,
                     "manager": "Иванов Иван",
                     "articles": [
-                        ArticleResponse.model_config['json_schema_extra']['examples'][0],
+                        CardDataResponse.model_config['json_schema_extra']['examples'][0],
                         {
                             "article_id": "176869523",
                             "photo_link": "https://example.com/images/tm/1.webp",
@@ -493,6 +514,19 @@ class ProductResponse(BaseModel):
             ]
         }
     )
+
+
+class ProductCreate(ProductBase):
+    pass
+
+
+class ProductUpdate(BaseModel):
+    name: Annotated[str | None, field_configs["product_name"]] = None
+    photo_link: Annotated[str | None, field_configs["photo_link"]] = None
+    length: Annotated[int | None, field_configs["length"]] = None
+    width: Annotated[int | None, field_configs["width"]] = None
+    height: Annotated[int | None, field_configs["height"]] = None
+    manager: Annotated[str | None, field_configs["manager"]] = None
 
 
 class SubjectDataWithProductsResponse(BaseModel):
@@ -518,7 +552,7 @@ class SubjectDataWithProductsResponse(BaseModel):
                             "height": 15,
                             "manager": "Сидорова Мария",
                             "articles": [
-                                ArticleResponse.model_config['json_schema_extra']['examples'][0],
+                                CardDataResponse.model_config['json_schema_extra']['examples'][0],
                                 {
                                     "article_id": "176869523",
                                     "photo_link": "https://example.com/images/tm/1.webp",
@@ -534,12 +568,3 @@ class SubjectDataWithProductsResponse(BaseModel):
             ]
         }
     )
-
-
-class CreateProduct(BaseModel):
-    name: str = field_configs["product_name"]
-    photo_link: str | None = field_configs["photo_link"]
-    length: int | None = field_configs["length"]
-    width: int | None = field_configs["width"]
-    height: int | None = field_configs["height"]
-    manager: str | None = field_configs["manager"]

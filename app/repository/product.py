@@ -3,133 +3,16 @@ from collections import defaultdict
 from typing import Any
 
 from app.domain.models import (
-    ArticleResponse, ProductResponse, 
-    SubjectDataWithProductsResponse, CreateProduct
+    CardDataResponse, ProductResponse, 
+    SubjectDataWithProductsResponse, ProductCreate, ProductUpdate
 )
+from app.crud.product import ProductCRUD
 
-ProductsData = defaultdict[str, str | int | None | list[ArticleResponse]]
+ProductsData = defaultdict[str, str | int | None | list[CardDataResponse]]
 SubjectsData = defaultdict[str, ProductsData]
 
 
-class ProductCRUD:
-    async def get_product(self, product_id: str) -> ProductResponse:
-        query = """
-        SELECT
-            p.id,
-            p.name,
-            p.photo_link,
-            cd.article_id,
-            cd.subject_name,
-            cd.photo_link AS article_photo_link,
-            cd.price,
-            cd.discount,
-            cd.length,
-            cd.width,
-            cd.height,
-            cd.barcode,
-            cd.rating,
-            cd.manager
-        FROM 
-            products p
-        LEFT JOIN (
-            select
-                a.nm_id,
-                a.local_vendor_code 
-            from article a
-        ) lvc on p.id = lvc.local_vendor_code
-        LEFT JOIN
-            card_data cd
-            ON lvc.nm_id = cd.article_id
-        WHERE p.id = $1;
-        """
-
-        async with self.pool.acquire() as connection:
-            rows = await connection.fetch(query, product_id)
-
-        product_data = None
-
-        for row in rows:
-            row_data = dict(row)
-
-            if not product_data:
-                product_data = self.__get_product_dict_from_all_data(row_data)
-
-            article_data = self.__get_article_dict_from_all_data(row_data)
-
-            if article_data:
-                new_article = ArticleResponse(
-                    **article_data
-                )
-
-                # добавляем данные о карточке товара в список
-                product_data["articles"].append(new_article)
-
-        return ProductResponse(**product_data)
-
-    async def create_product(self, data: CreateProduct) -> ProductResponse:
-        query = """
-        INSERT INTO products (id, name, photo_link)
-        VALUES ($1, $2, $3);
-        """
-
-        name = data.name
-        photo_link = data.photo_link
-
-        async with self.pool.acquire() as connection:
-            async with connection.transaction():
-                product_id = f"wild00000"
-
-                row = await connection.fetchval(
-                    query,
-                    product_id,
-                    name,
-                    photo_link,
-                )
-
-            return await self.get_product(product_id)
-
-    async def update_product(self, product_id: str, data: CreateProduct) -> ProductResponse:
-        query = """
-        UPDATE products 
-        SET 
-            name = $2,
-            photo_link = $3
-        WHERE id = $1;
-        """
-
-        name = data.name
-        photo_link = data.photo_link
-
-        async with self.pool.acquire() as connection:
-            async with connection.transaction():
-                product_id = f"wild00000"
-
-                row = await connection.fetchval(
-                    query,
-                    product_id,
-                    name,
-                    photo_link,
-                )
-
-            return await self.get_product(product_id)
-
-    async def delete_product(self, product_id: str) -> ProductResponse:
-        query = """
-        DELETE FROM products
-        WHERE id = $1;
-        """
-
-        async with self.pool.acquire() as connection:
-            async with connection.transaction():
-                product_id = f"wild00000"
-
-                row = await connection.fetchval(
-                    query,
-                    product_id,
-                )
-
-
-class ProductRepository:
+class ProductRepository(ProductCRUD):
     """Репозиторий для работы с товарами в базе данных."""
 
     def __init__(self, pool: Pool):
@@ -180,7 +63,7 @@ class ProductRepository:
             article_data = self.__get_article_dict_from_all_data(row_data)
 
             if article_data:
-                new_article = ArticleResponse(
+                new_article = CardDataResponse(
                     **article_data
                 )
 
@@ -189,7 +72,7 @@ class ProductRepository:
 
         return ProductResponse(**product_data)
 
-    async def create_product(self, data: CreateProduct) -> ProductResponse:
+    async def create_product(self, data: ProductCreate) -> ProductResponse:
         query = """
         INSERT INTO products (id, name, photo_link)
         VALUES ($1, $2, $3);
@@ -211,7 +94,7 @@ class ProductRepository:
             
             return await self.get_product(product_id)
 
-    async def update_product(self, product_id: str, data: CreateProduct) -> ProductResponse:
+    async def update_product(self, product_id: str, data: ProductUpdate) -> ProductResponse:
         query = """
         UPDATE products 
         SET 
@@ -358,7 +241,7 @@ class ProductRepository:
             article_data = cls.__get_article_dict_from_all_data(row_data)
 
             if article_data:
-                new_article = ArticleResponse(
+                new_article = CardDataResponse(
                     **article_data
                 )
 
