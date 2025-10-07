@@ -437,6 +437,10 @@ class ArticleResponse(ArticleBase):
     discount: int | None = field_configs["discount"]
     barcode: str | None = field_configs["barcode"]
     rating: float | None = field_configs["rating"]
+    length: int | None = field_configs["length"]
+    width: int | None = field_configs["width"]
+    height: int | None = field_configs["height"]
+    manager: str | None = field_configs["manager"]
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -444,11 +448,15 @@ class ArticleResponse(ArticleBase):
                 {
                     "article_id": 176869522,
                     "photo_link": "https://example.com/images/tm/1.webp",
-                    "price": 10000.00,
-                    "discount": 50,
-                    "barcode": 2038611318861,
-                    "rating": 5,
-                }
+                    "price": 2130,
+                    "discount": 52,
+                    "barcode": "2043334453898",
+                    "rating": 4.7,
+                    "length": 42,
+                    "width": 22,
+                    "height": 19,
+                    "manager": "Петров Пётр"
+                },
             ]
         }
     )
@@ -458,7 +466,7 @@ class ProductResponse(BaseModel):
     """Модель ответа с данными товара."""
 
     id: str = field_configs["local_vendor_code"]
-    name: str = field_configs["product_name"] 
+    name: str = field_configs["product_name"]
     photo_link: str | None = field_configs["photo_link"]
     length: int | None = field_configs["length"]
     width: int | None = field_configs["width"]
@@ -482,11 +490,15 @@ class ProductResponse(BaseModel):
                         ArticleResponse.model_config['json_schema_extra']['examples'][0],
                         {
                             "article_id": 176869523,
-                            "photo_link": "https://example.com/images/tm/1.webp",
-                            "price": 10000.00,
-                            "discount": 50,
-                            "barcode": 2038611318861,
-                            "rating": 5,
+                            "photo_link": "https://example.com/images/tm/2.webp",
+                            "price": 2120,
+                            "discount": 25,
+                            "barcode": "2043334453393",
+                            "rating": 4.1,
+                            "length": 42,
+                            "width": 22,
+                            "height": 19,
+                            "manager": "Иванов Иван"
                         }
                     ]
                 }
@@ -512,7 +524,7 @@ class SubjectDataWithProductsResponse(BaseModel):
                         {
                             "id": "wild456",
                             "name": "Монитор ACER",
-                            "photo_link": "https://example.com/images/tm/2.webp", 
+                            "photo_link": "https://example.com/images/tm/2.webp",
                             "length": 300,
                             "width": 200,
                             "height": 15,
@@ -521,11 +533,15 @@ class SubjectDataWithProductsResponse(BaseModel):
                                 ArticleResponse.model_config['json_schema_extra']['examples'][0],
                                 {
                                     "article_id": 176869523,
-                                    "photo_link": "https://example.com/images/tm/1.webp",
-                                    "price": 10000.00,
-                                    "discount": 50,
-                                    "barcode": 2038611318861,
-                                    "rating": 5,
+                                    "photo_link": "https://example.com/images/tm/2.webp",
+                                    "price": 3590,
+                                    "discount": 41,
+                                    "barcode": "2043334453444",
+                                    "rating": 4.7,
+                                    "length": 43,
+                                    "width": 21,
+                                    "height": 21,
+                                    "manager": "Сидорова Мария"
                                 }
                             ]
                         }
