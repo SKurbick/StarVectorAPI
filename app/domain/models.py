@@ -550,3 +550,47 @@ class SubjectDataWithProductsResponse(BaseModel):
             ]
         }
     )
+
+
+class WeekleFinReportsAggregated(BaseModel):
+    """Модель для агрегированных недельных финансовых отчетов WB."""
+
+    date_from: date = Field(..., description="Дата")
+    vb_commission: float = Field(..., description="Комиссия ВБ")
+    to_be_transferred: float = Field(..., description="К перечислению")
+    logistics: float = Field(..., description="Логистика")
+    total_to_be_paid: float = Field(..., description="Итого к оплате")
+    revenue: float = Field(..., description="Выручка")
+    discounted_retail_price: float = Field(..., description="Розничная цена со скидкой")
+    penalty: float = Field(..., description="Штрафы")
+    storage_fee: float = Field(..., description="Хранение")
+    paid_acceptance: float = Field(..., description="Платная приемка")
+    total_deduction: float = Field(..., description="Удержания")
+    grouped_bonus_type_name: str | None = Field(..., description="Виды логистики, штрафов и корректировок ВВ")
+    purchase_price_of_sales: int = Field(..., description="Закупочная стоимость продаж")
+    purchase_price_of_returns: int = Field(..., description="Закупочная стоимость возвратов")
+    purchase_cost: int = Field(..., description="Закупочная стоимость")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "date_from": "2025-07-18",
+                    "vb_commission": 3201939.38,
+                    "to_be_transferred": 14688553.86,
+                    "logistics": 1354678.26,
+                    "total_to_be_paid": 13333342.72,
+                    "revenue": 17890493.24,
+                    "discounted_retail_price": 18005994.36,
+                    "penalty": 111860.96,
+                    "storage_fee": 22841.38,
+                    "total_deduction": -111328.08,
+                    "grouped_bonus_type_name": "Списание за отзыв",
+                    "paid_acceptance": 0,
+                    "purchase_price_of_sales": 0,
+                    "purchase_price_of_returns": 0,
+                    "purchase_cost": 0,
+                },
+            ]
+        }
+    )

@@ -7,6 +7,7 @@ from .net_profit import get_net_profit_service, get_net_profit_repository
 from .percent_by_tax import get_percent_by_tax_service, get_percent_by_tax_repository
 from .stocks_quantity import get_stocks_quantity_service, get_stocks_quantity_repository
 from .turnover import get_turnover_service, get_turnover_repository
+from .fin_reports import get_fin_reports_service
 
 __all__ = [
     "get_article_repository",
@@ -27,4 +28,5 @@ __all__ = [
     "get_stocks_quantity_repository",
     "get_turnover_service",
     "get_turnover_repository",
+    "get_fin_reports_service",
 ]
