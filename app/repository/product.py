@@ -1,12 +1,9 @@
-from asyncpg import Pool, Record
 from collections import defaultdict
-from typing import Any
+import json
+
+from asyncpg import Pool
 
 from app.domain.models import  ArticleResponse, ProductResponse, SubjectDataWithProductsResponse
-
-
-ProductsData = defaultdict[str, str | int | None | list[ArticleResponse]]
-SubjectsData = defaultdict[str, ProductsData]
 
 
 class ProductRepository:
@@ -21,148 +18,78 @@ class ProductRepository:
         offset: int = 0,
     ) -> list[SubjectDataWithProductsResponse]:
         """Получить список товаров с группировкой по предметам."""
-        async with self.pool.acquire() as connection:
-            query = """
+        query = """
+            WITH all_cards_data AS (
+                SELECT
+                    a.local_vendor_code,
+                    cd.subject_name,
+                    json_agg(
+                        json_build_object(
+                            'article_id', cd.article_id,
+                            'photo_link', cd.photo_link,
+                            'price', cd.price,
+                            'discount', cd.discount,
+                            'length', cd.length,
+                            'width', cd.width,
+                            'height', cd.height,
+                            'barcode', cd.barcode,
+                            'rating', cd.rating,
+                            'manager', cd.manager
+                        )
+                    ) AS cards
+                FROM
+                    article a
+                INNER JOIN
+                    card_data AS cd
+                    ON a.nm_id = cd.article_id
+                GROUP BY
+                    a.local_vendor_code, cd.subject_name
+            )
             SELECT
                 p.id,
                 p.name,
                 p.photo_link,
-                cd.article_id,
-                cd.subject_name,
-                cd.photo_link AS article_photo_link,
-                cd.price,
-                cd.discount,
-                cd.length,
-                cd.width,
-                cd.height,
-                cd.barcode,
-                cd.rating,
-                cd.manager
-            FROM 
+                p.length,
+                p.width,
+                p.height,
+                p.manager,
+                acd.subject_name,
+                coalesce(acd.cards, '[]') AS articles
+            FROM
                 products p
-            LEFT JOIN (
-                select
-                    a.nm_id,
-                    a.local_vendor_code 
-                from article a
-            ) lvc on p.id = lvc.local_vendor_code
             LEFT JOIN
-                card_data cd
-                ON lvc.nm_id = cd.article_id
-            ORDER BY
-                cd.subject_name,
-                p.id
+                all_cards_data acd
+                ON acd.local_vendor_code = p.id
+            ORDER BY acd.subject_name, p.name
             LIMIT $1
             OFFSET $2;
-            """
+        """
 
+        async with self.pool.acquire() as connection:
             data = await connection.fetch(query, limit, offset)
 
-        return self.__transform_asyncpg_data_to_subjects_response(data)
-
-    @classmethod
-    def __transform_asyncpg_data_to_subjects_response(
-        cls,
-        data: list[Record]
-    ) -> SubjectDataWithProductsResponse:
-        """Привести сырые данные из БД в структурированный ответ."""
-        subjects_data = cls.__transform_asyncpg_data_to_subject_data(data)
-        transformed_data = cls.__transform_subject_data_to_response(subjects_data)
-
-        return transformed_data
-
-    @staticmethod
-    def __transform_subject_data_to_response(
-        subjects_data: SubjectsData
-    ) -> list[SubjectDataWithProductsResponse]:
-        result = []
-
-        for subject_name, products_dict in subjects_data.items():
-            products_list = []
-
-            for product_data in products_dict.values():
-                product_response = ProductResponse(
-                    id=product_data["id"],
-                    name=product_data["name"],
-                    photo_link=product_data["photo_link"],
-                    length=product_data["length"],
-                    width=product_data["width"],
-                    height=product_data["height"],
-                    manager=product_data["manager"],
-                    articles=product_data["articles"],
-                )
-                products_list.append(product_response)
-
-            subject_response = SubjectDataWithProductsResponse(
-                subject_name=subject_name,
-                products=products_list,
-            )
-
-            result.append(subject_response)
-
-        return result
-    
-    @classmethod
-    def __transform_asyncpg_data_to_subject_data(
-        cls,
-        data: list[Record]
-    ) -> SubjectsData:
-        subjects_data = defaultdict(lambda: defaultdict(dict))
+        subjects_dict = defaultdict(list)
 
         for row in data:
-            row_data = dict(row)
+            subject_name = row["subject_name"]
+            articles_data = json.loads(row["articles"])
 
-            product_id = row_data["id"]
-            subject_name = row_data["subject_name"]
+            articles = [ArticleResponse(**article) for article in articles_data]
 
-            # добавляем данные о товарах в предмет
-            if product_id not in subjects_data[subject_name]:
-                subjects_data[subject_name][product_id] = cls.__get_product_dict_from_all_data(row_data)
-
-            article_data = ArticleResponse(
-                **cls.__get_article_dict_from_all_data(row_data)
+            product = ProductResponse(
+                id=row["id"],
+                name=row["name"],
+                photo_link=row["photo_link"],
+                length=row["length"],
+                width=row["width"],
+                height=row["height"],
+                manager=row["manager"],
+                articles=articles,
             )
 
-            # добавляем данные о карточке товара в список
-            subjects_data[subject_name][product_id]["articles"].append(article_data)
+            subjects_dict[subject_name].append(product)
 
-        return subjects_data
-    
-    @staticmethod
-    def __get_article_dict_from_all_data(data: dict) -> dict[str, Any]:
-        article_id = data["article_id"]
-        article_photo_link = data["article_photo_link"]
-        price = data["price"]
-        discount = data["discount"]
-        barcode = data["barcode"]
-        rating = data["rating"]
-
-        return {
-            "article_id": article_id,
-            "photo_link": article_photo_link,
-            "price": price,
-            "discount": discount,
-            "barcode": barcode,
-            "rating": rating,
-        }
-    
-    @staticmethod
-    def __get_product_dict_from_all_data(data: dict) -> dict[str, Any]:
-        product_id = data["id"]
-        product_name = data["name"]
-        product_photo_link = data["photo_link"]
-        length = data["length"]
-        width = data["width"]
-        height = data["height"]
-        manager = data["manager"]
-
-        return {
-            "id": product_id,
-            "name": product_name,
-            "photo_link": product_photo_link,
-            "length": length,
-            "width": width,
-            "height": height,
-            "manager": manager,
-            "articles": [],
-        }
+        return [SubjectDataWithProductsResponse(
+            subject_name=name,
+            products=products
+        ) for name, products in subjects_dict.items()]
