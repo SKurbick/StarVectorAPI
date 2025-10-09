@@ -7,6 +7,8 @@ from app.dependencies import get_fin_reports_service
 from app.domain.models import WeeklyFinReportsAggregated 
 from app.service.fin_reports import FinReportsService
 
+reports_by_week_description = "1 - текущая неделя или до указанной даты. С повышением числа (2, 3 ...) будут учтены в ответе предыдущие недели"
+date_to_description = "Дата последнего отчета или ближайшая к нему."
 
 reports_by_week_description = "1 - текущая неделя или до указанной даты. С повышением числа (2, 3 ...) будут учтены в ответе предыдущие недели"
 date_to_description = "Дата последнего отчета или ближайшая к нему."
