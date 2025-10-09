@@ -10,6 +10,9 @@ class FinReportsService:
         self.repository = repository
 
     async def get_fin_reports_aggregated(
-        self, date_to: Optional[date], number_of_last_weeks: Optional[int]
+        self,
+        date_from: Optional[date],
+        date_to: Optional[date],
+        number_of_last_weeks: Optional[int],
     ) -> list[WeeklyFinReportsAggregated]:
-        return await self.repository.get_fin_reports_aggregated(date_to, number_of_last_weeks)
+        return await self.repository.get_fin_reports_aggregated(date_from, date_to, number_of_last_weeks)

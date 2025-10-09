@@ -12,8 +12,10 @@ class FinReportsRepository:
         self.pool = pool
 
     async def get_fin_reports_aggregated(
-        self, date_to: Optional[date] = None,
-        number_of_last_weeks: Optional[int] = None
+        self,
+        date_from: Optional[date] = None,
+        date_to: Optional[date] = None,
+        number_of_last_weeks: Optional[int] = None,
     ) -> list[WeeklyFinReportsAggregated]:
         main_query = """
         SELECT
@@ -47,8 +49,12 @@ class FinReportsRepository:
         where_subquery_conditions = []
         params = []
 
+        if date_from:
+            where_subquery_conditions.append(f"date_from >= ${len(params) + 1} ")
+            params.append(date_from)
+
         if date_to:
-            where_subquery_conditions.append(f"date_from <= ${len(params) + 1}")
+            where_subquery_conditions.append(f"date_from <= ${len(params) + 1} ")
             params.append(date_to)
 
         if where_subquery_conditions:
