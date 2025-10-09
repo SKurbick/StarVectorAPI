@@ -550,3 +550,74 @@ class SubjectDataWithProductsResponse(BaseModel):
             ]
         }
     )
+
+
+class FinReportDeduction(BaseModel):
+    """Модель для вычетов из финансового отчета."""
+
+    grouped_bonus_type_name: Optional[str] = Field(..., description="Виды логистики, штрафов и корректировок ВВ")
+    total_deduction: Optional[float] = Field(..., description="Удержания")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "grouped_bonus_type_name": "Оказание услуг «ВБ.Продвижение»",
+                    "total_deduction": 1111391
+                },
+            ]
+        }
+    )
+
+
+class WeeklyFinReportsAggregated(BaseModel):
+    """Модель для агрегированных недельных финансовых отчетов WB."""
+
+    date_from: date = Field(..., description="Дата")
+    vb_commission: float = Field(..., description="Комиссия ВБ")
+    to_be_transferred: float = Field(..., description="К перечислению")
+    logistics: float = Field(..., description="Логистика")
+    total_to_be_paid: float = Field(..., description="Итого к оплате")
+    revenue: float = Field(..., description="Выручка")
+    discounted_retail_price: float = Field(..., description="Розничная цена со скидкой")
+    penalty: float = Field(..., description="Штрафы")
+    storage_fee: float = Field(..., description="Хранение")
+    paid_acceptance: float = Field(..., description="Платная приемка")
+    purchase_price_of_sales: int = Field(..., description="Закупочная стоимость продаж")
+    purchase_price_of_returns: int = Field(..., description="Закупочная стоимость возвратов")
+    purchase_cost: int = Field(..., description="Закупочная стоимость")
+    total_deductions: float = Field(..., description="Сумма удержаний")
+    deductions: list[FinReportDeduction] = Field(..., description="Все удержания")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "date_from": "2025-07-18",
+                    "vb_commission": 24997580.09,
+                    "to_be_transferred": 64830504.68,
+                    "logistics": 209866.46,
+                    "total_to_be_paid": 52543992.81,
+                    "revenue": 89828084.77,
+                    "discounted_retail_price": 90827590.25,
+                    "penalty": 63572.79,
+                    "storage_fee": 0,
+                    "paid_acceptance": 25,
+                    "purchase_price_of_sales": 41370140,
+                    "purchase_price_of_returns": 223143,
+                    "purchase_cost": 41146997,
+                    "total_deductions": 12013047.62,
+                    "deductions": [
+                        {
+                            "grouped_bonus_type_name": "Оказание услуг «ВБ.Продвижение»",
+                            "total_deduction": 1111391
+                        },
+                        {
+                            "grouped_bonus_type_name": "Перевод на баланс заёмщика",
+                            "total_deduction": 3312184.55
+                        },
+                    ]
+                },
+            ]
+        }
+    )
