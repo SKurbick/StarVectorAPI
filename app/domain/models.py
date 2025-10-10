@@ -689,3 +689,31 @@ class DaylyPenaltiesReport(BaseModel):
             ]
         }
     )
+
+
+class MonthlyCategorySales(BaseModel):
+    month_num: int = Field(..., description="Месяц")
+    subject_name: Optional[str] = Field(..., description="Категория")
+    total_revenue: Optional[float] = Field(..., description="Сумма заказов")
+    total_orders_count: Optional[int] = Field(..., description="Количество заказов")
+    total_sales_sum: Optional[float] = Field(..., description="Сумма продаж")
+    average_receipt: Optional[float] = Field(..., description="Средний чек")
+    net_profit_from_orders: Optional[float] = Field(..., description="Чистая прибыль от заказов")
+    margin: Optional[float] = Field(..., description="Маржа")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "month_num": 1,
+                    "subject_name": "Влажные салфетки",
+                    "total_revenue": 361888,
+                    "total_orders_count": 1186,
+                    "total_sales_sum": 445879,
+                    "average_receipt": 304.85,
+                    "net_profit_from_orders": 50000,
+                    "margin": 0.131
+                },
+            ]
+        }
+    )

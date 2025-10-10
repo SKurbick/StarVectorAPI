@@ -5,7 +5,7 @@ from asyncpg import Pool, UndefinedTableError
 from fastapi import HTTPException, status
 
 from app.domain.models import (WeeklyFinReportsAggregated, FinReportDeduction, PenaltyDetails, 
-                               DaylyPenaltiesReport, PeriodRequestModel)
+                               DaylyPenaltiesReport, PeriodRequestModel, MonthlyCategorySales)
 
 
 class FinReportsRepository:
@@ -158,3 +158,37 @@ class FinReportsRepository:
             penalties_date=date,
             penalties=penalties
         ) for date, penalties in penalties_by_date.items()]
+
+    async def get_category_sales_per_month(self) -> list[MonthlyCategorySales]:
+        query = """
+            SELECT
+                month_num,
+                subject_name,
+                SUM(orders_sum_rub) AS total_revenue,
+                SUM(orders_count) AS total_orders_count,
+                SUM(sales_sum) AS total_sales_sum,
+                CASE
+                    WHEN SUM(orders_count) = 0 THEN NULL
+                    ELSE ROUND(SUM(orders_sum_rub) / SUM(orders_count), 2)
+                END AS average_receipt,
+                SUM(profit_by_cond_orders) - SUM(adv_spend) AS net_profit_from_orders,
+                CASE
+                    WHEN SUM(orders_sum_rub) = 0 THEN NULL
+                    ELSE ROUND((SUM(profit_by_cond_orders) - SUM(adv_spend)) / SUM(orders_sum_rub), 3)
+                END AS margin
+            FROM
+                public.orders_articles_analyze
+            WHERE
+                EXTRACT(YEAR FROM date) = 2025
+            GROUP BY
+                month_num,
+                subject_name
+            ORDER BY
+                month_num,
+                subject_name;
+        """
+
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query)
+
+        return [MonthlyCategorySales(**row) for row in rows]

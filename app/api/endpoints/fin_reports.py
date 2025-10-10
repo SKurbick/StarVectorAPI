@@ -3,7 +3,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, status, Query
 
 from app.dependencies import get_fin_reports_service, get_period_filter
-from app.domain.models import WeeklyFinReportsAggregated, DaylyPenaltiesReport, PeriodRequestModel
+from app.domain.models import (WeeklyFinReportsAggregated, DaylyPenaltiesReport,
+                               PeriodRequestModel, MonthlyCategorySales)
 from app.service.fin_reports import FinReportsService
 
 
@@ -29,3 +30,11 @@ async def get_penalties_details(
     service: FinReportsService = Depends(get_fin_reports_service),
 ) -> list[DaylyPenaltiesReport]:
     return await service.get_penalties_details(period)
+
+
+@router.get("/sales_results", status_code=status.HTTP_200_OK,
+            description="Результаты продаж по месяцам и категориям")
+async def get_category_sales_per_month(
+    service: FinReportsService = Depends(get_fin_reports_service),
+    ) -> list[MonthlyCategorySales]:
+    return await service.get_category_sales_per_month()
