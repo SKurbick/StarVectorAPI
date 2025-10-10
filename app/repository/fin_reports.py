@@ -1,10 +1,11 @@
-from datetime import date
+from collections import defaultdict
 from typing import Optional
 
 from asyncpg import Pool, UndefinedTableError
 from fastapi import HTTPException, status
 
-from app.domain.models import WeeklyFinReportsAggregated, FinReportDeduction, PenaltyDetails, DaylyPenaltiesReport
+from app.domain.models import (WeeklyFinReportsAggregated, FinReportDeduction, PenaltyDetails, 
+                               DaylyPenaltiesReport, PeriodRequestModel)
 
 
 class FinReportsRepository:
@@ -13,8 +14,7 @@ class FinReportsRepository:
 
     async def get_fin_reports_aggregated(
         self,
-        date_from: Optional[date] = None,
-        date_to: Optional[date] = None,
+        period: PeriodRequestModel,
         number_of_last_weeks: Optional[int] = None,
     ) -> list[WeeklyFinReportsAggregated]:
         main_query = """
@@ -49,31 +49,20 @@ class FinReportsRepository:
         subquery = """
             SELECT *
             FROM fin_reports_mv
+            WHERE date_to BETWEEN $1 AND $2
         """
 
-        where_subquery_conditions = []
-        params = []
-
-        if date_from:
-            where_subquery_conditions.append(f"date_to >= ${len(params) + 1} ")
-            params.append(date_from)
-
-        if date_to:
-            where_subquery_conditions.append(f"date_to <= ${len(params) + 1} ")
-            params.append(date_to)
-
-        if where_subquery_conditions:
-            subquery += "WHERE " + "AND ".join(where_subquery_conditions)
+        params = [period.date_from, period.date_to]
 
         if number_of_last_weeks:
-            subquery += f" LIMIT ${len(params) + 1}"
+            subquery += f" LIMIT $3"
             params.append(number_of_last_weeks)
 
-        result_query = main_query.format(subquery=subquery)
+        full_query = main_query.format(subquery=subquery)
 
         try:
             async with self.pool.acquire() as conn:
-                rows = await conn.fetch(result_query, *params)
+                rows = await conn.fetch(full_query, *params)
         except UndefinedTableError:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -122,10 +111,7 @@ class FinReportsRepository:
 
     async def get_penalties_details(
         self,
-        date_from: Optional[date] = None,
-        date_to: Optional[date] = None,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
+        period: PeriodRequestModel
     ) -> list[DaylyPenaltiesReport]:
         query = """
         SELECT
@@ -147,49 +133,24 @@ class FinReportsRepository:
             wb_status,
             supply_id
         FROM penalties_mv
+        WHERE date BETWEEN $1 AND $2
+        ORDER BY date DESC;
         """
-
-        where_conditions = []
-        params = []
-
-        if date_from:
-            where_conditions.append(f"date >= ${len(params) + 1} ")
-            params.append(date_from)
-
-        if date_to:
-            where_conditions.append(f"date <= ${len(params) + 1} ")
-            params.append(date_to)
-
-        if where_conditions:
-            query += "WHERE " + "AND ".join(where_conditions)
-
-        query += "ORDER BY date DESC "
-
-        if limit:
-            query += f"LIMIT ${len(params) + 1}"
-            params.append(limit)
-
-        if offset:
-            query += f" OFFSET ${len(params) + 1};"
-            params.append(offset)
 
         try:
             async with self.pool.acquire() as conn:
-                rows = await conn.fetch(query, *params)
+                rows = await conn.fetch(query, period.date_from, period.date_to)
         except UndefinedTableError:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Table or materialized view not found",
             )
 
-        penalties_by_date = {}
+        penalties_by_date = defaultdict(list)
 
         for row in rows:
             data = dict(row)
             penalties_date = data.pop("penalty_date")
-
-            if not penalties_date in penalties_by_date:
-                penalties_by_date[penalties_date] = list()
 
             penalties_by_date[penalties_date].append(PenaltyDetails(**data))
 

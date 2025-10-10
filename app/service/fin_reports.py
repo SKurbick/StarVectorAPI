@@ -1,8 +1,7 @@
 from typing import Optional
-from datetime import date
 
 from app.repository.fin_reports import FinReportsRepository
-from app.domain.models import WeeklyFinReportsAggregated, DaylyPenaltiesReport
+from app.domain.models import WeeklyFinReportsAggregated, DaylyPenaltiesReport, PeriodRequestModel
 
 
 class FinReportsService:
@@ -11,17 +10,13 @@ class FinReportsService:
 
     async def get_fin_reports_aggregated(
         self,
-        date_from: Optional[date],
-        date_to: Optional[date],
+        period: PeriodRequestModel,
         number_of_last_weeks: Optional[int],
     ) -> list[WeeklyFinReportsAggregated]:
-        return await self.repository.get_fin_reports_aggregated(date_from, date_to, number_of_last_weeks)
+        return await self.repository.get_fin_reports_aggregated(period, number_of_last_weeks)
 
     async def get_penalties_details(
         self,
-        date_from: Optional[date],
-        date_to: Optional[date],
-        limit: Optional[int],
-        offset: Optional[int],
+        period: PeriodRequestModel,
     ) -> list[DaylyPenaltiesReport]:
-        return await self.repository.get_penalties_details(date_from, date_to, limit, offset)
+        return await self.repository.get_penalties_details(period)
