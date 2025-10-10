@@ -19,7 +19,7 @@ class FinReportsRepository:
     ) -> list[WeeklyFinReportsAggregated]:
         main_query = """
         SELECT
-            fram.date_from,
+            fram.date_to,
             fram."Комиссия ВБ" AS vb_commission,
             fram."К перечислению" AS to_be_transferred,
             fram."Логистика" AS logistics,
@@ -30,6 +30,11 @@ class FinReportsRepository:
             fram."Хранение" AS storage_fee,
             fram."Удержания" AS total_deductions,
             fram."Платная приемка" AS paid_acceptance,
+            fram."Перечисления по кредиту" AS credit_transfers,
+            fram."К клиенту при отмене" AS to_client_upon_cancellation,
+            fram."От клиента при отмене" AS from_client_upon_cancellation,
+            fram."От клиента при возврате" AS from_client_upon_return,
+            fram."К клиенту при продаже" AS to_client_upon_sale,
             fram."Закупочная стоимость продаж" AS purchase_price_of_sales,
             fram."Закупочная стоимость возвратов" AS purchase_price_of_returns,
             fram."Закупочная стоимость" AS purchase_cost,
@@ -37,24 +42,24 @@ class FinReportsRepository:
             fdm.total_deduction AS deduction
         FROM ({subquery}) fram
         LEFT JOIN fin_deductions_mv fdm
-        ON fram.date_from = fdm.date_from
-        ORDER BY fram.date_from DESC;
+        ON fram.date_to = fdm.date_to
+        ORDER BY fram.date_to DESC;
         """
 
         subquery = """
             SELECT *
-            FROM fin_reports_agg_mv
+            FROM fin_reports_mv
         """
 
         where_subquery_conditions = []
         params = []
 
         if date_from:
-            where_subquery_conditions.append(f"date_from >= ${len(params) + 1} ")
+            where_subquery_conditions.append(f"date_to >= ${len(params) + 1} ")
             params.append(date_from)
 
         if date_to:
-            where_subquery_conditions.append(f"date_from <= ${len(params) + 1} ")
+            where_subquery_conditions.append(f"date_to <= ${len(params) + 1} ")
             params.append(date_to)
 
         if where_subquery_conditions:
@@ -78,11 +83,11 @@ class FinReportsRepository:
         reports = {}
 
         for row in rows:
-            report_date_from = row["date_from"]
+            report_date_to = row["date_to"]
 
-            if not reports.get(report_date_from):
-                reports[report_date_from] = dict(
-                    date_from=row["date_from"],
+            if not reports.get(report_date_to):
+                reports[report_date_to] = dict(
+                    date_to=row["date_to"],
                     vb_commission=row["vb_commission"],
                     to_be_transferred=row["to_be_transferred"],
                     logistics=row["logistics"],
@@ -92,6 +97,11 @@ class FinReportsRepository:
                     penalty=row["penalty"],
                     storage_fee=row["storage_fee"],
                     paid_acceptance=row["paid_acceptance"],
+                    credit_transfers=row["credit_transfers"],
+                    to_client_upon_cancellation=row["to_client_upon_cancellation"],
+                    from_client_upon_cancellation=row["from_client_upon_cancellation"],
+                    from_client_upon_return=row["from_client_upon_return"],
+                    to_client_upon_sale=row["to_client_upon_sale"],
                     purchase_price_of_sales=row["purchase_price_of_sales"],
                     purchase_price_of_returns=row["purchase_price_of_returns"],
                     purchase_cost=row["purchase_cost"],
@@ -99,7 +109,7 @@ class FinReportsRepository:
                     deductions=[],
                 )
 
-            reports[report_date_from]["deductions"].append(
+            reports[report_date_to]["deductions"].append(
                 FinReportDeduction(
                     grouped_bonus_type_name=row["grouped_bonus_type_name"],
                     total_deduction=row["deduction"],

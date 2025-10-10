@@ -573,7 +573,7 @@ class FinReportDeduction(BaseModel):
 class WeeklyFinReportsAggregated(BaseModel):
     """Модель для агрегированных недельных финансовых отчетов WB."""
 
-    date_from: date = Field(..., description="Дата")
+    date_to: date = Field(..., description="Дата")
     vb_commission: float = Field(..., description="Комиссия ВБ")
     to_be_transferred: float = Field(..., description="К перечислению")
     logistics: float = Field(..., description="Логистика")
@@ -583,6 +583,11 @@ class WeeklyFinReportsAggregated(BaseModel):
     penalty: float = Field(..., description="Штрафы")
     storage_fee: float = Field(..., description="Хранение")
     paid_acceptance: float = Field(..., description="Платная приемка")
+    credit_transfers: float = Field(..., description="Перечисления по кредиту")
+    to_client_upon_cancellation: float = Field(..., description="К клиенту при отмене")
+    from_client_upon_cancellation: float = Field(..., description="От клиента при отмене")
+    from_client_upon_return: float = Field(..., description="От клиента при при возврате")
+    to_client_upon_sale: float = Field(..., description="К клиенту при продаже")
     purchase_price_of_sales: int = Field(..., description="Закупочная стоимость продаж")
     purchase_price_of_returns: int = Field(..., description="Закупочная стоимость возвратов")
     purchase_cost: int = Field(..., description="Закупочная стоимость")
@@ -593,20 +598,25 @@ class WeeklyFinReportsAggregated(BaseModel):
         json_schema_extra={
             "examples": [
                 {
-                    "date_from": "2025-07-18",
-                    "vb_commission": 24997580.09,
-                    "to_be_transferred": 64830504.68,
-                    "logistics": 209866.46,
-                    "total_to_be_paid": 52543992.81,
-                    "revenue": 89828084.77,
-                    "discounted_retail_price": 90827590.25,
-                    "penalty": 63572.79,
-                    "storage_fee": 0,
-                    "paid_acceptance": 25,
-                    "purchase_price_of_sales": 41370140,
-                    "purchase_price_of_returns": 223143,
-                    "purchase_cost": 41146997,
-                    "total_deductions": 12013047.62,
+                    "date_to": "2025-07-18",
+                    "vb_commission": 16554462.84,
+                    "to_be_transferred": 61360434.8,
+                    "logistics": 2606288.52,
+                    "total_to_be_paid": 48500574.79,
+                    "revenue": 77914897.64,
+                    "discounted_retail_price": 78434795.7,
+                    "penalty": 62695.05,
+                    "storage_fee": 66754.73,
+                    "paid_acceptance": 30015,
+                    "credit_transfers": 3013441.44,
+                    "to_client_upon_cancellation": 344240.59,
+                    "from_client_upon_cancellation": 86100,
+                    "from_client_upon_return": 1200,
+                    "to_client_upon_sale": 2040633.92,
+                    "purchase_price_of_sales": 37563404,
+                    "purchase_price_of_returns": 128066,
+                    "purchase_cost": 37435338,
+                    "total_deductions": 10160861.44,
                     "deductions": [
                         {
                             "grouped_bonus_type_name": "Оказание услуг «ВБ.Продвижение»",
