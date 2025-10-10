@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, status, Query
 
 from app.dependencies import get_fin_reports_service
-from app.domain.models import WeeklyFinReportsAggregated 
+from app.domain.models import WeeklyFinReportsAggregated, DaylyPenaltiesReport
 from app.service.fin_reports import FinReportsService
 
 
@@ -24,3 +24,14 @@ async def get_weekly_fin_reports_agg(
     service: FinReportsService = Depends(get_fin_reports_service),
 ) -> list[WeeklyFinReportsAggregated]:
     return await service.get_fin_reports_aggregated(date_from, date_to, number_of_last_weeks)
+
+
+@router.get("/penalties/details", status_code=status.HTTP_200_OK)
+async def get_penalties_details(
+    date_from: Optional[date] = Query(None, example="2025-06-18", description=date_from_description),
+    date_to: Optional[date] = Query(None, example="2025-07-18", description=date_to_description),
+    limit: Optional[int] = Query(None, ge=1),
+    offset: Optional[int] = Query(None, ge=0),
+    service: FinReportsService = Depends(get_fin_reports_service),
+) -> list[DaylyPenaltiesReport]:
+    return await service.get_penalties_details(date_from, date_to, limit, offset)

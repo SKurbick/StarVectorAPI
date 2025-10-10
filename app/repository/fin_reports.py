@@ -4,7 +4,7 @@ from typing import Optional
 from asyncpg import Pool, UndefinedTableError
 from fastapi import HTTPException, status
 
-from app.domain.models import WeeklyFinReportsAggregated, FinReportDeduction
+from app.domain.models import WeeklyFinReportsAggregated, FinReportDeduction, PenaltyDetails, DaylyPenaltiesReport
 
 
 class FinReportsRepository:
@@ -119,3 +119,81 @@ class FinReportsRepository:
         return [
             WeeklyFinReportsAggregated(**report) for report in reports.values()
         ]
+
+    async def get_penalties_details(
+        self,
+        date_from: Optional[date] = None,
+        date_to: Optional[date] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ) -> list[DaylyPenaltiesReport]:
+        query = """
+        SELECT
+            date as penalty_date,
+            sale_dt,
+            penalty,
+            count_items,
+            bonus_type_name,
+            nm_id,
+            subject_name,
+            account,
+            srid,
+            warehouse_type,
+            order_date,
+            local_vendor_code,
+            shk_id,
+            assembly_id,
+            supplier_status,
+            wb_status,
+            supply_id
+        FROM penalties_mv
+        """
+
+        where_conditions = []
+        params = []
+
+        if date_from:
+            where_conditions.append(f"date >= ${len(params) + 1} ")
+            params.append(date_from)
+
+        if date_to:
+            where_conditions.append(f"date <= ${len(params) + 1} ")
+            params.append(date_to)
+
+        if where_conditions:
+            query += "WHERE " + "AND ".join(where_conditions)
+
+        query += "ORDER BY date DESC "
+
+        if limit:
+            query += f"LIMIT ${len(params) + 1}"
+            params.append(limit)
+
+        if offset:
+            query += f" OFFSET ${len(params) + 1};"
+            params.append(offset)
+
+        try:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch(query, *params)
+        except UndefinedTableError:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Table or materialized view not found",
+            )
+
+        penalties_by_date = {}
+
+        for row in rows:
+            data = dict(row)
+            penalties_date = data.pop("penalty_date")
+
+            if not penalties_date in penalties_by_date:
+                penalties_by_date[penalties_date] = list()
+
+            penalties_by_date[penalties_date].append(PenaltyDetails(**data))
+
+        return [DaylyPenaltiesReport(
+            penalties_date=date,
+            penalties=penalties
+        ) for date, penalties in penalties_by_date.items()]
