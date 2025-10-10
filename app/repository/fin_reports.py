@@ -1,4 +1,5 @@
 from collections import defaultdict
+from datetime import date
 from typing import Optional
 
 from asyncpg import Pool, UndefinedTableError
@@ -159,7 +160,12 @@ class FinReportsRepository:
             penalties=penalties
         ) for date, penalties in penalties_by_date.items()]
 
-    async def get_category_sales_per_month(self) -> list[MonthlyCategorySales]:
+    async def get_category_sales_per_month(
+        self,
+        start_month: Optional[str] = None,
+        end_month: Optional[str] = None,
+        category: Optional[str] = None,
+    ) -> list[MonthlyCategorySales]:
         query = """
             SELECT
                 month_num,
@@ -179,7 +185,10 @@ class FinReportsRepository:
             FROM
                 public.orders_articles_analyze
             WHERE
-                EXTRACT(YEAR FROM date) = 2025
+                1 = 1
+        """
+        
+        end_query = """
             GROUP BY
                 month_num,
                 subject_name
@@ -188,7 +197,36 @@ class FinReportsRepository:
                 subject_name;
         """
 
+        params = []
+
+        if start_month and end_month:
+            start_year, start_month_num = map(int, start_month.split("-"))
+            end_year, end_month_num = map(int, end_month.split("-"))
+
+            params_count = len(params)
+
+            query += f"""
+                AND (
+                    (EXTRACT(YEAR FROM date) = ${params_count + 1} AND EXTRACT(MONTH FROM date) >= ${params_count + 2})
+                    OR EXTRACT(YEAR FROM date) > ${params_count + 1}
+                )
+                AND (
+                    (EXTRACT(YEAR FROM date) = ${params_count + 3} AND EXTRACT(MONTH FROM date) <= ${params_count + 4})
+                    OR EXTRACT(YEAR FROM date) < ${params_count + 3}
+                )
+            """
+
+            params.extend((start_year, start_month_num, end_year, end_month_num))
+        else:
+            query += f" AND EXTRACT(YEAR FROM date) = {date.today().year}"
+
+        if category:
+            query += f" AND subject_name = ${len(params) + 1}"
+            params.append(category)
+
+        query += end_query
+
         async with self.pool.acquire() as conn:
-            rows = await conn.fetch(query)
+            rows = await conn.fetch(query, *params)
 
         return [MonthlyCategorySales(**row) for row in rows]

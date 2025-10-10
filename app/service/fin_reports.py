@@ -22,5 +22,10 @@ class FinReportsService:
     ) -> list[DaylyPenaltiesReport]:
         return await self.repository.get_penalties_details(period)
 
-    async def get_category_sales_per_month(self) -> list[MonthlyCategorySales]:
-        return await self.repository.get_category_sales_per_month()
+    async def get_category_sales_per_month(
+        self,
+        start_month: Optional[str],
+        end_month: Optional[str],
+        category: Optional[str],
+    ) -> list[MonthlyCategorySales]:
+        return await self.repository.get_category_sales_per_month(start_month, end_month, category)

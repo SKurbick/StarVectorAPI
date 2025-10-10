@@ -8,7 +8,7 @@ from .percent_by_tax import get_percent_by_tax_service, get_percent_by_tax_repos
 from .stocks_quantity import get_stocks_quantity_service, get_stocks_quantity_repository
 from .turnover import get_turnover_service, get_turnover_repository
 from .fin_reports import get_fin_reports_service
-from .filters import get_period_filter
+from .filters import get_dates_period_filter, get_months_filter
 
 
 __all__ = [
@@ -31,5 +31,6 @@ __all__ = [
     "get_turnover_service",
     "get_turnover_repository",
     "get_fin_reports_service",
-    "get_period_filter",
+    "get_dates_period_filter",
+    "get_months_filter",
 ]
