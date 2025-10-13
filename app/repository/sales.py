@@ -12,8 +12,8 @@ class SaleRepository:
 
     async def get_categories_sales_per_month(
         self,
-        start_month: Optional[str] = None,
-        end_month: Optional[str] = None,
+        start_month: Optional[date] = None,
+        end_month: Optional[date] = None,
         category: Optional[str] = None,
     ) -> list[MonthlyCategorySales]:
         """Получить результаты продаж по категориям и месяцам."""
@@ -51,8 +51,8 @@ class SaleRepository:
         params = []
 
         if start_month and end_month:
-            start_year, start_month_num = map(int, start_month.split("-"))
-            end_year, end_month_num = map(int, end_month.split("-"))
+            start_year, start_month_num = start_month.year, start_month.month
+            end_year, end_month_num = end_month.year, end_month.month
 
             params_count = len(params)
 

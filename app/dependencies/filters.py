@@ -19,31 +19,53 @@ def get_dates_period_filter(
         date_to=date_to,
     )
 
-
 def get_months_filter(
-    month: Optional[str] = Query(
+    start_month: Optional[int] = Query(
         None,
-        regex=r'^\d{4}-\d{2}$',
-        description="Конкретный месяц в формате ГГГГ-ММ (например, 2025-01)"
+        example=8,
+        ge=1,
+        le=12,
+        description="Первый месяц периода",
     ),
-    start_month: Optional[str] = Query(
-        None, 
-        regex=r'^\d{4}-\d{2}$',
-        description="Начало периода в формате ГГГГ-ММ"
+    start_year: Optional[int] = Query(
+        default_factory=lambda: date.today().year,
+        example=2025,
+        ge=2000,
+        le=2100,
+        description="Год на начало периода",
     ),
-    end_month: Optional[str] = Query(
+    end_month: Optional[int] = Query(
         None,
-        regex=r'^\d{4}-\d{2}$', 
-        description="Конец периода в формате ГГГГ-ММ"
+        example=9,
+        ge=1,
+        le=12,
+        description="Год на конец периода",
     ),
-):
-    if month and (start_month or end_month):
+    end_year: Optional[int] = Query(
+        default_factory=lambda: date.today().year,
+        example=2025,
+        ge=2000,
+        le=2100,
+        description="Год в формате ГГГГ",
+    )
+) -> tuple[date, date]:
+    try:
+        if start_month:
+            start_date = date(start_year, start_month, 1)
+        else:
+            start_date = date(start_year, 1, 1)
+
+        if end_month:
+            end_date = date(end_year, end_month, 1)
+        elif end_year:
+            end_date = date(end_year, 12, 1)
+
+        if start_date > end_date:
+            start_date, end_date = end_date, start_date
+
+        return start_date, end_date
+    except ValueError:
         raise HTTPException(
             status_code=400,
-            detail="Используйте либо параметр 'month', либо 'start_month/end_month', но не вместе"
+            detail="Неверный формат даты."
         )
-    
-    if month:
-        start_month = end_month = month
-
-    return start_month, end_month

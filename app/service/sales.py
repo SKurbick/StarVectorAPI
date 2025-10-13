@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Optional
 
 from app.domain.models import MonthlyCategorySales
@@ -10,8 +11,8 @@ class SaleService:
 
     async def get_categories_sales_per_month(
         self,
-        start_month: Optional[str],
-        end_month: Optional[str],
+        start_month: Optional[date],
+        end_month: Optional[date],
         category: Optional[str],
     ) -> list[MonthlyCategorySales]:
         """Получить результаты продаж по категориям и месяцам."""
