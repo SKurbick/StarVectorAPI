@@ -631,3 +631,89 @@ class WeeklyFinReportsAggregated(BaseModel):
             ]
         }
     )
+
+
+class PenaltyDetails(BaseModel):
+    """Модель штрафа из таблицы penalties_mv."""
+
+    sale_dt: Optional[date] = Field(..., description="Дата продажи")
+    penalty: Optional[float] = Field(..., description="Сумма штрафа")
+    count_items: Optional[int] = Field(..., description="Количество")
+    bonus_type_name: Optional[str] = Field(..., description="Виды логистики, штрафов и корректировок ВВ")
+    nm_id: Optional[int] = Field(..., description="Код номенклатуры")
+    subject_name: Optional[str] = Field(..., description="Предмет")
+    account: Optional[str] = field_configs["account"]
+    srid: Optional[str] = Field(..., description="Srid")
+    warehouse_type: Optional[str] = Field(..., description="Тип склада")
+    order_date: Optional[date] = Field(..., description="Дата заказа покупателем")
+    local_vendor_code: Optional[str] = field_configs["local_vendor_code"]
+    shk_id: Optional[str] = Field(..., description="ШК")
+    assembly_id: Optional[int] = Field(..., description="Номер сборочного задания")
+    supplier_status: Optional[str] = Field(..., description="Статус поставщика")
+    wb_status: Optional[str] = Field(..., description="Статус WB")
+    supply_id: Optional[str] = Field(..., description="Номер поставки")
+
+
+class DaylyPenaltiesReport(BaseModel):
+    """Модель отчета по штрафам за день."""
+
+    penalties_date: date = Field(..., description="Дата штрафов")
+    penalties: list[PenaltyDetails] = Field([], description="Все штрафы за день")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                  {
+                    "penalties_date": "2025-08-01",
+                    "penalties": [
+                        {
+                            "sale_dt": "2025-08-01",
+                            "penalty": 1604,
+                            "count_items": 1,
+                            "bonus_type_name": "Выявленные расхождения в карточке товара после приемки на складе WB",
+                            "nm_id": 163901269,
+                            "subject_name": "Наборы кухонных принадлежностей",
+                            "account": "Вектор",
+                            "srid": "22021130613098888.0.0",
+                            "warehouse_type": "Склад WB",
+                            "order_date": "2025-07-18",
+                            "local_vendor_code": "wild352",
+                            "shk_id": "37450221111.0",
+                            "assembly_id": 0,
+                            "supplier_status": "complete",
+                            "wb_status": "defect",
+                            "supply_id": "WB-GI-000000"
+                        },
+                    ]
+                },
+            ]
+        }
+    )
+
+
+class MonthlyCategorySales(BaseModel):
+    month_num: int = Field(..., description="Месяц")
+    subject_name: Optional[str] = Field(..., description="Категория")
+    total_revenue: Optional[float] = Field(..., description="Сумма заказов")
+    total_orders_count: Optional[int] = Field(..., description="Количество заказов")
+    total_sales_sum: Optional[float] = Field(..., description="Сумма продаж")
+    average_receipt: Optional[float] = Field(..., description="Средний чек")
+    net_profit_from_orders: Optional[float] = Field(..., description="Чистая прибыль от заказов")
+    margin: Optional[float] = Field(..., description="Маржа")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "month_num": 1,
+                    "subject_name": "Влажные салфетки",
+                    "total_revenue": 361888,
+                    "total_orders_count": 1186,
+                    "total_sales_sum": 445879,
+                    "average_receipt": 304.85,
+                    "net_profit_from_orders": 50000,
+                    "margin": 0.131
+                },
+            ]
+        }
+    )

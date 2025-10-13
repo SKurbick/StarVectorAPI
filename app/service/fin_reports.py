@@ -1,8 +1,7 @@
 from typing import Optional
-from datetime import date
 
+from app.domain.models import WeeklyFinReportsAggregated, PeriodRequestModel
 from app.repository.fin_reports import FinReportsRepository
-from app.domain.models import WeeklyFinReportsAggregated
 
 
 class FinReportsService:
@@ -11,8 +10,7 @@ class FinReportsService:
 
     async def get_fin_reports_aggregated(
         self,
-        date_from: Optional[date],
-        date_to: Optional[date],
+        period: PeriodRequestModel,
         number_of_last_weeks: Optional[int],
     ) -> list[WeeklyFinReportsAggregated]:
-        return await self.repository.get_fin_reports_aggregated(date_from, date_to, number_of_last_weeks)
+        return await self.repository.get_fin_reports_aggregated(period, number_of_last_weeks)

@@ -1,10 +1,9 @@
-from datetime import date
 from typing import Optional
 
 from asyncpg import Pool, UndefinedTableError
 from fastapi import HTTPException, status
 
-from app.domain.models import WeeklyFinReportsAggregated, FinReportDeduction
+from app.domain.models import WeeklyFinReportsAggregated, FinReportDeduction, PeriodRequestModel
 
 
 class FinReportsRepository:
@@ -13,8 +12,7 @@ class FinReportsRepository:
 
     async def get_fin_reports_aggregated(
         self,
-        date_from: Optional[date] = None,
-        date_to: Optional[date] = None,
+        period: PeriodRequestModel,
         number_of_last_weeks: Optional[int] = None,
     ) -> list[WeeklyFinReportsAggregated]:
         main_query = """
@@ -49,31 +47,20 @@ class FinReportsRepository:
         subquery = """
             SELECT *
             FROM fin_reports_mv
+            WHERE date_to BETWEEN $1 AND $2
         """
 
-        where_subquery_conditions = []
-        params = []
-
-        if date_from:
-            where_subquery_conditions.append(f"date_to >= ${len(params) + 1} ")
-            params.append(date_from)
-
-        if date_to:
-            where_subquery_conditions.append(f"date_to <= ${len(params) + 1} ")
-            params.append(date_to)
-
-        if where_subquery_conditions:
-            subquery += "WHERE " + "AND ".join(where_subquery_conditions)
+        params = [period.date_from, period.date_to]
 
         if number_of_last_weeks:
-            subquery += f" LIMIT ${len(params) + 1}"
+            subquery += f" LIMIT $3"
             params.append(number_of_last_weeks)
 
-        result_query = main_query.format(subquery=subquery)
+        full_query = main_query.format(subquery=subquery)
 
         try:
             async with self.pool.acquire() as conn:
-                rows = await conn.fetch(result_query, *params)
+                rows = await conn.fetch(full_query, *params)
         except UndefinedTableError:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
