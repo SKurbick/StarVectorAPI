@@ -1,7 +1,6 @@
 from typing import Optional
 
-from app.domain.models import (WeeklyFinReportsAggregated, DaylyPenaltiesReport,
-                               PeriodRequestModel, MonthlyCategorySales)
+from app.domain.models import WeeklyFinReportsAggregated, PeriodRequestModel
 from app.repository.fin_reports import FinReportsRepository
 
 
@@ -15,17 +14,3 @@ class FinReportsService:
         number_of_last_weeks: Optional[int],
     ) -> list[WeeklyFinReportsAggregated]:
         return await self.repository.get_fin_reports_aggregated(period, number_of_last_weeks)
-
-    async def get_penalties_details(
-        self,
-        period: PeriodRequestModel,
-    ) -> list[DaylyPenaltiesReport]:
-        return await self.repository.get_penalties_details(period)
-
-    async def get_category_sales_per_month(
-        self,
-        start_month: Optional[str],
-        end_month: Optional[str],
-        category: Optional[str],
-    ) -> list[MonthlyCategorySales]:
-        return await self.repository.get_category_sales_per_month(start_month, end_month, category)

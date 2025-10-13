@@ -10,6 +10,8 @@ from .favicon import router as favicon_router
 from .turnover import router as turnover_router
 from .product import router as product_router
 from .fin_reports import router as fin_reports_router
+from .penalties import router as penalties_router
+from .sales import router as sales_router
 
 
 __all__ = [
@@ -25,4 +27,6 @@ __all__ = [
     'turnover_router',
     'product_router',
     'fin_reports_router',
+    'penalties_router',
+    'sales_router',
 ]
