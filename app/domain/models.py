@@ -1,5 +1,6 @@
-from datetime import datetime, date
-from typing import Optional, List, Union, Dict, Literal
+from datetime import date
+from enum import Enum
+from typing import Optional, List, Union, Dict
 
 from pydantic import BaseModel, field_validator, model_validator, RootModel, field_validator
 from pydantic import ConfigDict
@@ -716,4 +717,67 @@ class MonthlyCategorySales(BaseModel):
                 },
             ]
         }
+    )
+
+
+class LossOwnerEnum(str, Enum):
+    warehouse = "Склад"
+    office = "Офис"
+    supplier = "Поставщик"
+    wb = "ВБ"
+    other = "Прочее"
+
+
+class PenaltyIdentifier(BaseModel):
+    penalty_date: date = Field(..., description="Дата штрафа")
+    nm_id: int = Field(..., description="Код номенклатуры")
+    bonus_type_name: str = Field(..., description="Виды логистики, штрафов и корректировок ВВ")
+    srid: str = Field(..., description="Srid", max_length=255)
+
+
+class PenaltyAnnotationUpdate(BaseModel):
+    penalty: PenaltyIdentifier
+    loss_owner: Optional[LossOwnerEnum] = Field(
+        None,
+        description="Владелец потерь: Склад (по умолчанию), Офис, Поставщик, ВБ или Прочее"
+    )
+    comment: Optional[str] = Field(None, description="Комментарий к штрафу", )
+
+    @field_validator("loss_owner", mode="before")
+    @classmethod
+    def normalize_loss_owner(cls, v):
+        if isinstance(v, str):
+            normalized = v.strip().lower()
+
+            for enum_item in LossOwnerEnum:
+                if enum_item.lower() == normalized:
+                    return enum_item
+
+        return v
+
+    @field_validator("comment", mode="before")
+    @classmethod
+    def validate_comment(cls, v):
+        if isinstance(v, str):
+            v = v.strip()
+
+            return None if not v else v
+
+        return v
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "penalty": {
+                        "penalty_date": "2025-08-01",
+                        "nm_id": 111222333,
+                        "bonus_type_name": "Штраф МП. Невыполненный заказ ",
+                        "srid": "22021130613098888.0.0"
+                    },
+                    "loss_owner": "Поставщик",
+                    "comment": "Недостача при приёмке"
+                },
+            ]
+        },
     )

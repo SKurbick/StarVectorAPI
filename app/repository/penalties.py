@@ -3,7 +3,7 @@ from collections import defaultdict
 from asyncpg import Pool, UndefinedTableError
 from fastapi import HTTPException, status
 
-from app.domain.models import PenaltyDetails, DaylyPenaltiesReport, PeriodRequestModel
+from app.domain.models import DaylyPenaltiesReport, PenaltyDetails,  PeriodRequestModel, PenaltyAnnotationUpdate
 
 
 class PenaltyRepository:
@@ -60,3 +60,7 @@ class PenaltyRepository:
             penalties_date=date,
             penalties=penalties
         ) for date, penalties in penalties_by_date.items()]
+
+    async def update_penalty_annotation(self, data: PenaltyAnnotationUpdate):
+        """Обновить аннотации к штрафу."""
+        return data
