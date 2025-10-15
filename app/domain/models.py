@@ -1,11 +1,10 @@
 from datetime import date
-from enum import Enum
 from typing import Optional, List, Union, Dict
 
-from pydantic import BaseModel, field_validator, model_validator, RootModel, field_validator
-from pydantic import ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, RootModel
 
-from pydantic import Field
+from app.domain.enums import LossOwnerEnum
+
 
 # Общий словарь с конфигурациями полей
 field_configs = {
@@ -634,7 +633,7 @@ class WeeklyFinReportsAggregated(BaseModel):
     )
 
 
-class PenaltyDetails(BaseModel):
+class PenaltyDetailsResponse(BaseModel):
     """Модель штрафа из таблицы penalties_mv."""
 
     sale_dt: Optional[date] = Field(..., description="Дата продажи")
@@ -653,13 +652,23 @@ class PenaltyDetails(BaseModel):
     supplier_status: Optional[str] = Field(..., description="Статус поставщика")
     wb_status: Optional[str] = Field(..., description="Статус WB")
     supply_id: Optional[str] = Field(..., description="Номер поставки")
+    loss_owner: Optional[str] = Field(None, description="Владелец потерь")
+    comment: Optional[str] = Field(None, description="Комментарий к штрафу")
+
+    @field_validator("loss_owner", mode="after")
+    @classmethod
+    def set_default_loss_owner(cls, v):
+        if v is None:
+            return LossOwnerEnum.warehouse
+
+        return v
 
 
 class DaylyPenaltiesReport(BaseModel):
     """Модель отчета по штрафам за день."""
 
     penalties_date: date = Field(..., description="Дата штрафов")
-    penalties: list[PenaltyDetails] = Field([], description="Все штрафы за день")
+    penalties: list[PenaltyDetailsResponse] = Field([], description="Все штрафы за день")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -683,7 +692,9 @@ class DaylyPenaltiesReport(BaseModel):
                             "assembly_id": 0,
                             "supplier_status": "complete",
                             "wb_status": "defect",
-                            "supply_id": "WB-GI-000000"
+                            "supply_id": "WB-GI-000000",
+                            "loss_owner": "Поставщик",
+                            "comment": "Недостача при приёмке"
                         },
                     ]
                 },
@@ -693,6 +704,8 @@ class DaylyPenaltiesReport(BaseModel):
 
 
 class MonthlyCategorySales(BaseModel):
+    """Модель ответа для результатов продаж по категориям за каждый месяц."""
+
     month_num: int = Field(..., description="Месяц")
     subject_name: Optional[str] = Field(..., description="Категория")
     total_revenue: Optional[float] = Field(..., description="Сумма заказов")
@@ -720,15 +733,9 @@ class MonthlyCategorySales(BaseModel):
     )
 
 
-class LossOwnerEnum(str, Enum):
-    warehouse = "Склад"
-    office = "Офис"
-    supplier = "Поставщик"
-    wb = "ВБ"
-    other = "Прочее"
-
-
 class PenaltyIdentifier(BaseModel):
+    """Идентификатор штрафа."""
+
     penalty_date: date = Field(..., description="Дата штрафа")
     nm_id: int = Field(..., description="Код номенклатуры")
     bonus_type_name: str = Field(..., description="Виды логистики, штрафов и корректировок ВВ")
@@ -736,12 +743,14 @@ class PenaltyIdentifier(BaseModel):
 
 
 class PenaltyAnnotationUpdate(BaseModel):
+    """Модель для обновления аннотаций к штрафу."""
+
     penalty: PenaltyIdentifier
     loss_owner: Optional[LossOwnerEnum] = Field(
         None,
         description="Владелец потерь: Склад (по умолчанию), Офис, Поставщик, ВБ или Прочее"
     )
-    comment: Optional[str] = Field(None, description="Комментарий к штрафу", )
+    comment: Optional[str] = Field(None, description="Комментарий к штрафу")
 
     @field_validator("loss_owner", mode="before")
     @classmethod
@@ -759,9 +768,7 @@ class PenaltyAnnotationUpdate(BaseModel):
     @classmethod
     def validate_comment(cls, v):
         if isinstance(v, str):
-            v = v.strip()
-
-            return None if not v else v
+            return v.strip()
 
         return v
 
