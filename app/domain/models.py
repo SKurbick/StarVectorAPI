@@ -746,8 +746,8 @@ class PenaltyAnnotationUpdate(BaseModel):
     """Модель для обновления аннотаций к штрафу."""
 
     penalty: PenaltyIdentifier
-    loss_owner: Optional[LossOwnerEnum] = Field(
-        None,
+    loss_owner: LossOwnerEnum = Field(
+        LossOwnerEnum.warehouse,
         description="Владелец потерь: Склад (по умолчанию), Офис, Поставщик, ВБ или Прочее"
     )
     comment: Optional[str] = Field(None, description="Комментарий к штрафу")

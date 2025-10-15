@@ -70,68 +70,61 @@ class PenaltyRepository:
         ) for date, penalties in penalties_by_date.items()]
 
     async def update_penalty_annotation(self, data: PenaltyAnnotationUpdate):
-        """Обновить аннотации к штрафу."""
-        check_query = """
-            SELECT EXISTS (
-                SELECT 1
-                FROM penalties_mv
-                WHERE date = $1 AND nm_id = $2 AND bonus_type_name = $3 AND srid = $4
-            );
-        """
-        delete_query = """
-            DELETE FROM penalty_annotations
-            WHERE date = $1 AND nm_id = $2 AND bonus_type_name = $3 AND srid = $4
-        """
-        add_or_update_query = """
-            INSERT INTO penalty_annotations
-                (date, nm_id, bonus_type_name, srid, loss_owner, comment)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            ON CONFLICT (date, nm_id, bonus_type_name, srid)
-            DO UPDATE SET
-                loss_owner = EXCLUDED.loss_owner,
-                comment = EXCLUDED.comment;
-        """
-
+        """Обновить аннотации к штрафу. Создаёт запись, если она отсутствует и переданы данные для сохранения."""
+        # Извлекаем ключевые поля
         key = data.penalty
-        owner = data.loss_owner or LossOwnerEnum.warehouse if data.loss_owner is not None else None
-        should_store = (
-            (data.loss_owner is not None and data.loss_owner != LossOwnerEnum.warehouse)
-            or data.comment is not None
-        )
+        key_conditions = "date = $1 AND nm_id = $2 AND bonus_type_name = $3 AND srid = $4"
+        key_params = [
+            key.penalty_date,
+            key.nm_id,
+            key.bonus_type_name,
+            key.srid,
+        ]
+
+        update_data = data.model_dump(exclude_unset=True)
+        update_fields = {k: v for k, v in update_data.items() if k != "penalty"}
+
+        if not update_fields:
+            return {"message": "No fields to update"}
+
+        set_clauses = []
+        insert_columns = ["date", "nm_id", "bonus_type_name", "srid"]
+        insert_values = key_params.copy()
+        all_params = key_params.copy()
+
+        for field_name, value in update_fields.items():
+            set_clauses.append(f"{field_name} = ${len(all_params) + 1}")
+            all_params.append(value)
+            insert_columns.append(field_name)
+            insert_values.append(value)
 
         async with self.pool.acquire() as conn:
-            exists = await conn.fetchval(
-                check_query,
-                key.penalty_date,
-                key.nm_id,
-                key.bonus_type_name,
-                key.srid,
+            # Проверяем существование штрафа
+            penalty_exists = await conn.fetchval(
+                f"SELECT EXISTS (SELECT 1 FROM penalties_mv WHERE {key_conditions});",
+                *key_params,
             )
-
-            if not exists:
+            if not penalty_exists:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Штраф с указанными параметрами не найден"
                 )
 
-            async with conn.transaction() as transaction:
-                if not should_store:
-                    await conn.execute(
-                        delete_query,
-                        key.penalty_date,
-                        key.nm_id,
-                        key.bonus_type_name,
-                        key.srid,
-                    )
+            async with conn.transaction():
+                # Проверяем существование аннотации
+                annotation_exists = await conn.fetchval(
+                    f"SELECT EXISTS (SELECT 1 FROM penalty_annotations WHERE {key_conditions});",
+                    *key_params,
+                )
+
+                if not annotation_exists:
+                    placeholders = ", ".join(f"${i}" for i in range(1, len(insert_values) + 1))
+                    columns = ", ".join(insert_columns)
+                    query = f"INSERT INTO penalty_annotations ({columns}) VALUES ({placeholders});"
+                    
+                    await conn.execute(query, *insert_values)
                 else:
-                    await conn.execute(
-                        add_or_update_query,
-                        key.penalty_date,
-                        key.nm_id,
-                        key.bonus_type_name,
-                        key.srid,
-                        owner,
-                        data.comment,
-                    )
+                    query = f"UPDATE penalty_annotations SET {', '.join(set_clauses)} WHERE {key_conditions};"
+                    await conn.execute(query, *all_params)
 
         return {"message": "update success"}
