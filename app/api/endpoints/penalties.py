@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, status
 
 from app.dependencies import get_penalty_service, get_dates_period_filter
-from app.domain.models import DaylyPenaltiesReport, PeriodRequestModel, PenaltyAnnotationUpdate
+from app.domain.models import DaylyPenaltiesReport, PeriodRequestModel, PenaltyAnnotationUpdate, ResponseMessage
 from app.service.penalties import PenaltyService
 
 
@@ -22,5 +22,9 @@ async def get_penalties_details(
 async def update_penalty_annotation(
     data: PenaltyAnnotationUpdate,
     service: PenaltyService = Depends(get_penalty_service),
-):
-    return await service.update_penalty_annotation(data)
+) -> ResponseMessage:
+    await service.update_penalty_annotation(data)
+    return ResponseMessage(
+        status=status.HTTP_200_OK,
+        message="Penalty annotations successfully updated"
+    )

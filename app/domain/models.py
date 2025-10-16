@@ -637,21 +637,32 @@ class PenaltyDetailsResponse(BaseModel):
     """Модель штрафа из таблицы penalties_mv."""
 
     sale_dt: Optional[date] = Field(..., description="Дата продажи")
+    order_date: Optional[date] = Field(..., description="Дата заказа покупателем")
+
+    nm_id: Optional[int] = Field(..., description="Код номенклатуры")
     penalty: Optional[float] = Field(..., description="Сумма штрафа")
     count_items: Optional[int] = Field(..., description="Количество")
     bonus_type_name: Optional[str] = Field(..., description="Виды логистики, штрафов и корректировок ВВ")
-    nm_id: Optional[int] = Field(..., description="Код номенклатуры")
     subject_name: Optional[str] = Field(..., description="Предмет")
     account: Optional[str] = field_configs["account"]
     srid: Optional[str] = Field(..., description="Srid")
     warehouse_type: Optional[str] = Field(..., description="Тип склада")
-    order_date: Optional[date] = Field(..., description="Дата заказа покупателем")
     local_vendor_code: Optional[str] = field_configs["local_vendor_code"]
     shk_id: Optional[str] = Field(..., description="ШК")
-    assembly_id: Optional[int] = Field(..., description="Номер сборочного задания")
+
     supplier_status: Optional[str] = Field(..., description="Статус поставщика")
-    wb_status: Optional[str] = Field(..., description="Статус WB")
     supply_id: Optional[str] = Field(..., description="Номер поставки")
+    internal_status: Optional[str] = Field(None, description="Внутренний статус заказа")
+    internal_status_setting_date: Optional[date] = Field(None, description="Дата установки внутреннего статуса")
+    wb_status: Optional[str] = Field(..., description="Статус WB")
+    wb_status_setting_date: Optional[date] = Field(None, description="Дата установки статуса WB")
+    assembler_name: Optional[str] = Field(None, description="ФИО сборщика")
+    operator_name: Optional[str] = Field(None, description="ФИО оператора")
+    assembly_id: Optional[int] = Field(..., description="Номер сборочного задания")
+    assembly_start_date: Optional[date] = Field(None, description="Начало сборки заказа")
+    assembly_end_date: Optional[date] = Field(None, description="Окончание сборки заказа")
+    transferred_to_delivery_at: Optional[date] = Field(None, description="Дата передачи товара в доставку")
+
     loss_owner: Optional[str] = Field(None, description="Владелец потерь")
     comment: Optional[str] = Field(None, description="Комментарий к штрафу")
 
@@ -678,6 +689,7 @@ class DaylyPenaltiesReport(BaseModel):
                     "penalties": [
                         {
                             "sale_dt": "2025-08-01",
+                            "order_date": "2025-07-18",
                             "penalty": 1604,
                             "count_items": 1,
                             "bonus_type_name": "Выявленные расхождения в карточке товара после приемки на складе WB",
@@ -686,13 +698,20 @@ class DaylyPenaltiesReport(BaseModel):
                             "account": "Вектор",
                             "srid": "22021130613098888.0.0",
                             "warehouse_type": "Склад WB",
-                            "order_date": "2025-07-18",
                             "local_vendor_code": "wild352",
                             "shk_id": "37450221111.0",
-                            "assembly_id": 0,
                             "supplier_status": "complete",
-                            "wb_status": "defect",
                             "supply_id": "WB-GI-000000",
+                            "internal_status": None,
+                            "internal_status_setting_date": "2025-08-01",
+                            "wb_status": "defect",
+                            "wb_status_setting_date": "2025-08-01",
+                            "assembler_name": None,
+                            "operator_name": None,
+                            "assembly_id": 3922282071,
+                            "assembly_start_date": "2025-08-01",
+                            "assembly_end_date": "2025-08-01",
+                            "transferred_to_delivery_at": "2025-08-01",
                             "loss_owner": "Поставщик",
                             "comment": "Недостача при приёмке"
                         },
@@ -768,7 +787,7 @@ class PenaltyAnnotationUpdate(BaseModel):
     @classmethod
     def validate_comment(cls, v):
         if isinstance(v, str):
-            return v.strip()
+            return v.strip() or None
 
         return v
 

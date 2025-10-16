@@ -1,3 +1,5 @@
+from typing import NoReturn
+
 from app.domain.models import DaylyPenaltiesReport, PeriodRequestModel, PenaltyAnnotationUpdate
 from app.repository.penalties import PenaltyRepository
 
@@ -16,6 +18,6 @@ class PenaltyService:
     async def update_penalty_annotation(
         self,
         data: PenaltyAnnotationUpdate,
-    ):
+    ) -> NoReturn:
         """Обновить аннотации к штрафу."""
         return await self.repository.update_penalty_annotation(data)

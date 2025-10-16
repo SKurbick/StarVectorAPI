@@ -1,9 +1,11 @@
 from collections import defaultdict
+from typing import NoReturn
 
-from asyncpg import Pool, UndefinedTableError
+from asyncpg import Pool, PostgresError, UndefinedTableError
 from fastapi import HTTPException, status
 
-from app.domain.models import DaylyPenaltiesReport, PenaltyDetailsResponse,  PeriodRequestModel, PenaltyAnnotationUpdate, LossOwnerEnum
+from app.domain.models import (DaylyPenaltiesReport, PenaltyDetailsResponse,
+                               PeriodRequestModel, PenaltyAnnotationUpdate)
 
 
 class PenaltyRepository:
@@ -69,7 +71,7 @@ class PenaltyRepository:
             penalties=penalties
         ) for date, penalties in penalties_by_date.items()]
 
-    async def update_penalty_annotation(self, data: PenaltyAnnotationUpdate):
+    async def update_penalty_annotation(self, data: PenaltyAnnotationUpdate) -> NoReturn:
         """Обновить аннотации к штрафу. Создаёт запись, если она отсутствует и переданы данные для сохранения."""
         # Извлекаем ключевые поля
         key = data.penalty
@@ -98,33 +100,37 @@ class PenaltyRepository:
             insert_columns.append(field_name)
             insert_values.append(value)
 
-        async with self.pool.acquire() as conn:
-            # Проверяем существование штрафа
-            penalty_exists = await conn.fetchval(
-                f"SELECT EXISTS (SELECT 1 FROM penalties_mv WHERE {key_conditions});",
-                *key_params,
-            )
-            if not penalty_exists:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Штраф с указанными параметрами не найден"
-                )
-
-            async with conn.transaction():
-                # Проверяем существование аннотации
-                annotation_exists = await conn.fetchval(
-                    f"SELECT EXISTS (SELECT 1 FROM penalty_annotations WHERE {key_conditions});",
+        try:
+            async with self.pool.acquire() as conn:
+                # Проверяем существование штрафа
+                penalty_exists = await conn.fetchval(
+                    f"SELECT EXISTS (SELECT 1 FROM penalties_mv WHERE {key_conditions});",
                     *key_params,
                 )
+                if not penalty_exists:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Штраф с указанными параметрами не найден"
+                    )
 
-                if not annotation_exists:
-                    placeholders = ", ".join(f"${i}" for i in range(1, len(insert_values) + 1))
-                    columns = ", ".join(insert_columns)
-                    query = f"INSERT INTO penalty_annotations ({columns}) VALUES ({placeholders});"
-                    
-                    await conn.execute(query, *insert_values)
-                else:
-                    query = f"UPDATE penalty_annotations SET {', '.join(set_clauses)} WHERE {key_conditions};"
-                    await conn.execute(query, *all_params)
+                async with conn.transaction():
+                    # Проверяем существование аннотации
+                    annotation_exists = await conn.fetchval(
+                        f"SELECT EXISTS (SELECT 1 FROM penalty_annotations WHERE {key_conditions});",
+                        *key_params,
+                    )
 
-        return {"message": "update success"}
+                    if not annotation_exists:
+                        placeholders = ", ".join(f"${i}" for i in range(1, len(insert_values) + 1))
+                        columns = ", ".join(insert_columns)
+                        query = f"INSERT INTO penalty_annotations ({columns}) VALUES ({placeholders});"
+                        
+                        await conn.execute(query, *insert_values)
+                    else:
+                        query = f"UPDATE penalty_annotations SET {', '.join(set_clauses)} WHERE {key_conditions};"
+                        await conn.execute(query, *all_params)
+        except PostgresError as e:
+            raise HTTPException(
+                status_code=422,
+                detail=f"PoistgresError: {e}"
+            )
