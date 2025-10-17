@@ -1,10 +1,11 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
-from app.infrastructure.database import init_db, close_db
+from app.infrastructure.database import init_postgres_db, close_postgres_db, init_clickhouse_client, close_clickhouse_client
 from app.api.endpoints import (article_router, card_data_router, price_discount_router, favicon_router, 
                                turnover_router, orders_revenues_router, unit_economics_router, net_profit_router, 
                                percent_by_tax_router, stocks_quantity_router, product_router, fin_reports_router,
@@ -15,12 +16,19 @@ from app.config.settings import settings
 # Контекстный менеджер для управления жизненным циклом приложения
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Инициализация пула соединений при старте приложения
-    pool = await init_db()
-    app.state.pool = pool
+    # Инициализация соединений с базами данных при старте приложения
+    async with asyncio.TaskGroup() as task_group:
+        postgres_task = task_group.create_task(init_postgres_db())
+        clickhouse_task = task_group.create_task(init_clickhouse_client())
+
+    app.state.pool = postgres_task.result()
+    app.state.clickhouse_client = clickhouse_task.result()
+
     yield
-    # Закрытие пула соединений при завершении работы приложения
-    await close_db(pool)
+    # Закрытие соединений c базами данных при завершении работы приложения
+    async with asyncio.TaskGroup() as task_group:
+        task_group.create_task(close_postgres_db(app.state.pool))
+        task_group.create_task(close_clickhouse_client(app.state.clickhouse_client))
 
 
 # Создаем экземпляр FastAPI с использованием lifespan
