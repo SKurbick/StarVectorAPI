@@ -9,7 +9,7 @@ from app.infrastructure.database import init_postgres_db, close_postgres_db, ini
 from app.api.endpoints import (article_router, card_data_router, price_discount_router, favicon_router, 
                                turnover_router, orders_revenues_router, unit_economics_router, net_profit_router, 
                                percent_by_tax_router, stocks_quantity_router, product_router, fin_reports_router,
-                               sales_router, penalties_router)
+                               sales_router, penalties_router, competitors_prices_router)
 from app.config.settings import settings
 
 
@@ -46,6 +46,7 @@ app.include_router(product_router, prefix="/api")
 app.include_router(fin_reports_router, prefix="/api")
 app.include_router(penalties_router, prefix="/api")
 app.include_router(sales_router, prefix="/api")
+app.include_router(competitors_prices_router, prefix="/api")
 app.include_router(favicon_router)
 
 origins = [

@@ -12,6 +12,7 @@ from .product import router as product_router
 from .fin_reports import router as fin_reports_router
 from .penalties import router as penalties_router
 from .sales import router as sales_router
+from .competitors_prices import router as competitors_prices_router
 
 
 __all__ = [
@@ -29,4 +30,5 @@ __all__ = [
     'fin_reports_router',
     'penalties_router',
     'sales_router',
+    'competitors_prices_router',
 ]

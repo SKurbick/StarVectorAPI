@@ -11,6 +11,8 @@ from .fin_reports import get_fin_reports_service
 from .penalties import get_penalty_service
 from . sales import get_sale_service
 from .filters import get_dates_period_filter, get_months_filter
+from .database import get_pool, get_clickhouse_client
+from .competitors_prices import get_competitors_prices_service
 
 
 __all__ = [
@@ -37,4 +39,7 @@ __all__ = [
     "get_months_filter",
     "get_penalty_service",
     "get_sale_service",
+    "get_pool",
+    "get_clickhouse_client",
+    "get_competitors_prices_service",
 ]
