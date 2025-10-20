@@ -1,18 +1,23 @@
+from asyncpg import Pool
 from fastapi import Depends
 from clickhouse_connect.driver.asyncclient import AsyncClient
 
-from app.dependencies import get_clickhouse_client
-from app.repository.competitors_prices import CompetitorsPricesRepository
-from app.service.competitors_prices import CompetitorsPricesService
+from app.dependencies import get_clickhouse_client, get_pool
+from app.repository.competitors_prices import CompetitorPriceRepository
+from app.service.competitors_prices import CompetitorPriceService
 
 
-def get_competitors_prices_repository(
+def get_competitor_price_repository(
+    pool: Pool = Depends(get_pool),
     client: AsyncClient = Depends(get_clickhouse_client)
-) -> CompetitorsPricesRepository:
-    return CompetitorsPricesRepository(client)
+) -> CompetitorPriceRepository:
+    return CompetitorPriceRepository(
+        client=client,
+        pool=pool,
+    )
 
 
-def get_competitors_prices_service(
-    repository: CompetitorsPricesRepository = Depends(get_competitors_prices_repository)
-) -> CompetitorsPricesService:
-    return CompetitorsPricesService(repository)
+def get_competitor_price_service(
+    repository: CompetitorPriceRepository = Depends(get_competitor_price_repository)
+) -> CompetitorPriceService:
+    return CompetitorPriceService(repository)

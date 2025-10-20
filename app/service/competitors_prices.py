@@ -1,9 +1,9 @@
-from app.repository.competitors_prices import CompetitorsPricesRepository
+from app.repository.competitors_prices import CompetitorPriceRepository
 
 
-class CompetitorsPricesService:
-    def __init__(self, repository: CompetitorsPricesRepository):
+class CompetitorPriceService:
+    def __init__(self, repository: CompetitorPriceRepository):
         self.repository = repository
 
-    async def get_competitors_prices(self):
-        return await self.repository.get_competitors_prices()
+    async def get_all_competitors_prices(self):
+        return await self.repository.get_all_competitors_prices()
