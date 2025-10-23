@@ -1,9 +1,10 @@
-from typing import Optional
+from typing import Any, Optional, Generator
 
-from asyncpg import Pool, UndefinedTableError
+from asyncpg import Pool, UndefinedTableError, Record
 from fastapi import HTTPException, status
 
 from app.domain.models import WeeklyFinReportsAggregated, FinReportDeduction, PeriodRequestModel
+from app.infrastructure.WildberriesAPI.fin_reports import FIELD_TYPES, normalize_wb_value
 
 
 class FinReportsRepository:
@@ -106,3 +107,58 @@ class FinReportsRepository:
         return [
             WeeklyFinReportsAggregated(**report) for report in reports.values()
         ]
+
+    async def save_daily_fin_reports(self, records: list, account: str):
+        """Сохраняет батч записей в БД."""
+        if not records:
+            return 0
+
+        if self.pool is None:
+            raise RuntimeError("Database not connected.")
+
+        all_columns = list(FIELD_TYPES.keys())
+        unique_columns = "realizationreport_id", "rrd_id"
+        updatable_columns = [col for col in all_columns if col not in unique_columns]
+
+        columns_sql = ", ".join(all_columns)
+        placeholders_sql = ", ".join(f"${i + 1}" for i in range(len(all_columns)))
+        unique_columns_sql = ", ".join(unique_columns)
+        set_clause_sql = ", ".join(f"{col} = EXCLUDED.{col}" for col in updatable_columns)
+
+        data = self._records_to_list_tuples(records, account, all_columns)
+
+        upsert_query = f"""
+            INSERT INTO daily_fin_reports_full ({columns_sql})
+            VALUES ({placeholders_sql})
+            ON CONFLICT ({unique_columns_sql})
+            DO UPDATE SET {set_clause_sql};
+        """
+
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.executemany(upsert_query, data)
+
+            return len(records)
+
+    @staticmethod
+    def _records_to_list_tuples(
+            records: list[Record],
+            account: str, 
+            all_columns: list[str]
+        ) -> Generator[tuple, Any, None]:
+        for record in records:
+            row = []
+
+            for field in all_columns:
+                if field == "account":
+                    row.append(account)
+                    continue
+
+                field_type = FIELD_TYPES.get(field)
+
+                if field_type:
+                    row.append(normalize_wb_value(record.get(field), field_type))
+                else:
+                    row.append(record.get(field))
+
+            yield tuple(row)

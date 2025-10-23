@@ -4,3 +4,4 @@ tokens.json
 .idea/
 __pycache__/
 .venv
+logs/

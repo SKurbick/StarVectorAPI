@@ -20,3 +20,10 @@ async def get_weekly_fin_reports_agg(
     service: FinReportsService = Depends(get_fin_reports_service),
 ) -> list[WeeklyFinReportsAggregated]:
     return await service.get_fin_reports_aggregated(period, number_of_last_weeks)
+
+@router.post("/jobs/fetch-daily-financial-reports")
+async def fetch_daily_fin_reports(
+    service: FinReportsService = Depends(get_fin_reports_service)
+):
+    await service.fetch_daily_fin_reports()
+    return {"status": 200, "message": "so-good!"}
