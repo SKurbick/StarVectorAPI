@@ -1,4 +1,5 @@
 from typing import Optional
+from datetime import date
 
 from fastapi import APIRouter, Depends, status, Query
 
@@ -21,9 +22,18 @@ async def get_weekly_fin_reports_agg(
 ) -> list[WeeklyFinReportsAggregated]:
     return await service.get_fin_reports_aggregated(period, number_of_last_weeks)
 
-@router.post("/jobs/fetch-daily-financial-reports")
+
+@router.post("/jobs/fetch_daily_financial_reports")
 async def fetch_daily_fin_reports(
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
     service: FinReportsService = Depends(get_fin_reports_service)
 ):
-    await service.fetch_daily_fin_reports()
+    if date_from:
+        date_from = date_from.isoformat()
+    
+    if date_to:
+        date_to = date_to.isoformat()
+    
+    await service.fetch_daily_fin_reports(date_from, date_to)
     return {"status": 200, "message": "so-good!"}

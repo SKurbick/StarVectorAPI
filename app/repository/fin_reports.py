@@ -1,6 +1,6 @@
 from typing import Any, Optional, Generator
 
-from asyncpg import Pool, UndefinedTableError, Record
+from asyncpg import Pool, UndefinedTableError, Record, PostgresError
 from fastapi import HTTPException, status
 
 from app.domain.models import WeeklyFinReportsAggregated, FinReportDeduction, PeriodRequestModel
@@ -134,11 +134,14 @@ class FinReportsRepository:
             DO UPDATE SET {set_clause_sql};
         """
 
-        async with self.pool.acquire() as conn:
-            async with conn.transaction():
-                await conn.executemany(upsert_query, data)
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.transaction():
+                    await conn.executemany(upsert_query, data)
+        except PostgresError as e:
+            raise PostgresError(f"Postgres Error: {e}")
 
-            return len(records)
+        return len(records)
 
     @staticmethod
     def _records_to_list_tuples(

@@ -13,18 +13,6 @@ from app.infrastructure.WildberriesAPI.fin_reports import WBFinReportFetcher
 from app.repository.fin_reports import FinReportsRepository
 
 
-os.makedirs("logs", exist_ok=True)
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[
-        logging.FileHandler(f"logs/dayly_fin_reports.log", encoding="utf-8"),
-        logging.StreamHandler()
-    ]
-)
-
-
 class FinReportsService:
     def __init__(
         self,
@@ -39,7 +27,7 @@ class FinReportsService:
     ) -> list[WeeklyFinReportsAggregated]:
         return await self.repository.get_fin_reports_aggregated(period, number_of_last_weeks)
 
-    async def fetch_daily_fin_reports(self, date_from: Optional[date] = None, date_to: Optional[date] = None):
+    async def fetch_daily_fin_reports(self, date_from: Optional[str] = None, date_to: Optional[str] = None):
         yesterday = (date.today() - timedelta(days=1)).isoformat()
 
         date_from = date_from or yesterday
@@ -97,10 +85,9 @@ class FinReportsService:
                 if not raw_records:
                     logging.info(f"{account} | Нет данных за период {date_from}–{date_to}")
 
-                logging.info(f"{account} | Получено {len(raw_records)} сырых записей")
-
                 count_saved_records = await self.repository.save_daily_fin_reports(raw_records, account)
                 logging.info(f"{account} | Сохранено {count_saved_records} записей")
 
         except Exception as e:
             logging.exception(f"Критическая ошибка при обработке аккаунта {account}: {e}")
+            raise Exception(e)
