@@ -120,7 +120,7 @@ class FinReportsService:
                 count_saved_records = await self.repository.save_daily_fin_reports(raw_records, account)
                 logging.info(f"{account} | Сохранено {count_saved_records} записей")
                 all_records_count += count_saved_records
-            raise Exception(f"{account} test error")
+
             return (account, all_records_count)
 
         except Exception as e:
