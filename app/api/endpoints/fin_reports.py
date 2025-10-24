@@ -1,9 +1,9 @@
 from typing import Optional
 from datetime import date
 
-from fastapi import APIRouter, Depends, status, Query
+from fastapi import APIRouter, Depends, status, Query, HTTPException
 
-from app.dependencies import get_fin_reports_service, get_dates_period_filter
+from app.dependencies import get_fin_reports_service, get_dates_period_filter, verify_scheduler_api_key
 from app.domain.models import WeeklyFinReportsAggregated, PeriodRequestModel
 from app.service.fin_reports import FinReportsService
 
@@ -23,17 +23,24 @@ async def get_weekly_fin_reports_agg(
     return await service.get_fin_reports_aggregated(period, number_of_last_weeks)
 
 
-@router.post("/jobs/fetch_daily_financial_reports")
+@router.post("/jobs/fetch_daily_financial_reports", status_code=200, include_in_schema=False)
 async def fetch_daily_fin_reports(
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
-    service: FinReportsService = Depends(get_fin_reports_service)
+    service: FinReportsService = Depends(get_fin_reports_service),
+    _: None = Depends(verify_scheduler_api_key)
 ):
     if date_from:
         date_from = date_from.isoformat()
     
     if date_to:
         date_to = date_to.isoformat()
-    
-    await service.fetch_daily_fin_reports(date_from, date_to)
-    return {"status": 200, "message": "so-good!"}
+
+    try:
+        result = await service.fetch_daily_fin_reports(date_from, date_to)
+        return {"message": "Data loaded successfully", "detail": result}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error while loading data: {e}",
+        )

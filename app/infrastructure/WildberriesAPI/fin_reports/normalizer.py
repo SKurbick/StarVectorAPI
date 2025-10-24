@@ -130,7 +130,7 @@ def normalize_wb_value(value: Any, target_type: str) -> Any:
             if isinstance(value, (int, float)):
                 return bool(value)
             if isinstance(value, str):
-                return value.lower() in ("true", "1", "yes")
+                return value.lower() in ("true", "1")
 
             return bool(value)
 
@@ -140,9 +140,7 @@ def normalize_wb_value(value: Any, target_type: str) -> Any:
             if isinstance(value, int):
                 return value
             if isinstance(value, float):
-                if value.is_integer():
-                    return int(value)
-                raise ValueError("Float is not an integer")
+                return int(value)
             if isinstance(value, str):
                 try:
                     return int(value)

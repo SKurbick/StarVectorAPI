@@ -5,3 +5,4 @@ tokens.json
 __pycache__/
 .venv
 logs/
+log/

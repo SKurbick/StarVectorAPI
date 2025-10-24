@@ -116,30 +116,32 @@ class FinReportsRepository:
         if self.pool is None:
             raise RuntimeError("Database not connected.")
 
-        all_columns = list(FIELD_TYPES.keys())
-        unique_columns = "realizationreport_id", "rrd_id"
-        updatable_columns = [col for col in all_columns if col not in unique_columns]
-
-        columns_sql = ", ".join(all_columns)
-        placeholders_sql = ", ".join(f"${i + 1}" for i in range(len(all_columns)))
-        unique_columns_sql = ", ".join(unique_columns)
-        set_clause_sql = ", ".join(f"{col} = EXCLUDED.{col}" for col in updatable_columns)
-
-        data = self._records_to_list_tuples(records, account, all_columns)
-
-        upsert_query = f"""
-            INSERT INTO daily_fin_reports_full ({columns_sql})
-            VALUES ({placeholders_sql})
-            ON CONFLICT ({unique_columns_sql})
-            DO UPDATE SET {set_clause_sql};
-        """
-
         try:
+            all_columns = list(FIELD_TYPES.keys())
+            unique_columns = "realizationreport_id", "rrd_id"
+            updatable_columns = [col for col in all_columns if col not in unique_columns]
+
+            columns_sql = ", ".join(all_columns)
+            placeholders_sql = ", ".join(f"${i + 1}" for i in range(len(all_columns)))
+            unique_columns_sql = ", ".join(unique_columns)
+            set_clause_sql = ", ".join(f"{col} = EXCLUDED.{col}" for col in updatable_columns)
+
+            data = self._records_to_list_tuples(records, account, all_columns)
+
+            upsert_query = f"""
+                INSERT INTO daily_fin_reports_full ({columns_sql})
+                VALUES ({placeholders_sql})
+                ON CONFLICT ({unique_columns_sql})
+                DO UPDATE SET {set_clause_sql};
+            """
+
             async with self.pool.acquire() as conn:
                 async with conn.transaction():
                     await conn.executemany(upsert_query, data)
         except PostgresError as e:
-            raise PostgresError(f"Postgres Error: {e}")
+            raise PostgresError(f"{account} | Postgres Error: {e}")
+        except Exception as e:
+            raise Exception(f"{account} | Необработанное исключение: {e}")
 
         return len(records)
 
