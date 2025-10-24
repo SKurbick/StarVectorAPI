@@ -2,7 +2,7 @@
 set -e
 
 ENV_FILE="../.env"
-LOG_FILE="../log/update_data.log"
+LOG_FILE="../log/update_daily_fin_reports.log"
 RESPONSE_FILE="/tmp/update_data_response.txt"
 
 MAX_RETRIES=3
