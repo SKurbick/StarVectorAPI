@@ -20,7 +20,7 @@ class PenaltyRepository:
         query = """
         SELECT
             pmv.date as penalty_date,
-            pmv.sale_dt,
+            pmv.sale_dt::date,
             pmv.penalty,
             pmv.count_items,
             pmv.bonus_type_name,

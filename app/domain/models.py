@@ -648,7 +648,7 @@ class PenaltyDetailsResponse(BaseModel):
     srid: Optional[str] = Field(..., description="Srid")
     warehouse_type: Optional[str] = Field(..., description="Тип склада")
     local_vendor_code: Optional[str] = field_configs["local_vendor_code"]
-    shk_id: Optional[str] = Field(..., description="ШК")
+    shk_id: Optional[int] = Field(..., description="ШК")
 
     supplier_status: Optional[str] = Field(..., description="Статус поставщика")
     supply_id: Optional[str] = Field(..., description="Номер поставки")
