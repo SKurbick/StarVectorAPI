@@ -1,7 +1,9 @@
 from typing import List
+import uuid
 
 from app.repository.article import ArticleRepository
 from app.domain.models import ArticleDetails, ArticleCloseRequest
+from app.tasks.wb_tasks import clear_wb_stocks_for_closed_card
 
 
 class ArticleService:
@@ -40,3 +42,19 @@ class ArticleService:
 
         for account, nm_list in accounts_with_nm_ids.items():
             await self.article_repository.close_articles_in_account(account, nm_list)
+
+            task_id = str(uuid.uuid4())
+
+            await self.article_repository.create_clearance_task(
+                task_id=task_id,
+                account=account,
+                nm_ids=nm_list
+            )
+
+            clear_wb_stocks_for_closed_card.apply_async(
+                kwargs={
+                    "nm_ids": nm_list,
+                    "account_name": account,
+                },
+                task_id=task_id
+            )

@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - dev_network
+
+  celery-worker:
+    build: .
+    command: celery -A app.celery_app.celery_app worker --loglevel=info
+    depends_on:
+      - redis
+    volumes:
+      - .:/app
+    # environment:
+    #   - POSTGRES_HOST=host.docker.internal
+    networks:
+      - dev_network
+
+networks:
+  dev_network:
+    driver: bridge
