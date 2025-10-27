@@ -663,16 +663,8 @@ class PenaltyDetailsResponse(BaseModel):
     assembly_end_date: Optional[date] = Field(None, description="Окончание сборки заказа")
     transferred_to_delivery_at: Optional[date] = Field(None, description="Дата передачи товара в доставку")
 
-    loss_owner: Optional[str] = Field(None, description="Владелец потерь")
+    loss_owner: Optional[int] = Field(1, description="Владелец потерь")
     comment: Optional[str] = Field(None, description="Комментарий к штрафу")
-
-    @field_validator("loss_owner", mode="after")
-    @classmethod
-    def set_default_loss_owner(cls, v):
-        if v is None:
-            return LossOwnerEnum.warehouse
-
-        return v
 
 
 class DaylyPenaltiesReport(BaseModel):
@@ -712,7 +704,7 @@ class DaylyPenaltiesReport(BaseModel):
                             "assembly_start_date": "2025-08-01",
                             "assembly_end_date": "2025-08-01",
                             "transferred_to_delivery_at": "2025-08-01",
-                            "loss_owner": "Поставщик",
+                            "loss_owner": 1,
                             "comment": "Недостача при приёмке"
                         },
                     ]
@@ -766,22 +758,30 @@ class PenaltyAnnotationUpdate(BaseModel):
 
     penalty: PenaltyIdentifier
     loss_owner: LossOwnerEnum = Field(
-        LossOwnerEnum.warehouse,
+        1,
         description="Владелец потерь: Склад (по умолчанию), Офис, Поставщик, ВБ или Прочее"
     )
     comment: Optional[str] = Field(None, description="Комментарий к штрафу")
 
     @field_validator("loss_owner", mode="before")
     @classmethod
-    def normalize_loss_owner(cls, v):
+    def validate_loss_owner(cls, v):
+        if isinstance(v, int):
+            return LossOwnerEnum.from_id(v)
+
         if isinstance(v, str):
-            normalized = v.strip().lower()
+            try:
+                return LossOwnerEnum.from_id(int(v))
+            except ValueError:
+                pass
 
-            for enum_item in LossOwnerEnum:
-                if enum_item.lower() == normalized:
-                    return enum_item
+        if isinstance(v, LossOwnerEnum):
+            return v
 
-        return v
+        raise ValueError(
+            "loss_owner должен быть целочисленным (1–7). "
+            "Например: 1 для 'Склад', 2 для 'Офис', и т.д."
+        )
 
     @field_validator("comment", mode="before")
     @classmethod
@@ -801,7 +801,7 @@ class PenaltyAnnotationUpdate(BaseModel):
                         "bonus_type_name": "Штраф МП. Невыполненный заказ ",
                         "srid": "22021130613098888.0.0"
                     },
-                    "loss_owner": "Поставщик",
+                    "loss_owner": 1,
                     "comment": "Недостача при приёмке"
                 },
             ]
