@@ -807,3 +807,17 @@ class PenaltyAnnotationUpdate(BaseModel):
             ]
         },
     )
+
+
+class ArticleCloseRequest(BaseModel):
+    """Модель для закрытия карточек."""
+
+    nm_ids: Optional[list[int]] = Field(None, description="Артикулы карточек")
+    local_vendor_codes: Optional[list[str]] = Field(None, description="id товаров")
+
+    @model_validator(mode="after")
+    def at_least_one_field(self):
+        if not self.nm_ids and not self.local_vendor_codes:
+            raise ValueError("Необходимо указать nm_ids или wild_ids.")
+
+        return self

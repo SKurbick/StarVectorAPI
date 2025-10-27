@@ -13,6 +13,3 @@ class CardDataService:
 
     async def get_all_card_data(self) -> List[CardData]:
         return await self.card_data_repository.get_all_card_data()
-    
-    async def close_card(article_id: int):
-        pass
