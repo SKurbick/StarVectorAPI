@@ -8,4 +8,6 @@ class LossOwnerEnum(str, Enum):
     office = "Офис"
     supplier = "Поставщик"
     wb = "ВБ"
+    manager_wb = "Менеджер ВБ"
+    purchase = "Закупки"
     other = "Прочее"
