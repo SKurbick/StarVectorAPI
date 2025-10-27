@@ -32,6 +32,5 @@ async def update_penalty_annotation(
 
 @router.get("/loss_owners", status_code=status.HTTP_200_OK,
             description="Список доступных владельцев потерь")
-async def get_all_loss_owners() -> dict[str, str]:
-    
-    return {owner.name: owner.value for owner in LossOwnerEnum}
+async def get_all_loss_owners() -> dict[int, str]:
+    return {owner.id: owner.value_for_db for owner in LossOwnerEnum}

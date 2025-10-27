@@ -4,6 +4,7 @@ from typing import NoReturn
 from asyncpg import Pool, PostgresError, UndefinedTableError
 from fastapi import HTTPException, status
 
+from app.domain.enums import LossOwnerEnum
 from app.domain.models import (DaylyPenaltiesReport, PenaltyDetailsResponse,
                                PeriodRequestModel, PenaltyAnnotationUpdate)
 
@@ -63,6 +64,12 @@ class PenaltyRepository:
         for row in rows:
             data = dict(row)
             penalties_date = data.pop("penalty_date")
+            loss_owner = data.get("loss_owner")
+
+            if not loss_owner:
+                data["loss_owner"] = LossOwnerEnum.warehouse.id
+            else:
+                data["loss_owner"] = LossOwnerEnum.from_db_value(loss_owner).id
 
             penalties_by_date[penalties_date].append(PenaltyDetailsResponse(**data))
 
@@ -85,6 +92,10 @@ class PenaltyRepository:
 
         update_data = data.model_dump(exclude_unset=True)
         update_fields = {k: v for k, v in update_data.items() if k != "penalty"}
+
+        # Подставляем значение для БД
+        if "loss_owner" in update_fields:
+            update_fields["loss_owner"] = update_fields["loss_owner"].value_for_db
 
         if not update_fields:
             return {"message": "No fields to update"}

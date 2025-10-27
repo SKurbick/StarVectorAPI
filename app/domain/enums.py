@@ -1,13 +1,42 @@
+from typing import Self
 from enum import Enum
 
 
-class LossOwnerEnum(str, Enum):
+class LossOwnerEnum(Enum):
     """Список владельцев потерь."""
 
-    warehouse = "Склад"
-    office = "Офис"
-    supplier = "Поставщик"
-    wb = "ВБ"
-    manager_wb = "Менеджер ВБ"
-    purchase = "Закупки"
-    other = "Прочее"
+    warehouse = (1, "Склад")
+    office = (2, "Офис")
+    supplier = (3, "Поставщик")
+    wb = (4, "ВБ")
+    manager_wb = (5, "Менеджер ВБ")
+    purchase = (6, "Закупки")
+    other = (7, "Прочее")
+
+    def __init__(self, id_: int, value_for_db: str):
+        self._id = id_
+        self._value_for_db = value_for_db
+
+    @property
+    def id(self) -> int:
+        return self._id
+
+    @property
+    def value_for_db(self) -> str:
+        return self._value_for_db
+
+    @classmethod
+    def from_id(cls, id_: int) -> Self:
+        for item in cls:
+            if item.id == id_:
+                return item
+
+        raise ValueError(f"Invalid loss owner ID: {id_}")
+
+    @classmethod
+    def from_db_value(cls, value: str) -> Self:
+        for item in cls:
+            if item.value_for_db == value:
+                return item
+
+        raise ValueError(f"Invalid loss owner DB value: {value}")
