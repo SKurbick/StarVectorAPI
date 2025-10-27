@@ -18,3 +18,4 @@ class CardDataRepository:
             rows = await conn.fetch("SELECT * FROM card_data ")
 
             return [CardData(**row) for row in rows]
+ 
