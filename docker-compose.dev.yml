@@ -15,10 +15,29 @@ services:
       - redis
     volumes:
       - .:/app
-    # environment:
-    #   - POSTGRES_HOST=host.docker.internal
+    working_dir: /app
+    environment:
+      - POSTGRES_HOST=host.docker.internal
     networks:
       - dev_network
+    restart: unless-stopped
+
+  star_vector_api:
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+      - celery-worker
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app
+    environment:
+      - POSTGRES_HOST=host.docker.internal
+    networks:
+      - dev_network
+    restart: unless-stopped
 
 networks:
   dev_network:
