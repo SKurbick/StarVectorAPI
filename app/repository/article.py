@@ -154,7 +154,7 @@ class ArticleRepository:
                     await conn.execute(query_upsert_status, nm_id, account)
                     await conn.execute(query_insert_status_log, nm_id, account)
 
-    async def create_clearance_task(self, task_id: str, account: str, nm_ids: list[int]) -> int:
+    async def create_reset_virtual_balances_task(self, task_id: str, account: str, nm_ids: list[int]) -> int:
         query = """
             INSERT INTO stock_clearance_task (task_id, account, nm_ids)
             VALUES ($1, $2, $3)

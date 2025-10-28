@@ -29,5 +29,5 @@ async def close_articles(
     result = await service.close_articles(data)
     return ResponseMessage(
         status=status.HTTP_202_ACCEPTED,
-        message="Запрос на закрытие карточки принят."
+        message="Запрос на закрытие карточки принят!"
     )
