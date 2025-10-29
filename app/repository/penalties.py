@@ -19,35 +19,47 @@ class PenaltyRepository:
     ) -> list[DaylyPenaltiesReport]:
         """Получить данные о штрафах по каждому дню."""
         query = """
-        SELECT
-            pmv.date as penalty_date,
-            pmv.sale_dt::date,
-            pmv.penalty,
-            pmv.count_items,
-            pmv.bonus_type_name,
-            pmv.nm_id,
-            pmv.subject_name,
-            pmv.account,
-            pmv.srid,
-            pmv.warehouse_type,
-            pmv.order_date,
-            pmv.local_vendor_code,
-            pmv.shk_id,
-            pmv.assembly_id,
-            pmv.supplier_status,
-            pmv.wb_status,
-            pmv.supply_id,
-            pa.loss_owner,
-            pa.comment
-        FROM penalties_mv pmv
-        LEFT JOIN penalty_annotations pa ON (
-            pmv.date = pa.date
-            and pmv.nm_id = pa.nm_id
-            and pmv.bonus_type_name = pa.bonus_type_name
-            and pmv.srid = pa.srid
-        )
-        WHERE pmv.date BETWEEN $1 AND $2
-        ORDER BY pmv.date DESC;
+            SELECT
+                pmv.date as penalty_date,
+                pmv.sale_dt::date,
+                pmv.penalty,
+                pmv.price AS converted_price,
+                pmv.penalty_rate,
+                pmv.count_items,
+                pmv.bonus_type_name,
+                pmv.nm_id,
+                pmv.subject_name,
+                pmv.account,
+                pmv.srid,
+                pmv.warehouse_type,
+                pmv.order_date,
+                CASE
+                    WHEN pmv.nm_id != 0 AND pmv.local_vendor_code IS NULL
+                    THEN 'Неопознанный товар'
+                    ELSE pmv.local_vendor_code
+                END as local_vendor_code,
+                pmv.shk_id,
+                pmv.supplier_status,
+                pmv.wb_status,
+                pmv.wb_status_at as wb_status_setting_date,
+                pmv.supply_id,
+                pmv.assembly_id,
+                pmv.assembly_status as internal_status,
+                pmv.assembly_status_at as internal_status_setting_date,
+                pmv.assembly_start_at as assembly_start_date,
+                pmv.assembly_end_at as assembly_end_date,
+                pmv.delivered_at as transferred_to_delivery_at,
+                pa.loss_owner,
+                pa.comment
+            FROM penalties_mv pmv
+            LEFT JOIN penalty_annotations pa ON (
+                pmv.date = pa.date
+                and pmv.nm_id = pa.nm_id
+                and pmv.bonus_type_name = pa.bonus_type_name
+                and pmv.srid = pa.srid
+            )
+            WHERE pmv.date BETWEEN $1 AND $2
+            ORDER BY pmv.date DESC;
         """
 
         try:
