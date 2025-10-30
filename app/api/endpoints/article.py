@@ -1,8 +1,8 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 
-from app.domain.models import ArticleDetails, ArticleCloseRequest, ResponseMessage
+from app.domain.models import ArticleDetails
 from app.service.article import ArticleService
 from app.dependencies import get_article_service
 
@@ -18,16 +18,3 @@ async def get_article_details(
     if not user_details:
         raise HTTPException(status_code=404, detail="Articles data not found")
     return user_details
-
-
-@router.post("/articles/close", status_code=status.HTTP_202_ACCEPTED,
-             description="Закрыть карточку и обнулить остатки на маркетплейсе")
-async def close_articles(
-    data: ArticleCloseRequest,
-    service: ArticleService = Depends(get_article_service)
-):
-    result = await service.close_articles(data)
-    return ResponseMessage(
-        status=status.HTTP_202_ACCEPTED,
-        message="Запрос на закрытие карточки принят!"
-    )

@@ -30,7 +30,7 @@ async def get_db_connection():
 
 
 @celery_app.task(bind=True, max_retries=3)
-def reset_wb_stocks_for_closed_card(self, nm_ids: list[int], account_name: str):
+def reset_wb_stocks_for_closed_card(self, barcodes: list[str], account_name: str):
     task_id = self.request.id
 
     async def _run_task():
@@ -44,7 +44,7 @@ def reset_wb_stocks_for_closed_card(self, nm_ids: list[int], account_name: str):
                 """,
                 "started", task_id
             )
-            logger.info(f"Задача {task_id} начата для {account_name}, nm_ids={nm_ids}")
+            logger.info(f"Задача {task_id} начата для {account_name}, barcodes={barcodes}")
 
             await asyncio.sleep(3)
 

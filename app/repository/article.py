@@ -1,5 +1,4 @@
-from pprint import pprint
-from typing import List
+from typing import List, Any
 
 from asyncpg import Pool
 from pydantic import ValidationError
@@ -99,11 +98,12 @@ class ArticleRepository:
         return [row["nm_id"] for row in rows]
 
 
-    async def get_accounts_by_articles(self, articles: set[int]) -> dict[str, list[int]]:
+    async def get_article_barcodes(self, articles: set[int]) -> dict[str, list[dict[str, Any]]]:
         """Получить аккаунты карточек."""
         query = """
-            SELECT account, nm_id
-            FROM article
+            SELECT a.account, a.nm_id, cd.barcode
+            FROM article a
+            LEFT JOIN card_data cd ON a.nm_id = cd.article_id
             WHERE nm_id = ANY($1)
         """
 
@@ -118,49 +118,6 @@ class ArticleRepository:
             if not account in accounts:
                 accounts[account] = []
 
-            accounts[account].append(row["nm_id"])
+            accounts[account].append({"nm_id": row["nm_id"], "barcode": row["barcode"]})
 
         return accounts
-
-    async def close_articles_in_account(self, account: str, nm_ids: list[int]):
-        """Установить статус 'closed' для карточек аккаунта"""
-        query_for_update = """
-            SELECT nm_id, status
-            FROM card_status
-            WHERE account = $1 AND nm_id = ANY($2)
-            FOR UPDATE
-        """
-        query_upsert_status = """
-            INSERT INTO card_status (nm_id, account, status, updated_at)
-            VALUES ($1, $2, 'closed', NOW())
-            ON CONFLICT (nm_id, account)
-            DO UPDATE SET status = 'closed', updated_at = NOW()
-            WHERE card_status.status != 'closed'
-        """
-        query_insert_status_log = """
-            INSERT INTO card_status_log (nm_id, account, status, changed_at)
-            VALUES ($1, $2, 'closed', NOW())
-        """
-        async with self.pool.acquire() as conn:
-            async with conn.transaction():
-                rows = await conn.fetch(query_for_update, account, nm_ids)
-
-                existing = {row['nm_id']: row['status'] for row in rows}
-
-                for nm_id in nm_ids:
-                    if existing.get(nm_id) == 'closed':
-                        continue
-
-                    await conn.execute(query_upsert_status, nm_id, account)
-                    await conn.execute(query_insert_status_log, nm_id, account)
-
-    async def create_reset_virtual_balances_task(self, task_id: str, account: str, nm_ids: list[int]) -> int:
-        query = """
-            INSERT INTO stock_clearance_task (task_id, account, nm_ids)
-            VALUES ($1, $2, $3)
-            RETURNING id;
-        """
-
-        async with self.pool.acquire() as conn:
-            row = await conn.fetchrow(query, task_id, account, nm_ids)
-            return row["id"]
