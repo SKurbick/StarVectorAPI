@@ -11,7 +11,7 @@ from app.infrastructure.WildberriesAPI.marketplace import (
 logger = logging.getLogger(__name__)
 
 
-class VirtaulBalance:
+class VirtaulBalanceWB:
     """Изменяет виртуальные остатки товаров на всех складах WB."""
 
     def __init__(self, account_name: str, api_token: str):

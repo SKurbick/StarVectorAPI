@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Optional, List, Union, Dict
+from typing import Optional, List, Union, Dict, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, RootModel
 
@@ -820,6 +820,27 @@ class ArticleCloseRequest(BaseModel):
 
     nm_ids: Optional[list[int]] = Field(None, description="Артикулы карточек")
     local_vendor_codes: Optional[list[str]] = Field(None, description="id товаров")
+
+    @model_validator(mode="after")
+    def at_least_one_field(self):
+        if not self.nm_ids and not self.local_vendor_codes:
+            raise ValueError("Необходимо указать nm_ids или wild_ids.")
+
+        return self
+
+
+
+class CloseCardScenario(BaseModel):
+    title: Literal["close_card"]
+
+
+RequestScenario = Union[CloseCardScenario]
+
+
+class ManageCardsRequest(BaseModel):
+    scenario: RequestScenario
+    nm_ids: Optional[List[int]] = Field(None, description="Артикулы карточек")
+    local_vendor_codes: Optional[List[str]] = Field(None, description="id товаров")
 
     @model_validator(mode="after")
     def at_least_one_field(self):
