@@ -41,6 +41,8 @@ class CloseCardService(BaseCardService):
         logger.info(f"{accounts_with_cd}")
         logger.info(f"Начинаем передавать задачи в celery")
 
+        finally_data = {}
+
         for account, data in accounts_with_cd.items():
             nm_ids_list = [a["nm_id"] for a in data]
             barcodes = [a["barcode"] for a in data]
@@ -49,8 +51,14 @@ class CloseCardService(BaseCardService):
                 await card_status_repo.close_cards_in_account(account, nm_ids_list)
             except Exception as e:
                 logger.error(f"Не удалось закрыть карточки для {account}, nm_ids_list={nm_ids_list}: {e}")
+            
+            if barcodes:
+                if account not in finally_data:
+                    finally_data[account] = {
+                        "stocks" :[{
+                            "sku": barcode,
+                            "amount": 0
+                        } for barcode in barcodes]
+                    }
 
-            reset_wb_stocks_for_closed_card.delay(
-                barcodes=barcodes,
-                account_name= account,
-            )
+        reset_wb_stocks_for_closed_card.delay(data=finally_data)
