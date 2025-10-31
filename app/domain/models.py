@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Optional, List, Union, Dict, Literal
+from typing import Optional, List, Union, Dict, Literal, Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, RootModel
 
@@ -815,29 +815,20 @@ class PenaltyAnnotationUpdate(BaseModel):
     )
 
 
-class ArticleCloseRequest(BaseModel):
-    """Модель для закрытия карточек."""
-
-    nm_ids: Optional[list[int]] = Field(None, description="Артикулы карточек")
-    local_vendor_codes: Optional[list[str]] = Field(None, description="id товаров")
-
-    @model_validator(mode="after")
-    def at_least_one_field(self):
-        if not self.nm_ids and not self.local_vendor_codes:
-            raise ValueError("Необходимо указать nm_ids или wild_ids.")
-
-        return self
-
-
-
 class CloseCardScenario(BaseModel):
+    """Сценарий закрытия карточек товара."""
     title: Literal["close_card"]
 
 
-RequestScenario = Union[CloseCardScenario]
+RequestScenario = Union[CloseCardScenario] # Тип сценария управления карточками. Расширяется при добавлении новых сценариев.
 
 
 class ManageCardsRequest(BaseModel):
+    """
+    Запрос на управление карточками товаров.
+    
+    Должен содержать один из идентификаторов: nm_ids или local_vendor_codes.
+    """
     scenario: RequestScenario
     nm_ids: Optional[List[int]] = Field(None, description="Артикулы карточек")
     local_vendor_codes: Optional[List[str]] = Field(None, description="id товаров")
@@ -848,3 +839,19 @@ class ManageCardsRequest(BaseModel):
             raise ValueError("Необходимо указать nm_ids или wild_ids.")
 
         return self
+
+
+class EditQuantityValidationResult(BaseModel):
+    """
+    Результат валидации запроса на изменение остатков.
+
+    Содержит разрешённые и запрещённые к редактированию баркоды,
+    сгруппированные по аккаунтам.
+    """
+    allowed: Dict[str, UpdateStocksQuantityResponseModel]
+    forbidden: Dict[str, List[str]]  # account → [barcode, ...]
+
+
+class ResponseMessageDetails(ResponseMessage):
+    """Расширенный ответ с дополнительными данными."""
+    details: Optional[Any] = None

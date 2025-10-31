@@ -49,3 +49,29 @@ class CardStatusRepository:
 
                     await conn.execute(query_upsert_status, nm_id, account)
                     await conn.execute(query_insert_status_log, nm_id, account)
+
+    async def get_stocks_editable_barcodes(self, barcodes: list[str]) -> tuple[list[str], list[str]]:
+        """
+        Возвращает (разрешенные_баркоды, запрещённые_баркоды).
+        Запрещённые — это баркоды, у которых карточка закрыта.
+        """
+        if not barcodes:
+            return [], []
+
+        query = """
+            SELECT cd.barcode
+            FROM article a
+            LEFT JOIN card_status cs ON a.nm_id = cs.nm_id
+            LEFT JOIN card_data cd ON cd.article_id = a.nm_id
+            WHERE cd.barcode = ANY($1)
+              AND (cs.status IS NULL OR cs.status != 'closed');
+        """
+
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, barcodes)
+
+        allowed = [row["barcode"] for row in rows]
+        allowed_set = set(allowed)
+        forbidden = [bc for bc in barcodes if bc not in allowed_set]
+
+        return allowed, forbidden

@@ -1,16 +1,13 @@
 from typing import List, Dict
 
-from fastapi import APIRouter, Depends, HTTPException, Body
-from app.domain.models import StocksQuantity, ResponseMessage, UpdateStocksQuantityResponseModel
+from fastapi import APIRouter, Depends, HTTPException
+
+from app.dependencies import get_stocks_quantity_service, validate_edit_quantity_data
+from app.domain.models import StocksQuantity, ResponseMessageDetails, EditQuantityValidationResult
 from app.service.stocks_quantity import StocksQuantityService
-from app.dependencies import get_stocks_quantity_service
+
 
 router = APIRouter(tags=['Состояние по остаткам'], prefix="/stock")
-
-example_edit_quantity = {
-    "ХАЧАТРЯН": {"stocks": [{"amount": 748, "sku": "2040464284361"}, {"amount": 42, "sku": "2040464284385"}]},
-    "ПИЛОСЯН": {"stocks": [{"amount": 8534, "sku": "2037786392119"}]}
-}
 
 
 @router.get("/quantity", response_model=List[StocksQuantity], description="Состояние остатков")
@@ -23,15 +20,22 @@ async def stocks_quantity(
     return user_details
 
 
-@router.post("/edit_quantity", response_model=ResponseMessage, description="Изменение виртуальных остатков")
+@router.post("/edit_quantity", response_model=ResponseMessageDetails, description="Изменение виртуальных остатков")
 async def edit_stocks_quantity(
-        edit_data: Dict[str, UpdateStocksQuantityResponseModel] = Body(example=example_edit_quantity),
+        validation: EditQuantityValidationResult = Depends(validate_edit_quantity_data),
         service: StocksQuantityService = Depends(get_stocks_quantity_service),
-
 ):
-    # await service.edit_stocks_quantity(edit_data) # метод работает но замокан для тестирования
-    print(edit_data)
+    allowed = validation.allowed
+    forbidden = validation.forbidden
+
+    if allowed:
+        # await service.edit_stocks_quantity(allowed)  # метод работает но замокан для тестирования
+        print(allowed)
+
     return {
         "status": 200,
-        "message": "успешно ебать 👍 поздравляю"
+        "message": "успешно ебать 👍 поздравляю",
+        "details": {
+            "forbidden": forbidden
+        }
     }
