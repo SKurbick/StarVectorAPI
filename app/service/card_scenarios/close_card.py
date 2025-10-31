@@ -10,7 +10,16 @@ logger = logging.getLogger(__name__)
 
 
 class CloseCardService(BaseCardService):
-    async def execute(self) -> None:
+    async def execute(self) -> dict:
+        result = {
+            "requested_nm_ids": set(self.nm_ids or []),
+            "requested_local_codes": self.local_vendor_codes or [],
+            "already_closed": [],
+            "successfully_closed": [],
+            "failed_accounts": [],
+        }
+
+
         nm_ids = set(self.nm_ids or [])
 
         if self.local_vendor_codes:
@@ -18,11 +27,14 @@ class CloseCardService(BaseCardService):
             nm_from_local = await article_repo.get_articles_by_local_vendor_codes(self.local_vendor_codes)
             nm_ids.update(nm_from_local)
 
+        result["requested_nm_ids"] = list(nm_ids)
+
         if not nm_ids:
             return
 
         card_status_repo = CardStatusRepository(self.pool)
         closed_cards = await card_status_repo.get_close_cards_by_nm_ids(list(nm_ids))
+        result["already_closed"] = closed_cards
         cards_to_close = nm_ids - set(closed_cards)
 
         if not cards_to_close:
@@ -45,6 +57,11 @@ class CloseCardService(BaseCardService):
 
             if not barcodes:
                 logger.warning(f"Пропуск аккаунта {account}: нет баркодов")
+                result["failed_accounts"].append({
+                    "account": account,
+                    "reason": "no_barcodes",
+                    "nm_ids": nm_ids_list
+                })
                 continue
 
             try:
@@ -52,13 +69,22 @@ class CloseCardService(BaseCardService):
                 finally_data[account] = {
                     "stocks": [{"sku": bc, "amount": 0} for bc in barcodes]
                 }
+                result["successfully_closed"].extend(nm_ids_list)
             except Exception as e:
                 logger.exception(
                     f"Ошибка закрытия карточек для аккаунта {account}, nm_ids={nm_ids_list}: {e}"
                 )
+                result["failed_accounts"].append({
+                    "account": account,
+                    "reason": "db_error",
+                    "nm_ids": nm_ids_list,
+                    "error": str(e)
+                })
 
         if finally_data:
             reset_wb_stocks_for_closed_card.delay(data=finally_data)
             logger.info(f"Задача отправлена в Celery для аккаунтов: {list(finally_data.keys())}")
         else:
             logger.info("Нет данных для отправки в Celery")
+
+        return result
