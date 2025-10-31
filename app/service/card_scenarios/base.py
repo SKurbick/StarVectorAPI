@@ -12,7 +12,7 @@ class BaseCardService(ABC):
         local_vendor_codes: Optional[list[str]] = None,
     ) -> None:
         self.nm_ids = nm_ids
-        self.local_vendore_codes = local_vendor_codes
+        self.local_vendor_codes = local_vendor_codes
         self.pool = pool
     
     @abstractmethod

@@ -1,12 +1,11 @@
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 
-import asyncpg
-
-from app.config.settings import settings
-from celery_app.celery import celery_app
 from app.service.stocks_quantity import StocksQuantityService, StocksQuantityRepository
 from app.domain.models import UpdateStocksQuantityResponseModel
+from app.infrastructure.database import init_db, close_db
+from celery_app.celery import celery_app
 
 
 logging.basicConfig(
@@ -20,31 +19,45 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(name="reset_wb_stocks_for_closed_card")
-def reset_wb_stocks_for_closed_card(data: dict[str, UpdateStocksQuantityResponseModel]):
-    logger.info(f"Запуск задачи по обнулению остатков для закрытых карточек")
+@asynccontextmanager
+async def db_pool():
+    """Контекстный менеджер для работы с пулом БД."""
+    pool = await init_db()
 
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_closed():
-            raise RuntimeError("Event loop is closed")
-    except RuntimeError:
+        yield pool
+    finally:
+        await close_db(pool)
 
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+
+@celery_app.task(name="reset_wb_stocks_for_closed_card", bind=True)
+def reset_wb_stocks_for_closed_card(self, data: dict[str, dict]):
+    """Фоновая задача: обнуление остатков для закрытых карточек на Wildberries."""
+    logger.info(f"Запуск задачи обнуления остатков. Аккаунты: {list(data.keys())}", )
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
 
     try:
-        loop.run_until_complete(reset_wb_stocks_for_closed_card_async(data=data))
+        loop.run_until_complete(_execute_task(data))
     except Exception as e:
-        logger.error(f"[Error] {e}. data={data}")
-    
-    logger.info(f"Задача по обнулению остатков для закрытых карточек завершена")
-        
-# https://marketplace-api-sandbox.wildberries.ru
-async def reset_wb_stocks_for_closed_card_async(data: dict[str, UpdateStocksQuantityResponseModel]):
-    logger.info(f"Запрос на обнуление виртуальных остатков data={data}...")
-    
+        logger.exception(f"Ошибка в задаче обнуления остатков: {e}")
+        raise self.retry(exc=e)
+    finally:
+        loop.close()
+
+    logger.info("Задача обнуления остатков успешно завершена")
 
 
-    await asyncio.sleep(4)
-    logger.info(f"Обнуление остатков завершено data={data}")
+async def _execute_task(data: dict[str, dict]) -> None:
+    """Асинхронная логика выполнения задачи."""
+    validated_data = {
+        account: UpdateStocksQuantityResponseModel(**account_data)
+        for account, account_data in data.items()
+    }
+    logger.info(f"Данные {validated_data}")
+    async with db_pool() as pool:
+        repo = StocksQuantityRepository(pool=pool)
+        service = StocksQuantityService(stocks_quantity_repository=repo)
+
+        await service.edit_stocks_quantity(edit_data=validated_data)
