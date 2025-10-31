@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 class CloseCardService(BaseCardService):
     async def execute(self) -> dict:
         result = {
+            "operation_type": "close_card",
             "requested_nm_ids": set(self.nm_ids or []),
             "requested_local_codes": self.local_vendor_codes or [],
             "already_closed": [],
@@ -30,7 +31,7 @@ class CloseCardService(BaseCardService):
         result["requested_nm_ids"] = list(nm_ids)
 
         if not nm_ids:
-            return
+            return result
 
         card_status_repo = CardStatusRepository(self.pool)
         closed_cards = await card_status_repo.get_close_cards_by_nm_ids(list(nm_ids))
@@ -39,13 +40,13 @@ class CloseCardService(BaseCardService):
 
         if not cards_to_close:
             logger.info("Нет карточек для закрытия")
-            return
+            return result
 
         accounts_with_data = await article_repo.get_article_barcodes(list(cards_to_close))
 
         if not accounts_with_data:
             logger.warning(f"Не найдены данные по артикулам: {cards_to_close}")
-            return
+            return result
 
         logger.info(f"Подготовка задачи для Celery: {list(accounts_with_data.keys())}")
 
@@ -82,7 +83,7 @@ class CloseCardService(BaseCardService):
                 })
 
         if finally_data:
-            reset_wb_stocks_for_closed_card.delay(data=finally_data)
+            # reset_wb_stocks_for_closed_card.delay(data=finally_data)
             logger.info(f"Задача отправлена в Celery для аккаунтов: {list(finally_data.keys())}")
         else:
             logger.info("Нет данных для отправки в Celery")

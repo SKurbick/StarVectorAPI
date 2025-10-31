@@ -854,4 +854,4 @@ class EditQuantityValidationResult(BaseModel):
 
 class ResponseMessageDetails(ResponseMessage):
     """Расширенный ответ с дополнительными данными."""
-    details: Optional[Any] = None
+    detail: Optional[Any] = None

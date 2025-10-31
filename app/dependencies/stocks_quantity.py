@@ -3,7 +3,7 @@ from asyncpg import Pool
 
 from fastapi import Body
 
-from app.dependencies import get_card_status_service
+from app.dependencies.card_status import get_card_status_service
 from app.domain.models import EditQuantityValidationResult, UpdateStocksQuantityResponseModel
 from app.repository.stocks_quantity import StocksQuantityRepository
 from app.service.card_status import CardStatusService
