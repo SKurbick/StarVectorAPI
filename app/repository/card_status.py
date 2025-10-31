@@ -5,6 +5,19 @@ class CardStatusRepository:
     def __init__(self, pool: Pool):
         self.pool = pool
 
+    async def get_close_cards_by_nm_ids(self, nm_ids: list[int]) -> list[int]:
+        "Получить закрытые карточки"
+        query = """
+            SELECT nm_id
+            FROM card_status
+            WHERE nm_id = ANY($1) AND status = 'closed'
+        """
+
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, nm_ids)
+
+        return [row["nm_id"] for row in rows]
+
     async def close_cards_in_account(self, account: str, nm_ids: list[int]):
         """Установить статус 'closed' для карточек аккаунта"""
         query_for_update = """
@@ -28,10 +41,10 @@ class CardStatusRepository:
             async with conn.transaction():
                 rows = await conn.fetch(query_for_update, account, nm_ids)
 
-                existing = {row['nm_id']: row['status'] for row in rows}
+                existing = {row["nm_id"]: row["status"] for row in rows}
 
                 for nm_id in nm_ids:
-                    if existing.get(nm_id) == 'closed':
+                    if existing.get(nm_id) == "closed":
                         continue
 
                     await conn.execute(query_upsert_status, nm_id, account)

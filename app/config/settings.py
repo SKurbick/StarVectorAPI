@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     FRONTEND_API_ADDRESS: str
     FRONTEND_PORT: int
     SCHEDULER_API_KEY: str
+    CELERY_BROKER_URL: str
+    CELERY_RESULT_BACKEND: str
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

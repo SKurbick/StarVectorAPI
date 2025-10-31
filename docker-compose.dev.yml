@@ -5,12 +5,18 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
     networks:
       - dev_network
 
   celery-worker:
     build: .
-    command: celery -A app.celery_app.celery_app worker --loglevel=info
+    command: celery -A celery_app.celery.celery_app worker --loglevel=info
     depends_on:
       - redis
     volumes:
