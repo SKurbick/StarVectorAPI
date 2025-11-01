@@ -29,14 +29,14 @@ class StocksQuantityService:
             warehouses = await WarehouseMarketplaceWB(token=token).get_account_warehouse()
             qty_edit = LeftoversMarketplace(token=token, account=account)
             print(account_data.model_dump())
-            task = asyncio.create_task(qty_edit.edit_amount_from_warehouses(warehouse_id=warehouses[0]["id"],
-                                                                            edit_barcodes_list=account_data.model_dump()['stocks']))
+            # task = asyncio.create_task(qty_edit.edit_amount_from_warehouses(warehouse_id=warehouses[0]["id"],
+                                                                            # edit_barcodes_list=account_data.model_dump()['stocks']))
 
             print("actualize_data",actualize_data)
 
-            tasks.append(task)
+            # tasks.append(task)
 
-        gather_result = await asyncio.gather(*tasks)  # возможно пригодится ответ от WB
+        # gather_result = await asyncio.gather(*tasks)  # возможно пригодится ответ от WB
 
         tasks = []
         for account, account_data in actualize_data.items():
@@ -54,5 +54,6 @@ class StocksQuantityService:
                     data_to_update.append(
                         (account, str(quantity_data['sku']), "ФБС", quantity_data['amount'], last_datetime)
                     )
+        print(f"Данные в бд: {data_to_update}")
         # обновление остатков в БД
-        await self.stocks_quantity_repository.update_fbs_data(data_to_update)
+        # await self.stocks_quantity_repository.update_fbs_data(data_to_update)

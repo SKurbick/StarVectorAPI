@@ -84,19 +84,75 @@ class ArticleRepository:
 
             return result
 
-    async def get_articles_by_local_vendor_codes(self, local_vendor_codes: list[str]) -> list[int]:
-        """Получить все nm_id для списка local_vendor_code."""
+    async def get_articles_by_local_vendor_codes(
+        self, local_vendor_codes: list[str]
+    ) -> tuple[dict[str, list[int]], list[str]]:
+        """
+        Возвращает:
+            - словарь: local_vendor_code → список nm_id (может быть пустым, но обычно 1),
+            - список local_vendor_code, для которых не найдено ни одного nm_id.
+        """
+        if not local_vendor_codes:
+            return {}, []
+
         query = """
-            SELECT nm_id
+            SELECT local_vendor_code, nm_id
             FROM article
-            WHERE local_vendor_code = ANY($1);
+            WHERE local_vendor_code = ANY($1)
+            ORDER BY local_vendor_code;
         """
 
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(query, local_vendor_codes)
 
-        return [row["nm_id"] for row in rows]
+        found = {}
 
+        for row in rows:
+            code = row["local_vendor_code"]
+            if code not in found:
+                found[code] = []
+            found[code].append(row["nm_id"])
+
+        not_found = [code for code in local_vendor_codes if code not in found]
+
+        return found, not_found
+    
+    async def check_nm_ids_exist(self, nm_ids: list[int]) -> tuple[set[int], set[int]]:
+        """Возвращает (найденные_nm_ids, не_найденные_nm_ids)."""
+        if not nm_ids:
+            return set(), set()
+
+        query = "SELECT nm_id FROM article WHERE nm_id = ANY($1)"
+        rows = await self.pool.fetch(query, nm_ids)
+        found = {row["nm_id"] for row in rows}
+        not_found = set(nm_ids) - found
+
+        return list(found), list(not_found)
+
+    async def get_accounts_by_nm_ids(self, nm_ids: list[int]) -> dict[str, list[int]]:
+        """Возвращает словарь: account → [nm_id, ...]"""
+        if not nm_ids:
+            return {}
+
+        query = """
+            SELECT account, nm_id
+            FROM article
+            WHERE nm_id = ANY($1)
+            ORDER BY account
+        """
+
+        rows = await self.pool.fetch(query, nm_ids)
+        result = {}
+
+        for row in rows:
+            acc = row["account"]
+
+            if acc not in result:
+                result[acc] = []
+
+            result[acc].append(row["nm_id"])
+
+        return result
 
     async def get_article_barcodes(self, articles: set[int]) -> dict[str, list[dict[str, Any]]]:
         """Получить аккаунты карточек."""

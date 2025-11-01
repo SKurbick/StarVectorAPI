@@ -815,21 +815,37 @@ class PenaltyAnnotationUpdate(BaseModel):
     )
 
 
-class CloseCardScenario(BaseModel):
+class UseCaseResponse(BaseModel):
+    operation_type: str
+    all_nm_ids: list[int]
+    invalid_nm_ids: list[int]
+    invalid_local_codes: list[str]
+    failed_accounts: list[dict[str, Any]]
+
+
+class CloseCardUseCaseRequest(BaseModel):
     """Сценарий закрытия карточек товара."""
     title: Literal["close_card"]
 
 
-RequestScenario = Union[CloseCardScenario] # Тип сценария управления карточками. Расширяется при добавлении новых сценариев.
+class OpenCardUseCaseRequest(BaseModel):
+    """Сценарий закрытия карточек товара."""
+    title: Literal["open_card"]
+
+
+RequestUseCase = Union[
+    CloseCardUseCaseRequest,
+    OpenCardUseCaseRequest,
+    ] # Тип сценария управления карточками. Расширяется при добавлении новых сценариев.
 
 
 class ManageCardsRequest(BaseModel):
     """
     Запрос на управление карточками товаров.
-    
+
     Должен содержать один из идентификаторов: nm_ids или local_vendor_codes.
     """
-    scenario: RequestScenario
+    use_case: RequestUseCase
     nm_ids: Optional[List[int]] = Field(None, description="Артикулы карточек")
     local_vendor_codes: Optional[List[str]] = Field(None, description="id товаров")
 

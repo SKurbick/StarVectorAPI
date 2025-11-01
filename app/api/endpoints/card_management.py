@@ -1,24 +1,24 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.domain.models import ResponseMessageDetails
-from app.dependencies.card_management import get_scenario_service
-from app.service.card_scenarios.base import BaseCardService
+from app.dependencies.card_management import get_card_use_case
+from app.use_cases.card_use_cases import BaseCardUseCase
 
 
 router = APIRouter(tags=["Cards Management"])
 
 
 @router.post("/manage-cards", status_code=status.HTTP_202_ACCEPTED)
-async def manage_cards(service: BaseCardService = Depends(get_scenario_service)) -> ResponseMessageDetails:
+async def manage_cards(use_case: BaseCardUseCase = Depends(get_card_use_case)) -> ResponseMessageDetails:
     try:
-        detail = await service.execute()
+        detail = await use_case.execute()
         return ResponseMessageDetails(
-            status=202,
+            status=status.HTTP_202_ACCEPTED,
             message="Запрос на управление карточками принят",
             detail=detail
         )
     except Exception as e:
         raise HTTPException(
-            status_code=422,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Не удалось выполнить сценарий: {e}"
         )
