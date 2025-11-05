@@ -30,8 +30,8 @@ async def edit_stocks_quantity(
 
     if allowed:
         # await service.edit_stocks_quantity(allowed)  # метод работает но замокан для тестирования
-        print(allowed)
-
+        print(f"allowed - {allowed}")
+    
     return {
         "status": 200,
         "message": "успешно ебать 👍 поздравляю",

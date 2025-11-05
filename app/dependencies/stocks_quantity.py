@@ -4,9 +4,11 @@ from asyncpg import Pool
 from fastapi import Body
 
 from app.dependencies.card_status import get_card_status_service
+from app.dependencies.card_data import get_card_data_service
 from app.domain.models import EditQuantityValidationResult, UpdateStocksQuantityResponseModel
 from app.repository.stocks_quantity import StocksQuantityRepository
 from app.service.card_status import CardStatusService
+from app.service.card_data import CardDataService
 from app.service.stocks_quantity import StocksQuantityService
 
 
@@ -32,44 +34,64 @@ def get_stocks_quantity_service(repository: StocksQuantityRepository = Depends(g
 async def validate_edit_quantity_data(
     edit_data: dict[str, UpdateStocksQuantityResponseModel] = Body(example=example_edit_quantity),
     card_status_service: CardStatusService = Depends(get_card_status_service),
+    card_data_service: CardDataService = Depends(get_card_data_service),
 ) -> EditQuantityValidationResult:
     """
-    Возвращает:
-    {
-        "allowed": Dict[str, UpdateStocksQuantityResponseModel],
-        "forbidden": Dict[str, List[str]]  # account → [barcode, ...]
-    }
+    Возвращает разрешённые и запрещённые к редактированию баркоды.
+    Запрещены: карточки со статусами 'closed' и 'closing_pending'.
     """
-    allowed: dict[str, list] = {}
-    forbidden: dict[str, list] = {}
 
-    all_barcodes = [item.sku for account_data in edit_data.values() for item in account_data.stocks]
+    all_barcodes = []
+
+    for account_data in edit_data.values():
+        for item in account_data.stocks:
+            all_barcodes.append(item.sku)
+
+    all_barcodes = list(set(all_barcodes))
 
     if not all_barcodes:
-        return {"allowed": {}, "forbidden": {}}
+        return EditQuantityValidationResult(allowed={}, forbidden={})
 
-    allowed_barcodes, forbidden_barcodes = await card_status_service.get_stocks_editable_barcodes(all_barcodes)
-    allowed_set = set(allowed_barcodes)
-    forbidden_set = set(forbidden_barcodes)
+    barcode_to_nm = await card_data_service.get_article_ids_by_barcodes(all_barcodes)
+
+    nm_ids = list(set(barcode_to_nm.values())) if barcode_to_nm else []
+    nm_to_status = await card_status_service.get_status_by_nm_ids(nm_ids)
+
+    allowed_barcodes = set()
+    forbidden_barcodes = set()
+    forbidden_statuses = {"closed", "closing_pending"}
+
+    for barcode in all_barcodes:
+        nm_id = barcode_to_nm.get(barcode)
+
+        if nm_id is None:
+            forbidden_barcodes.add(barcode)
+            continue
+
+        status = nm_to_status.get(nm_id)
+
+        if status in forbidden_statuses:
+            forbidden_barcodes.add(barcode)
+        else:
+            allowed_barcodes.add(barcode)
+
+    allowed = {}
+    forbidden = {}
 
     for account, account_data in edit_data.items():
         allowed_items = []
         forbidden_list = []
 
         for item in account_data.stocks:
-            if item.sku in allowed_set:
+            if item.sku in allowed_barcodes:
                 allowed_items.append(item)
-            elif item.sku in forbidden_set:
-                forbidden_list.append(item.sku)
             else:
                 forbidden_list.append(item.sku)
 
         if allowed_items:
             allowed[account] = allowed_items
-
         if forbidden_list:
             forbidden[account] = forbidden_list
-
 
     allowed_validated = {
         acc: UpdateStocksQuantityResponseModel(stocks=items)

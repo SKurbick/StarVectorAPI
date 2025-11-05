@@ -15,7 +15,7 @@ async def manage_cards(use_case: BaseCardUseCase = Depends(get_card_use_case)) -
         return ResponseMessageDetails(
             status=status.HTTP_202_ACCEPTED,
             message="Запрос на управление карточками принят",
-            detail=detail
+            details=detail
         )
     except Exception as e:
         raise HTTPException(

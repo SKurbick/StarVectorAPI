@@ -153,27 +153,3 @@ class ArticleRepository:
             result[acc].append(row["nm_id"])
 
         return result
-
-    async def get_article_barcodes(self, articles: set[int]) -> dict[str, list[dict[str, Any]]]:
-        """Получить аккаунты карточек."""
-        query = """
-            SELECT a.account, a.nm_id, cd.barcode
-            FROM article a
-            LEFT JOIN card_data cd ON a.nm_id = cd.article_id
-            WHERE nm_id = ANY($1)
-        """
-
-        async with self.pool.acquire() as conn:
-            rows = await conn.fetch(query, articles)
-
-        accounts = {}
-
-        for row in rows:
-            account = row["account"]
-
-            if not account in accounts:
-                accounts[account] = []
-
-            accounts[account].append({"nm_id": row["nm_id"], "barcode": row["barcode"]})
-
-        return accounts

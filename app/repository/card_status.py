@@ -55,32 +55,6 @@ class CardStatusRepository:
 
         return result
 
-    async def get_stocks_editable_barcodes(self, barcodes: list[str]) -> tuple[list[str], list[str]]:
-        """
-        Возвращает (разрешенные_баркоды, запрещённые_баркоды).
-        Запрещённые — это баркоды, у которых карточка закрыта.
-        """
-        if not barcodes:
-            return [], []
-
-        query = """
-            SELECT cd.barcode
-            FROM article a
-            LEFT JOIN card_status cs ON a.nm_id = cs.nm_id
-            LEFT JOIN card_data cd ON cd.article_id = a.nm_id
-            WHERE cd.barcode = ANY($1)
-              AND (cs.status IS NULL OR cs.status != 'closed');
-        """
-
-        async with self.pool.acquire() as conn:
-            rows = await conn.fetch(query, barcodes)
-
-        allowed = [row["barcode"] for row in rows]
-        allowed_set = set(allowed)
-        forbidden = [bc for bc in barcodes if bc not in allowed_set]
-
-        return allowed, forbidden
-
     async def update_card_status(
         self,
         account: str,
@@ -150,3 +124,16 @@ class CardStatusRepository:
                 await conn.execute(log_query, to_update, account, new_status)
 
                 return to_update
+
+    async def get_status_by_nm_ids(self, nm_ids: list[int]) -> dict[int, str]:
+        """
+        Возвращает {nm_id: status} для существующих записей в card_status.
+        Если запись отсутствует — nm_id не будет в результате (считается 'active').
+        """
+        if not nm_ids:
+            return {}
+
+        query = "SELECT nm_id, status FROM card_status WHERE nm_id = ANY($1)"
+        rows = await self.pool.fetch(query, nm_ids)
+
+        return {row["nm_id"]: row["status"] for row in rows}
