@@ -839,6 +839,14 @@ RequestUseCase = Union[
     ] # Тип сценария управления карточками. Расширяется при добавлении новых сценариев.
 
 
+class UseCaseMetadata(BaseModel):
+    title: str
+    name: str
+    description: str
+    settings_schema: Optional[Dict[str, Any]] = None
+    example: Optional[Dict[str, Any]] = None
+
+
 class ManageCardsRequest(BaseModel):
     """
     Запрос на управление карточками товаров.
