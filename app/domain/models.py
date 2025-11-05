@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import Optional, List, Union, Dict
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, RootModel
@@ -807,3 +807,24 @@ class PenaltyAnnotationUpdate(BaseModel):
             ]
         },
     )
+
+
+class OurPriceItem(BaseModel):
+    article_id: int
+    price: Optional[int]
+
+
+class CompetitorPriceItem(BaseModel):
+    concurrent: str
+    article_id: int
+    price: int
+    found_article: int
+    position: int
+    processed_at: datetime
+
+
+class CompetitorPriceResponse(BaseModel):
+    local_vendor_code: str
+    name: Optional[str]
+    our_prices: List[OurPriceItem]
+    competitor_prices: List[CompetitorPriceItem]
