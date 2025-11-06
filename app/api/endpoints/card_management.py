@@ -10,7 +10,9 @@ router = APIRouter(tags=["Cards Management"])
 
 
 @router.post("/manage-cards", status_code=status.HTTP_202_ACCEPTED)
-async def manage_cards(use_case_data: BaseCardUseCase = Depends(get_card_use_case)) -> ResponseMessageDetails:
+async def manage_cards(
+    use_case_data: tuple[BaseCardUseCase, dict] = Depends(get_card_use_case)
+) -> ResponseMessageDetails:
     """
     Получает запрос на выполнение сценария.
     """
@@ -28,7 +30,7 @@ async def manage_cards(use_case_data: BaseCardUseCase = Depends(get_card_use_cas
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Не удалось выполнить сценарий: {e}"
         )
-    
+
 
 @router.get("/use-cases", response_model=list[dict[str, int | UseCaseMetadata]])
 async def get_available_use_cases():

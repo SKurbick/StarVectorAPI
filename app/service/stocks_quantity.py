@@ -1,10 +1,14 @@
 import asyncio
 import datetime
+import logging
 
 from app.config.settings import get_wb_tokens
 from app.domain.models import StocksQuantity, UpdateStocksQuantityResponseModel
 from app.infrastructure.WildberriesAPI.marketplace import WarehouseMarketplaceWB, LeftoversMarketplace
 from app.repository import StocksQuantityRepository
+
+
+logger = logging.getLogger(__name__)
 
 
 class StocksQuantityService:
@@ -38,8 +42,15 @@ class StocksQuantityService:
         #     )
         #     tasks.append(task)
 
-        # update_stockgathers_result = await asyncio.gather(*tasks, return_exceptions=True)  # возможно пригодится ответ от WB
+        # if tasks:
+        #     update_stockgathers_result = await asyncio.gather(*tasks, return_exceptions=True)  # возможно пригодится ответ от WB
 
+        #     for result in update_stockgathers_result:
+        #         if isinstance(result, Exception):
+        #             logger.exception(f"Ошибка обновления остатков: {result}")
+
+
+        logger.info(f"Начало получения остатков для аккаунтов: {list(edit_data.keys())}")
         tasks = []
         account_warehouse_map = {}
 
@@ -51,15 +62,21 @@ class StocksQuantityService:
             account_warehouse_map[account] = warehouse_ids
 
             if not warehouse_ids:
+                logger.warning(f"Аккаунт {account}: не найдены склады, пропуск")
                 continue
 
             wb_client = LeftoversMarketplace(token=token, account=account)
             barcodes = [item.sku for item in account_data.stocks]
+            logger.debug(f"Аккаунт {account}: запрос остатков для {len(barcodes)} баркодов на складах {warehouse_ids}")
 
             task = asyncio.create_task(
                 wb_client.get_amount_from_all_warehouses(warehouse_ids, barcodes)
             )
             tasks.append(task)
+
+        if not tasks:
+            logger.warning("Нет задач для получения остатков — все аккаунты пропущены")
+            return
 
         get_amount_gather_result = await asyncio.gather(*tasks, return_exceptions=True)  
 
@@ -68,6 +85,7 @@ class StocksQuantityService:
 
         for result in get_amount_gather_result:
             if isinstance(result, Exception):
+                logger.exception(f"Ошибка получения остатков: {result}")
                 continue
 
             for account, stocks in result.items():
@@ -83,4 +101,8 @@ class StocksQuantityService:
                     )
 
         if data_to_update:
+            logger.info(f"Обновление БД: {len(data_to_update)} записей")
             await self.stocks_quantity_repository.update_fbs_data(data_to_update)
+            logger.info("Обновление остатков в БД успешно завершено")
+        else:
+            logger.warning("Нет данных для обновления в БД")

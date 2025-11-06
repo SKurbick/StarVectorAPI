@@ -16,7 +16,7 @@ async def get_card_use_case(
     manage_cards_request: ManageCardsRequest,
     factory: CardUseCaseFactory = Depends(get_card_use_case_factory),
     pool: Pool = Depends(get_pool),
-) -> list[BaseCardUseCase]:
+) -> tuple[BaseCardUseCase, dict]:
     nm_ids = manage_cards_request.nm_ids or []
     local_vendor_codes = manage_cards_request.local_vendor_codes or []
 
