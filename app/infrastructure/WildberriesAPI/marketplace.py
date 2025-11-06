@@ -63,45 +63,120 @@ class LeftoversMarketplace:
         }
 
     async def get_amount_from_warehouses(self, warehouse_id, barcodes, step=1000):
-        url = self.url.format(f"{warehouse_id}")
-        barcodes_quantity = []
-        for start in range(0, len(barcodes), step):
-            barcodes_part = barcodes[start: start + step]
+        """
+        Получить остатки по баркодам на одном складе.
+        """
+        result  = self.get_amount_from_all_warehouses([warehouse_id], barcodes, step)
+        return result
 
-            json_data = {
-                "skus": barcodes_part
-            }
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url=url, headers=self.headers, json=json_data) as response:
-                    response_json = await response.json()
-                    stocks = response_json["stocks"]
-                    barcodes_quantity.extend(stocks)
-                    # if len(stocks) > 0:
-                    #     for stock in stocks:
-                    #         barcodes_quantity.append(
-                    #             {
-                    #                 "Баркод": stock["sku"],
-                    #                 "остаток": stock["amount"]
-                    #             }
-                    #         )
-        return {self.account:barcodes_quantity}
+    async def get_amount_from_all_warehouses(
+        self,
+        warehouse_ids: list[int],
+        barcodes: list[str],
+        step: int = 1000
+    ) -> dict[str, list[dict[str, any]]]:
+        """
+        Получить остатки по баркодам на нескольких складах.
+        """
+        all_stocks = []
+
+        async with aiohttp.ClientSession() as session:
+            for warehouse_id in warehouse_ids:
+                url = self.url.format(warehouse_id)
+
+                for start in range(0, len(barcodes), step):
+                    barcodes_part = barcodes[start: start + step]
+                    json_data = {"skus": barcodes_part}
+
+                    try:
+                        async with session.post(url=url, headers=self.headers, json=json_data) as response:
+                            if response.status == 200:
+                                response_json = await response.json()
+                                stocks = response_json.get("stocks", [])
+
+                                all_stocks.extend(stocks)
+                            else:
+                                print(f"[{self.account}] Ошибка склада {warehouse_id}: {response.status}")
+                    except Exception as e:
+                        print(f"[{self.account}] Исключение на складе {warehouse_id}: {e}")
+                        continue
+
+        return {self.account: all_stocks}
 
     async def edit_amount_from_warehouses(self, warehouse_id, edit_barcodes_list, step=1000):
-        url = self.url.format(f"{warehouse_id}")
-        for start in range(0, len(edit_barcodes_list), step):
-            barcodes_part = edit_barcodes_list[start: start + step]
-            print(barcodes_part)
-            json_data = {
-                "stocks": barcodes_part
-            }
-            async with aiohttp.ClientSession() as session:
-                async with session.put(url=url, headers=self.headers, json=json_data) as response:
-                    if response.status > 399:
-                        response_json = await response.json()
-                        print(f"Запрос на изменение остатков: {response_json}")
-                    else:
-                        print(f"Запрос на изменение остатков. Код: {response.status}" )
-                        return response.status
+        """
+        Отправить обновление остатков на один склад продавца.
+        """
+        result = await self.edit_amount_on_warehouses([warehouse_id], edit_barcodes_list, step)
+        return result.get(warehouse_id, False)
+
+    async def send_stock_update(self, session: aiohttp.ClientSession, url: str, stocks: list[dict]) -> tuple[int, dict]:
+        """
+        Вспомогательный метод: отправляет запрос на обновление остатков.
+        """
+        async with session.put(url=url, headers=self.headers, json={"stocks": stocks}) as response:
+            status = response.status
+
+            try:
+                body = await response.json()
+            except:
+                body = {}
+
+            return status, body
+
+    async def edit_amount_on_warehouses(self, warehouse_ids: list[int], edit_barcodes_list: list[dict], step: int = 1000) -> dict[int, bool]:
+        """
+        Отправить обновление остатков на несколько складов.
+        """
+        results = {}
+
+        async with aiohttp.ClientSession() as session:
+            for warehouse_id in warehouse_ids:
+                url = self.url.format(warehouse_id)
+                stocks = edit_barcodes_list.copy()
+                success = False
+                max_retries = 3  # на случай, если несколько баркодов невалидны
+
+                for _ in range(max_retries):
+                    if not stocks:
+                        break
+
+                    all_ok = True
+
+                    for start in range(0, len(stocks), step):
+                        batch = stocks[start:start + step]
+                        status, body = await self.send_stock_update(session, url, batch)
+
+                        if status == 204:
+                            success = True
+                        elif status == 429:
+                            await asyncio.sleep(65)
+                            all_ok = False
+                            break
+                        elif status > 399 and isinstance(body, list):
+                            invalid_skus = set()
+
+                            for error in body:
+                                if "data" in error:
+                                    for item in error["data"]:
+                                        invalid_skus.add(item.get("sku"))
+
+                            if invalid_skus:
+                                stocks = [s for s in stocks if s["sku"] not in invalid_skus]
+                                all_ok = False
+                                break  # выходим из батч-цикла, чтобы повторить со всеми валидными
+                        else:
+                            print(f"[{self.account}] Склад {warehouse_id}: ошибка {status} - {body}")
+                            all_ok = False
+                            break
+
+                    if all_ok:
+                        break
+
+                results[warehouse_id] = success
+
+        return results
+
 
 class WarehouseMarketplaceWB:
     """API складов маркетплейс"""

@@ -1,5 +1,3 @@
-from typing import List, Dict
-
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.dependencies import get_stocks_quantity_service, validate_edit_quantity_data
@@ -10,7 +8,7 @@ from app.service.stocks_quantity import StocksQuantityService
 router = APIRouter(tags=['Состояние по остаткам'], prefix="/stock")
 
 
-@router.get("/quantity", response_model=List[StocksQuantity], description="Состояние остатков")
+@router.get("/quantity", response_model=list[StocksQuantity], description="Состояние остатков")
 async def stocks_quantity(
         service: StocksQuantityService = Depends(get_stocks_quantity_service)
 ):
