@@ -6,6 +6,7 @@ from fastapi import Body
 from app.dependencies.card_status import get_card_status_service
 from app.dependencies.card_data import get_card_data_service
 from app.domain.models import EditQuantityValidationResult, UpdateStocksQuantityResponseModel
+from app.domain.enums import CardStatusEnum
 from app.repository.stocks_quantity import StocksQuantityRepository
 from app.service.card_status import CardStatusService
 from app.service.card_data import CardDataService
@@ -59,7 +60,7 @@ async def validate_edit_quantity_data(
 
     allowed_barcodes = set()
     forbidden_barcodes = set()
-    forbidden_statuses = {"closed", "closing_pending"}
+    forbidden_statuses = {CardStatusEnum.closed, CardStatusEnum.closing_pending}
 
     for barcode in all_barcodes:
         nm_id = barcode_to_nm.get(barcode)

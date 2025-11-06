@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +11,15 @@ from app.api.endpoints import (article_router, card_data_router, price_discount_
                                percent_by_tax_router, stocks_quantity_router, product_router, fin_reports_router,
                                sales_router, penalties_router, manage_card_router)
 from app.config.settings import settings
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
 
 
 # Контекстный менеджер для управления жизненным циклом приложения

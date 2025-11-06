@@ -854,6 +854,7 @@ class ManageCardsRequest(BaseModel):
     Должен содержать один из идентификаторов: nm_ids или local_vendor_codes.
     """
     use_case: RequestUseCase
+    settings: Optional[Dict[str, Any]] = None
     nm_ids: Optional[List[int]] = Field(None, description="Артикулы карточек")
     local_vendor_codes: Optional[List[str]] = Field(None, description="id товаров")
 

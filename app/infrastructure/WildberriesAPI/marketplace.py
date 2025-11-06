@@ -66,7 +66,7 @@ class LeftoversMarketplace:
         """
         Получить остатки по баркодам на одном складе.
         """
-        result  = self.get_amount_from_all_warehouses([warehouse_id], barcodes, step)
+        result  = await self.get_amount_from_all_warehouses([warehouse_id], barcodes, step)
         return result
 
     async def get_amount_from_all_warehouses(
@@ -83,21 +83,31 @@ class LeftoversMarketplace:
         async with aiohttp.ClientSession() as session:
             for warehouse_id in warehouse_ids:
                 url = self.url.format(warehouse_id)
+                max_retries = 3  # на случай, если несколько баркодов невалидны или допустимые ошибки от wb
 
-                for start in range(0, len(barcodes), step):
-                    barcodes_part = barcodes[start: start + step]
-                    json_data = {"skus": barcodes_part}
+                try:
+                    for _ in range(max_retries):
+                        all_ok = True
 
-                    try:
-                        async with session.post(url=url, headers=self.headers, json=json_data) as response:
-                            if response.status == 200:
-                                response_json = await response.json()
-                                stocks = response_json.get("stocks", [])
+                        for start in range(0, len(barcodes), step):
+                            barcodes_part = barcodes[start: start + step]
+                            json_data = {"skus": barcodes_part}
+                            
+                            async with session.post(url=url, headers=self.headers, json=json_data) as response:
+                                if response.status in (429, 500):
+                                    await asyncio.sleep(65)
+                                    all_ok = False
+                                    break
+                                elif response.status == 200:
+                                    response_json = await response.json()
+                                    stocks = response_json.get("stocks", [])
+                                    all_stocks.extend(stocks)
+                                else:
+                                    print(f"[{self.account}] Ошибка склада {warehouse_id}: {response.status}")
 
-                                all_stocks.extend(stocks)
-                            else:
-                                print(f"[{self.account}] Ошибка склада {warehouse_id}: {response.status}")
-                    except Exception as e:
+                        if all_ok:
+                            break
+                except Exception as e:
                         print(f"[{self.account}] Исключение на складе {warehouse_id}: {e}")
                         continue
 
@@ -135,7 +145,7 @@ class LeftoversMarketplace:
                 url = self.url.format(warehouse_id)
                 stocks = edit_barcodes_list.copy()
                 success = False
-                max_retries = 3  # на случай, если несколько баркодов невалидны
+                max_retries = 3  # на случай, если несколько баркодов невалидны или допустимые ошибки от wb
 
                 for _ in range(max_retries):
                     if not stocks:
@@ -149,7 +159,7 @@ class LeftoversMarketplace:
 
                         if status == 204:
                             success = True
-                        elif status == 429:
+                        elif status in (429, 500):
                             await asyncio.sleep(65)
                             all_ok = False
                             break

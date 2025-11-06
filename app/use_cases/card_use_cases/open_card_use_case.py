@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class OpenCardUseCase(BaseCardUseCase):
-    async def execute(self) -> UseCaseResponse:
+    async def execute(self, **kwargs) -> UseCaseResponse:
         result = UseCaseResponse(
             operation_type="open_card",
             all_nm_ids=[],

@@ -18,7 +18,7 @@ class BaseCardUseCase(ABC):
         self.pool = pool
 
     @abstractmethod
-    async def execute(self):
+    async def execute(self, **kwargs):
         raise NotImplementedError
 
 

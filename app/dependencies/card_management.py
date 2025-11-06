@@ -25,4 +25,4 @@ async def get_card_use_case(
         nm_ids=nm_ids,
         local_vendor_codes=local_vendor_codes,
         pool=pool,
-    )
+    ), manage_cards_request.settings or {}

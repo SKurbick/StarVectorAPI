@@ -3,6 +3,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from app.domain.models import UpdateStocksQuantityResponseModel, SkuAmountResponseModel
+from app.domain.enums import CardStatusEnum
 from app.infrastructure.database import init_db, close_db
 from app.repository.card_status import CardStatusRepository
 from app.service.stocks_quantity import StocksQuantityService, StocksQuantityRepository
@@ -81,6 +82,6 @@ async def _execute_task(data: dict[str, list[int]]) -> None:
             await card_status_repo.update_card_status(
                 account=account,
                 nm_ids=nm_ids,
-                new_status="closed",
-                from_status="closing_pending"
+                new_status=CardStatusEnum.closed,
+                from_status=CardStatusEnum.closing_pending
             )

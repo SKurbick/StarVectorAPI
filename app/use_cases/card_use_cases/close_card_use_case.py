@@ -1,6 +1,7 @@
 import logging
 
 from app.domain.models import UseCaseResponse
+from app.domain.enums import CardStatusEnum
 from app.repository.article import ArticleRepository
 from app.repository.card_status import CardStatusRepository
 from app.use_cases.card_use_cases.base import BaseCardUseCase
@@ -11,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class CloseCardUseCase(BaseCardUseCase):
-    async def execute(self) -> UseCaseResponse:
+    async def execute(self, **kwargs) -> UseCaseResponse:
         result = UseCaseResponse(
             operation_type="close_card",
             all_nm_ids=[],
@@ -34,7 +35,7 @@ class CloseCardUseCase(BaseCardUseCase):
 
         closed_by_account = await card_status_repo.get_cards_by_status(
             nm_ids=valid_nm_ids,
-            statuses=["closed"]
+            statuses=[CardStatusEnum.closed]
         )
         closed_nm_set = {nm for nms in closed_by_account.values() for nm in nms}
         cards_to_close = [nm for nm in valid_nm_ids if nm not in closed_nm_set]
@@ -61,7 +62,7 @@ class CloseCardUseCase(BaseCardUseCase):
                 updated = await card_status_repo.update_card_status(
                     account=account,
                     nm_ids=nm_list,
-                    new_status="closing_pending"
+                    new_status=CardStatusEnum.closing_pending
                 )
 
                 if updated:

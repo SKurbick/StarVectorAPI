@@ -2,6 +2,8 @@ from typing import Optional
 
 from asyncpg import Pool
 
+from app.domain.enums import CardStatusEnum
+
 
 class CardStatusRepository:
     def __init__(self, pool: Pool):
@@ -10,8 +12,8 @@ class CardStatusRepository:
     async def get_cards_by_status(
         self,
         nm_ids: Optional[list[int]] = None,
-        statuses: Optional[list[str]] = None,
-        exclude_statuses: Optional[list[str]] = None,
+        statuses: Optional[list[CardStatusEnum]] = None,
+        exclude_statuses: Optional[list[CardStatusEnum]] = None,
     ) -> dict[str, list[int]]:
         """
         Возвращает карточки, сгруппированные по аккаунтам.
@@ -59,8 +61,8 @@ class CardStatusRepository:
         self,
         account: str,
         nm_ids: list[int],
-        new_status: str,
-        from_status: Optional[str] = None,
+        new_status: CardStatusEnum,
+        from_status: Optional[CardStatusEnum] = None,
     ) -> list[int]:
         """
         Универсальный метод обновления статуса карточек.

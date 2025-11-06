@@ -10,12 +10,14 @@ router = APIRouter(tags=["Cards Management"])
 
 
 @router.post("/manage-cards", status_code=status.HTTP_202_ACCEPTED)
-async def manage_cards(use_case: BaseCardUseCase = Depends(get_card_use_case)) -> ResponseMessageDetails:
+async def manage_cards(use_case_data: BaseCardUseCase = Depends(get_card_use_case)) -> ResponseMessageDetails:
     """
     Получает запрос на выполнение сценария.
     """
     try:
-        detail = await use_case.execute()
+        use_case, settings = use_case_data
+        detail = await use_case.execute(**settings)
+
         return ResponseMessageDetails(
             status=status.HTTP_202_ACCEPTED,
             message="Запрос на управление карточками принят",
