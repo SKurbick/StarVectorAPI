@@ -33,12 +33,12 @@ class StocksQuantityService:
             wb_client = LeftoversMarketplace(token=token, account=account)
             stocks_list = account_data.model_dump()["stocks"]
 
-            task = asyncio.create_task(
-                wb_client.edit_amount_on_warehouses(warehouse_ids, stocks_list)
-            )
-            tasks.append(task)
+        #     task = asyncio.create_task(
+        #         wb_client.edit_amount_on_warehouses(warehouse_ids, stocks_list)
+        #     )
+        #     tasks.append(task)
 
-        update_stockgathers_result = await asyncio.gather(*tasks, return_exceptions=True)  # возможно пригодится ответ от WB
+        # update_stockgathers_result = await asyncio.gather(*tasks, return_exceptions=True)  # возможно пригодится ответ от WB
 
         tasks = []
         account_warehouse_map = {}
@@ -68,10 +68,8 @@ class StocksQuantityService:
 
         for result in get_amount_gather_result:
             if isinstance(result, Exception):
-                print(str(result))
                 continue
 
-            print(result)
             for account, stocks in result.items():
                 for stock in stocks:
                     data_to_update.append(
@@ -84,6 +82,5 @@ class StocksQuantityService:
                         )
                     )
 
-        print(data_to_update)
         if data_to_update:
             await self.stocks_quantity_repository.update_fbs_data(data_to_update)

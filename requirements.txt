@@ -7,3 +7,4 @@ cryptography==46.0.1
 aiohttp==3.12.15
 celery==5.5.3
 redis==7.0.1
+flower==2.0.1

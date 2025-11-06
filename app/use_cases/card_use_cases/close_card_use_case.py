@@ -76,7 +76,7 @@ class CloseCardUseCase(BaseCardUseCase):
                 })
 
         if celery_data:
-            # reset_wb_stocks_for_closed_card.delay(data=celery_data)
+            reset_wb_stocks_for_closed_card.delay(data=celery_data)
             logger.info(f"Задача отправлена в Celery для аккаунтов: {list(celery_data.keys())}")
 
         return result

@@ -19,7 +19,7 @@ def create_celery_app():
         task_serializer="json",
         accept_content=["json"],
         result_serializer="json",
-        timezone="UTC",
+        timezone="Europe/Moscow",
         enable_utc=True,
         result_expires=3600,
         task_track_started=True,
@@ -31,6 +31,8 @@ def create_celery_app():
         task_reject_on_worker_lost=True,
         task_default_retry_delay=60,
         task_max_retries=3,
+        worker_send_task_events=True,
+        task_send_sent_event=True,
     )
 
     return celery_app
