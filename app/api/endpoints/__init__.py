@@ -13,6 +13,7 @@ from .fin_reports import router as fin_reports_router
 from .penalties import router as penalties_router
 from .sales import router as sales_router
 from .card_management import router as manage_card_router
+from .close_card import router as closed_card_router
 
 __all__ = [
     'card_data_router',
@@ -30,4 +31,5 @@ __all__ = [
     'penalties_router',
     'sales_router',
     'manage_card_router',
+    'closed_card_router',
 ]
