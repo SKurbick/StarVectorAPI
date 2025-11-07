@@ -1,5 +1,9 @@
 version: '3.8'
 
+volumes:
+  redis_data:
+  flower_data:
+
 services:
   star_vector_api:
     build: ./StarVectorAPI  # Путь к Dockerfile FastAPI
@@ -7,6 +11,46 @@ services:
       - "8000:8000"
     networks:
       - dumpnewvectordbtest_default  # Имя сети из docker inspect
+  
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - dumpnewvectordbtest_default
+
+  celery_worker:
+    build: ./StarVectorAPI
+    command: celery -A celery_app.celery.celery_app worker --loglevel=info
+    volumes:
+      - ./StarVectorAPI:/app
+    working_dir: /app
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - dumpnewvectordbtest_default
+
+  flower:
+    build: ./StarVectorAPI
+    command: celery -A celery_app.celery.celery_app flower --port=5555 --persistent=True --basic_auth=admin:admin
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - celery_worker
+    restart: unless-stopped
+    networks:
+      - dumpnewvectordbtest_default
 
 networks:
   dumpnewvectordbtest_default:
