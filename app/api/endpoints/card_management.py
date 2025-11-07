@@ -1,15 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.domain.models import ResponseMessageDetails, UseCaseMetadata
+from app.domain.models import ResponseMessageDetails, CardUseCaseMetadataResponse
 from app.domain.use_cases_registry import MANAGE_CARD_UC_REGISTRY
 from app.dependencies.card_management import get_card_use_case
 from app.use_cases.card_use_cases import BaseCardUseCase
 
 
-router = APIRouter(tags=["Cards Management"])
+router = APIRouter(tags=["Cards Management"], prefix="/manage-cards")
 
 
-@router.post("/manage-cards", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/", status_code=status.HTTP_202_ACCEPTED)
 async def manage_cards(
     use_case_data: tuple[BaseCardUseCase, dict] = Depends(get_card_use_case)
 ) -> ResponseMessageDetails:
@@ -32,7 +32,7 @@ async def manage_cards(
         )
 
 
-@router.get("/use-cases", response_model=list[dict[str, int | UseCaseMetadata]])
+@router.get("/use-cases", response_model=list[CardUseCaseMetadataResponse])
 async def get_available_use_cases():
     """
     Возвращает список доступных сценариев управления карточками.

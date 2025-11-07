@@ -37,17 +37,17 @@ class StocksQuantityService:
             wb_client = LeftoversMarketplace(token=token, account=account)
             stocks_list = account_data.model_dump()["stocks"]
 
-        #     task = asyncio.create_task(
-        #         wb_client.edit_amount_on_warehouses(warehouse_ids, stocks_list)
-        #     )
-        #     tasks.append(task)
+            task = asyncio.create_task(
+                wb_client.edit_amount_on_warehouses(warehouse_ids, stocks_list)
+            )
+            tasks.append(task)
 
-        # if tasks:
-        #     update_stockgathers_result = await asyncio.gather(*tasks, return_exceptions=True)  # возможно пригодится ответ от WB
+        if tasks:
+            update_stockgathers_result = await asyncio.gather(*tasks, return_exceptions=True)  # возможно пригодится ответ от WB
 
-        #     for result in update_stockgathers_result:
-        #         if isinstance(result, Exception):
-        #             logger.exception(f"Ошибка обновления остатков: {result}")
+            for result in update_stockgathers_result:
+                if isinstance(result, Exception):
+                    logger.exception(f"Ошибка обновления остатков: {result}")
 
 
         logger.info(f"Начало получения остатков для аккаунтов: {list(edit_data.keys())}")

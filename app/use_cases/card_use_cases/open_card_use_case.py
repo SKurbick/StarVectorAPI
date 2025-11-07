@@ -1,6 +1,6 @@
 import logging
 
-from app.domain.models import UseCaseResponse
+from app.domain.models import CardUseCaseResponse
 from app.repository.article import ArticleRepository
 from app.repository.card_status import CardStatusRepository
 from app.use_cases.card_use_cases.base import BaseCardUseCase
@@ -10,8 +10,8 @@ logger = logging.getLogger(__name__)
 
 
 class OpenCardUseCase(BaseCardUseCase):
-    async def execute(self, **kwargs) -> UseCaseResponse:
-        result = UseCaseResponse(
+    async def execute(self, **kwargs) -> CardUseCaseResponse:
+        result = CardUseCaseResponse(
             operation_type="open_card",
             all_nm_ids=[],
             invalid_nm_ids=[],
