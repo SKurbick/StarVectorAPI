@@ -2,7 +2,7 @@ from asyncpg import Pool
 
 from app.domain.models import CloseCardsRequest
 from app.use_cases.card_use_cases import CloseCardUseCase
-from app.infrastructure.WildberriesAPI.marketplace import StockFBWMarketplace
+from app.service.stock_movement import StockMovementService
 
 
 class CloseCardService:
@@ -18,7 +18,7 @@ class CloseCardService:
         return result
 
     async def close_cards_preview(self, data: CloseCardsRequest):
-        stock_movement_fetcher = StockFBWMarketplace()
+        stock_movement_fetcher = StockMovementService()
 
         target_data = {}
 

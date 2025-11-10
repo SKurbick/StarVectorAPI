@@ -2,7 +2,7 @@ from fastapi import APIRouter, Body, Query, Depends, HTTPException, status
 
 from app.dependencies import get_close_card_service
 from app.service.close_card import CloseCardService
-from app.domain.models import CloseCardsRequest
+from app.domain.models import CloseCardsRequest, CardDataByAccountRequest
 
 
 router  = APIRouter(prefix="/closing_cards", tags=["Закрытие карточек"])
@@ -10,7 +10,7 @@ router  = APIRouter(prefix="/closing_cards", tags=["Закрытие карто�
 
 @router.post("/preview")
 async def close_preview(
-    data: CloseCardsRequest = Body(..., description="Список артикулов."),
+    data: CardDataByAccountRequest = Body(..., description="Аккаунты c данными карточек к закрытию."),
     service: CloseCardService = Depends(get_close_card_service),
 ):
     return await service.close_cards_preview(data)
@@ -18,11 +18,10 @@ async def close_preview(
 
 @router.post("/close")
 async def close_cards(
-    data: CloseCardsRequest,
-    user_confirmation: bool = Query(False, description="Подтверждение пользователя на закрытие карточек"),
+    data: CloseCardsRequest = Body(..., description="Аккаунты c данными карточек к закрытию."),
     service: CloseCardService = Depends(get_close_card_service),
 ):
-    if not user_confirmation:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Закрытие карточек не подтверждено.")
+    if not data.user_confirmation:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Закрытие карточек не подтверждено. user_confirmation: false")
 
     return await service.close_cards(data)

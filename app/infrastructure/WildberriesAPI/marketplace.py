@@ -6,8 +6,6 @@ from typing import AsyncGenerator
 import aiohttp
 from fastapi import HTTPException, status
 
-from app.config.settings import get_wb_tokens
-
 
 logger = logging.getLogger(__name__)
 
@@ -218,6 +216,8 @@ class WarehouseMarketplaceWB:
 
 
 class CardMarketplaceWB:
+    """API WB для работы с карточками товаров."""
+
     BASE_URL = "https://content-api.wildberries.ru/content/v2/get/cards/list"
 
     def __init__(
@@ -340,167 +340,124 @@ class CardMarketplaceWB:
         return result
 
 
-class StockFBWMarketplace:
-    async def get_stock_movement(self, data: dict[str, list[int]]):
-        # получаем токены
-        tokens = await get_wb_tokens()
-        
-        if not tokens:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Нет токенов.")
-        
-        tasks = []
+class StockFBWMarketplaceWB:
+    """
+    API WB получения отчетов о движении товаров по ФБО.
+    """
 
-        # делаем запросы на генерацию отчетов
-        async with aiohttp.ClientSession() as session:
-            tasks = [self.gen_reports_fbo_stocks(account=account, token=token, session=session) for account, token in tokens.items() if account.upper() in data]
-            results_gen_reports = await asyncio.gather(*tasks)
-        
-        excs = []
+    BASE_URL = "https://seller-analytics-api.wildberries.ru/api/v1/warehouse_remains"
 
-        report_task_ids = {}
-        
-        for result in results_gen_reports:
-            if isinstance(result, Exception):
-                excs.append(result)
-                
-            report_task_ids[result["account"]] = result["task_id"]
+    def __init__(
+        self,
+        account_name: str,
+        api_token: str,
+        session: aiohttp.ClientSession,
+    ):
+        self.account_name = account_name
+        self.api_token = api_token
+        self.session = session
+        self.headers = {
+            "Authorization": api_token,
+            "Content-Type": "application/json",
+        }
 
-        if not report_task_ids:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Не получены id отчетов при генерации.")
+    async def _make_wb_request(
+        self,
+        method: str,
+        url: str,
+        expected_status: int = status.HTTP_200_OK,
+        max_retries: int = 3,
+        delay: float = 0.2,
+    ) -> dict[str, any]:
+        """
+        Сделать запрос к WB API.
+        """
+        for attempt in range(max_retries + 1):
+            async with self.session.request(method, url, headers=self.headers) as response:
+                if response.status == expected_status:
+                    return await response.json()
 
-        if excs:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Ошибки при генерации отчетов: {excs}")
+                error_body = ""
 
-        # проверяем готовность отчетов
-        async with aiohttp.ClientSession() as session:
-            tasks = [
-                self.check_done_report(
-                    account=account, 
-                    token=token, 
-                    task_id=report_task_ids[account],
-                    session=session,
-                ) for account, token in tokens.items() if account.upper() in data
-            ]
-            results_check_reports = await asyncio.gather(*tasks)
+                try:
+                    error_body = await response.text()
+                except Exception:
+                    pass
 
-        excs = []
-        done_reports = {}
+                if response.status == status.HTTP_429_TOO_MANY_REQUESTS:
+                    logger.warning(
+                        f"WB API 429 (попытка {attempt + 1}/{max_retries + 1}): "
+                        f"url={url}"
+                    )
 
-        for result in results_check_reports:
-            if isinstance(result, Exception):
-                excs.append(result)
-                
-            done_reports[result["account"]] = result["status"]
-        
-        if excs:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Ошибки при проверке отчетов: {excs}")
-        
-        # получаем отчеты
-        async with aiohttp.ClientSession() as session:
-            tasks = [
-                self.get_reports_fbo_stocks_result(
-                    account=account, 
-                    token=token, 
-                    task_id=report_task_ids[account],
-                    session=session,
-                ) for account, token in tokens.items() if account.upper() in data and done_reports.get(account)
-            ]
-            results_reports = await asyncio.gather(*tasks)
-
-        excs = []
-        reports = {}
-
-        for result in results_reports:
-            if isinstance(result, Exception):
-                excs.append(result)
-
-            reports[result["account"]] = result["data"]
-
-        if excs:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Ошибки при получении отчетов: {excs}")
-        
-        if not reports:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Нет отчетов по товарам.")
-
-        # собираем ответ
-        result_response = {}
-
-        for account, articles in data.items():
-            report_data = reports.get(account.capitalize())
-
-            if not report_data:
-                continue
-
-            temp = list(filter(lambda x: x.get("nmId") in articles, report_data))
-
-            result_response[account] = temp
-        
-        return result_response
-
-    async def get_reports_fbo_stocks_result(self, account: str, token: dict, task_id: str, session: aiohttp.ClientSession):
-            """Получить готовый отчет"""
-
-            url = "https://seller-analytics-api.wildberries.ru/api/v1/warehouse_remains/tasks/{task_id}/download".format(task_id=task_id)
-            headers = {
-                "Authorization": token,
-                "Content-Type": "application/json"
-            }
-
-            async with session.get(url=url, headers=headers) as response:
-                    if response.status == status.HTTP_200_OK:
-                        result = await response.json()
-
-                        return {"account": account, "data": result}
+                    if attempt < max_retries:
+                        await asyncio.sleep(delay)
+                        continue
                     else:
-                        raise HTTPException(status_code=response.status, detail="Ошибка при запросе отчета")
+                        raise HTTPException(
+                            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                            detail=f"Превышено количество попыток ({max_retries + 1}) из-за лимита запросов WB."
+                        )
 
-    async def check_done_report(self, account: str, token: dict, task_id: str, session: aiohttp.ClientSession):
-        """Проверить готовность отчета"""
+                raise HTTPException(
+                    status_code=response.status,
+                    detail=f"Ошибка WB API: {response.status} | Body: {error_body[:300]}"
+                )
 
-        url = "https://seller-analytics-api.wildberries.ru/api/v1/warehouse_remains/tasks/{task_id}/status".format(task_id=task_id)
-        headers = {
-            "Authorization": token,
-            "Content-Type": "application/json"
-        }
+    async def gen_reports_fbw_stocks(self) -> dict[str, str]:
+        """
+        Сгенерировать отчет по движению товаров по ФБО.
+        """
+        url = f"{self.BASE_URL}?groupByNm=true&filterPics=0&filterVolume=0"
 
-        max_retry = 3
+        result = await self._make_wb_request("GET", url, delay=61.0)
 
-        is_done = False
+        task_id = result.get("data", {}).get("taskId")
 
-        for _ in range(max_retry):
-            async with session.get(url=url, headers=headers) as response:
-                if response.status == status.HTTP_200_OK:
-                    result = await response.json()
+        if not task_id:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Ошибка генерации отчета: taskId не получен для аккаунта {self.account_name}"
+            )
 
-                    if "data" in result:
-                        is_done = result["data"].get("status") == "done"
-                else:
-                    raise HTTPException(status_code=response.status, detail="Ошибка при запросе отчета")
+        return {"account": self.account_name, "task_id": task_id}
 
-            if is_done:
-                break
-        
-            await asyncio.sleep(5)
+    async def check_done_report(
+        self,
+        task_id: str,
+        max_retries: int = 3,
+        delay: float = 5.0,
+    ) -> bool:
+        """
+        Проверить готовность отчета о дивежении товаров по ФБО.
+        """
+        url = f"{self.BASE_URL}/tasks/{task_id}/status"
 
-        if not is_done:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"{account}: task_id - {task_id} | Не получилось проверить результат")
+        for attempt in range(max_retries):
+            result = await self._make_wb_request("GET", url, delay=5.0)
 
-        return {"account": account, "status": is_done}
+            status_value = result.get("data", {}).get("status")
 
-    async def gen_reports_fbo_stocks(self, account: str, token: dict, session: aiohttp.ClientSession):
-        """Сгенерировать отчет"""
+            if status_value == "done":
+                return True
 
-        url = "https://seller-analytics-api.wildberries.ru/api/v1/warehouse_remains?groupByNm=true"
-        headers = {
-            "Authorization": token,
-            "Content-Type": "application/json"
-        }
+            if attempt < max_retries - 1:
+                await asyncio.sleep(delay)
 
-        async with session.get(url=url, headers=headers) as response:
-                if response.status == status.HTTP_200_OK:
-                    result = await response.json()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Аккаунт {self.account_name}: отчет {task_id} не готов {max_retries} попыток"
+        )
 
-                    if "data" in result:
-                        return {"account": account, "task_id": result["data"].get("taskId")}
-                else:
-                    raise HTTPException(status_code=response.status, detail="Ошибка при запросе отчета")
+    async def get_reports_fbw_stocks_result(
+        self,
+        task_id: str,
+    ) -> dict[str, list[dict[str, any]]]:
+        """
+        Получить готовый отчет движения товаров по ФБО.
+        """
+        url = f"{self.BASE_URL}/tasks/{task_id}/download"
+
+        result = await self._make_wb_request("GET", url, delay=61.0)
+
+        return {"account": self.account_name, "data": result}

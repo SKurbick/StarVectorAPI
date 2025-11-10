@@ -815,50 +815,6 @@ class PenaltyAnnotationUpdate(BaseModel):
     )
 
 
-class CardUseCaseResponse(BaseModel):
-    """Модель ответа выполнения сценария карточек."""
-    operation_type: str
-    all_nm_ids: list[int]
-    invalid_nm_ids: list[int]
-    invalid_local_codes: list[str]
-    failed_accounts: list[dict[str, Any]]
-
-
-class CloseCardUseCaseRequest(BaseModel):
-    """Сценарий закрытия карточек товара."""
-    title: Literal["close_card"]
-
-
-class OpenCardUseCaseRequest(BaseModel):
-    """Сценарий закрытия карточек товара."""
-    title: Literal["open_card"]
-
-
-RequestUseCase = Union[
-    CloseCardUseCaseRequest,
-    OpenCardUseCaseRequest,
-    ] # Тип сценария управления карточками. Расширяется при добавлении новых сценариев.
-
-
-class ManageCardsRequest(BaseModel):
-    """
-    Запрос на управление карточками товаров.
-
-    Должен содержать один из идентификаторов: nm_ids или local_vendor_codes.
-    """
-    use_case: RequestUseCase = Field(..., description="Сценарий")
-    settings: Optional[Dict[str, Any]] = Field(None, description="Настройки сценария")
-    nm_ids: Optional[List[int]] = Field(None, description="Артикулы карточек")
-    local_vendor_codes: Optional[List[str]] = Field(None, description="id товаров")
-
-    @model_validator(mode="after")
-    def at_least_one_field(self):
-        if not self.nm_ids and not self.local_vendor_codes:
-            raise ValueError("Необходимо указать nm_ids или wild_ids.")
-
-        return self
-
-
 class EditQuantityValidationResult(BaseModel):
     """
     Результат валидации запроса на изменение остатков.
@@ -873,48 +829,6 @@ class EditQuantityValidationResult(BaseModel):
 class ResponseMessageDetails(ResponseMessage):
     """Расширенный ответ с дополнительными данными."""
     details: Optional[Any] = None
-
-
-class CardUseCaseMetadata(BaseModel):
-    """Модель информации о сценарии карточек товаров."""
-    title: str
-    name: str
-    description: str
-    settings_schema: Optional[Dict[str, Any]] = None
-    example: Optional[Dict[str, Any]] = None
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "examples": [
-                {
-                    "title": "Закрытие карточки",
-                    "name": "close_card",
-                    "description": "Закрывает карточку: запрещает редактирование остатков и обнуляет виртуальные остатки на маркетплейсе.",
-                    "settings_schema": {"reset_wb_qty": True},
-                    "example": {
-                        "title": "close_card"
-                    }
-                }
-            ]
-        }
-    )
-
-
-class CardUseCaseMetadataResponse(BaseModel):
-    """Модель ответа для эндпоинта use-cases."""
-    id: int
-    use_case: CardUseCaseMetadata
-
-    model_config =  ConfigDict(
-        json_schema_extra = {
-            "examples": [
-                {
-                    "id": 0,
-                    "use_case": CardUseCaseMetadata.model_config["json_schema_extra"]["examples"][0],
-                }
-            ]
-        }
-    )
 
 
 class AccountCardData(BaseModel):
@@ -947,8 +861,17 @@ class CardDataByAccountRequest(BaseModel):
 
 
 class CloseCardsRequest(CardDataByAccountRequest):
-    pass
+    user_confirmation: bool = Field(False, description="Подтверждение пользователя на закрытие карточек")
 
 
 class OpenCardsRequest(CardDataByAccountRequest):
     pass
+
+
+class CardUseCaseResponse(BaseModel):
+    """Модель ответа выполнения сценария карточек."""
+    operation_type: str
+    all_nm_ids: list[int]
+    invalid_nm_ids: list[int]
+    invalid_local_codes: list[str]
+    failed_accounts: list[dict[str, Any]]
