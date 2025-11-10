@@ -13,6 +13,8 @@ from . sales import get_sale_service
 from .filters import get_dates_period_filter, get_months_filter
 from .schedulers import verify_scheduler_api_key
 from .card_status import get_card_status_service
+from .close_card import get_close_card_service
+from .open_card import get_open_card_service
 
 
 __all__ = [
@@ -42,4 +44,6 @@ __all__ = [
     "verify_scheduler_api_key",
     "validate_edit_quantity_data",
     "get_card_status_service",
+    "get_close_card_service",
+    "get_open_card_service",
 ]

@@ -1,18 +1,18 @@
 import logging
 
-from app.domain.models import CardUseCaseResponse
+from app.domain.models import CardUseCaseResponse, CloseCardsRequest
 from app.domain.enums import CardStatusEnum
 from app.repository.article import ArticleRepository
 from app.repository.card_status import CardStatusRepository
 from app.use_cases.card_use_cases.base import BaseCardUseCase
-from celery_app.tasks.reset_wb_stocks_for_closed_card import reset_wb_stocks_for_closed_card
+from app.infrastructure.celery_app import celery_client
 
 
 logger = logging.getLogger(__name__)
 
 
 class CloseCardUseCase(BaseCardUseCase):
-    async def execute(self, **kwargs) -> CardUseCaseResponse:
+    async def execute(self, data: CloseCardsRequest) -> CardUseCaseResponse:
         result = CardUseCaseResponse(
             operation_type="close_card",
             all_nm_ids=[],
@@ -20,8 +20,13 @@ class CloseCardUseCase(BaseCardUseCase):
             invalid_local_codes=[],
             failed_accounts=[],
         )
+        request_nm_ids = [nm_id for _, adt in data.accounts.items() if adt.nm_ids for nm_id in adt.nm_ids]
+        request_nm_lvcs = [lvc for _, adt in data.accounts.items() if adt.local_vendor_codes for lvc in adt.local_vendor_codes]
 
-        valid_nm_ids, invalid_lv_codes, invalid_nm_ids = await self.get_validated_data()
+        valid_nm_ids, invalid_lv_codes, invalid_nm_ids = await self.get_validated_data(
+            nm_ids=request_nm_ids,
+            local_vendor_codes=request_nm_lvcs,
+        )
 
         result.all_nm_ids = valid_nm_ids
         result.invalid_nm_ids = invalid_nm_ids
@@ -77,7 +82,7 @@ class CloseCardUseCase(BaseCardUseCase):
                 })
 
         if celery_data:
-            reset_wb_stocks_for_closed_card.delay(data=celery_data)
+            # celery_client.send_task("reset_wb_stocks_for_closed_card", kwargs={"data": celery_data})
             logger.info(f"Задача отправлена в Celery для аккаунтов: {list(celery_data.keys())}")
 
         return result

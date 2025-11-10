@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class OpenCardUseCase(BaseCardUseCase):
-    async def execute(self, **kwargs) -> CardUseCaseResponse:
+    async def execute(self, data) -> CardUseCaseResponse:
         result = CardUseCaseResponse(
             operation_type="open_card",
             all_nm_ids=[],
@@ -19,7 +19,13 @@ class OpenCardUseCase(BaseCardUseCase):
             failed_accounts=[],
         )
 
-        valid_nm_ids, invalid_lv_codes, invalid_nm_ids = await self.get_validated_data()
+        request_nm_ids = [nm_id for _, adt in data.accounts.items() if adt.nm_ids for nm_id in adt.nm_ids]
+        request_nm_lvcs = [lvc for _, adt in data.accounts.items() if adt.local_vendor_codes for lvc in adt.local_vendor_codes]
+
+        valid_nm_ids, invalid_lv_codes, invalid_nm_ids = await self.get_validated_data(
+            nm_ids=request_nm_ids,
+            local_vendor_codes=request_nm_lvcs,
+        )
 
         result.all_nm_ids = valid_nm_ids
         result.invalid_nm_ids = invalid_nm_ids
