@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Body, Query, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 
 from app.dependencies import get_close_card_service
 from app.service.close_card import CloseCardService

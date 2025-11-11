@@ -833,31 +833,29 @@ class ResponseMessageDetails(ResponseMessage):
 
 class AccountCardData(BaseModel):
     nm_ids: Optional[list[int]] = Field(None, example=[111222333, 444555666], description="Артикулы карточек")
+
+
+class CardDataByAccountRequest(BaseModel):
+    accounts: Optional[dict[str, AccountCardData]] = Field(
+        None,
+        description="Словарь где ключ - имя аккаунта, значение - данные карточек",
+        example={
+            "account_1": {
+                "nm_ids": [111222333, 444555666]
+            },
+            "account_2": {
+                "nm_ids": [111222333, 444555666]
+            }
+        }
+    )
     local_vendor_codes: Optional[list[str]] = Field(None, example=["wild123", "wild456"], description="id товаров")
 
     @model_validator(mode="after")
     def at_least_one_field(self):
-        if not self.nm_ids and not self.local_vendor_codes:
-            raise ValueError("Необходимо указать nm_ids или wild_ids.")
+        if not self.accounts and not self.local_vendor_codes:
+            raise ValueError("Необходимо указать 'accounts' или 'wild_ids'.")
 
         return self
-
-
-class CardDataByAccountRequest(BaseModel):
-    accounts: dict[str, AccountCardData] = Field(
-        ...,
-        description="Словарь где ключ - имя аккаунта, значение - данные карточек",
-        example={
-            "account_1": {
-                "nm_ids": [111222333, 444555666],
-                "local_vendor_codes": ["wild123", "wild456"]
-            },
-            "account_2": {
-                "nm_ids": [111222333, 444555666],
-                "local_vendor_codes": ["wild123", "wild456"]
-            }
-        }
-    )
 
 
 class CloseCardsRequest(CardDataByAccountRequest):
