@@ -64,6 +64,7 @@ class CloseCardUseCase(BaseCardUseCase):
                 continue
 
             try:
+                pass
                 updated = await card_status_repo.update_card_status(
                     account=account,
                     nm_ids=nm_list,

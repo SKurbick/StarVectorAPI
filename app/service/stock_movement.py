@@ -5,6 +5,7 @@ import logging
 
 from app.config.settings import get_wb_tokens
 from app.infrastructure.WildberriesAPI.marketplace import StockFBWMarketplaceWB
+from app.infrastructure.cache import redis_cache_async
 
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,7 @@ class StockMovementService:
             )
 
         requested_accounts_upper = {acc.upper() for acc in data.keys()}
+
         valid_accounts = {
             acc: token for acc, token in tokens.items()
             if acc.upper() in requested_accounts_upper
@@ -37,69 +39,20 @@ class StockMovementService:
                 detail="Не найдено соответствующих учетных записей для предоставленных данных."
             )
         
-        logger.info(f"Получение отчетов по движению товаров для аккаунтов: {valid_accounts.keys()}")
+        logger.info(f"Получение отчетов по движению товаров для аккаунтов: {list(valid_accounts.keys())}")
 
         async with aiohttp.ClientSession() as session:
-            # генерация отчетов
-            gen_tasks = []
-            clients = {}
+            tasks = [self.get_stock_movement_by_account(acc, token, session) for acc, token in valid_accounts.items()]
+            report_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            for account, token in valid_accounts.items():
-                client = StockFBWMarketplaceWB(
-                    account_name=account,
-                    api_token=token,
-                    session=session
-                )
-                clients[account] = client
-                gen_tasks.append(client.gen_reports_fbw_stocks())
+        reports = {}
+        errors = []
 
-            gen_results = await asyncio.gather(*gen_tasks, return_exceptions=True)
-
-            task_map = {}
-            errors = []
-
-            for res in gen_results:
-                if isinstance(res, Exception):
-                    errors.append(res)
-                else:
-                    task_map[res["account"]] = res["task_id"]
-
-            if errors:
-                logger.error(f"Ошибки при формировании отчета: {errors}")
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"Ошибки при формировании отчета: {errors}"
-                )
-
-            # Проверка готовности
-            check_tasks = [
-                clients[account].check_done_report(task_id)
-                for account, task_id in task_map.items()
-            ]
-            await asyncio.gather(*check_tasks, return_exceptions=False)
-
-            # Загрузка отчётов
-            download_tasks = [
-                clients[account].get_reports_fbw_stocks_result(task_id)
-                for account, task_id in task_map.items()
-            ]
-            download_results = await asyncio.gather(*download_tasks, return_exceptions=True)
-
-            reports = {}
-            errors.clear()
-
-            for res in download_results:
-                if isinstance(res, Exception):
-                    errors.append(res)
-                else:
-                    reports[res["account"]] = res["data"]
-
-            if errors:
-                logger.error(f"Ошибки при загрузке отчетов: {errors}")
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"Ошибки при загрузке отчетов: {errors}"
-                )
+        for res in report_results:
+            if isinstance(res, Exception):
+                errors.append(res)
+            else:
+                reports[res["account"]] = res.get("data", [])
 
         result_response = {}
 
@@ -132,7 +85,47 @@ class StockMovementService:
 
             result_response[account] = {
                 "data": found_items,
-                "not_found": not_found_items
+                "not_found": not_found_items,
             }
 
-        return result_response
+        return {"result": result_response, "errors": errors, "success": not errors}
+
+    @redis_cache_async(ttl=65, exclude_args={"token", "session"})
+    async def get_stock_movement_by_account(self, account: str, token: str, session: aiohttp.ClientSession):
+        api_client = StockFBWMarketplaceWB(
+            account_name=account,
+            api_token=token,
+            session=session,
+        )
+
+        try:
+            gen_report_result = await api_client.gen_reports_fbw_stocks()
+        except Exception as e:
+            logger.error(f"Ошибка при формировании отчета [{account}]: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Ошибка при формировании отчета [{account}]: {e}"
+            )
+
+        task_id = gen_report_result["task_id"]
+
+        try:
+            report_is_done = await api_client.check_done_report(task_id)
+        except Exception as e:
+            logger.error(f"Ошибка при проверке готовности отчета [{account}]: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Ошибка при проверке готовности отчета [{account}]: {e}"
+            )
+
+        if not report_is_done:
+            return {"account": account, "data": None}
+
+        try:
+            return await api_client.get_reports_fbw_stocks_result(task_id)
+        except Exception as e:
+            logger.error(f"Ошибка при получении отчета [{account}]: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Ошибка при получении отчета [{account}]: {e}"
+            )
