@@ -832,7 +832,7 @@ class ResponseMessageDetails(ResponseMessage):
 
 
 class AccountCardData(BaseModel):
-    nm_ids: Optional[list[int]] = Field(None, example=[111222333, 444555666], description="Артикулы карточек")
+    nm_ids: list[int] = Field(..., example=[111222333, 444555666], description="Артикулы карточек")
 
 
 class CardDataByAccountRequest(BaseModel):
@@ -869,7 +869,7 @@ class OpenCardsRequest(CardDataByAccountRequest):
 class CardUseCaseResponse(BaseModel):
     """Модель ответа выполнения сценария карточек."""
     operation_type: str
-    all_nm_ids: list[int]
+    all_nm_ids: dict[str, list[int]]
     invalid_nm_ids: list[int]
     invalid_local_codes: list[str]
     failed_accounts: list[dict[str, Any]]

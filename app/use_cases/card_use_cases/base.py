@@ -4,6 +4,7 @@ from typing import Optional
 from asyncpg import Pool
 
 from app.repository.article import ArticleRepository
+from app.domain.models import CardDataByAccountRequest
 
 
 class BaseCardUseCase(ABC):
@@ -17,8 +18,8 @@ class BaseCardUseCase(ABC):
     async def execute(self, *args, **kwargs):
         raise NotImplementedError
 
-
-    async def get_validated_data(self, nm_ids: Optional[list[int]], local_vendor_codes: Optional[list[str]]) -> tuple[list[int], list[str], list[int]]:
+    # надо вернуть аккаунты и nm_ids, невалидные nm_ids, невалидные lvc
+    async def get_validated_data(self, data: CardDataByAccountRequest) -> tuple[list[int], list[str], list[int]]:
         """
         Возвращает:
             - валидные nm_id (объединённые из nm_ids и local_vendor_codes),
@@ -26,19 +27,24 @@ class BaseCardUseCase(ABC):
             - nm_ids, которых нет в БД.
         """
         article_repo = ArticleRepository(self.pool)
-        all_nm_ids = set(nm_ids)
+
+        all_nm_ids = set()
+
+        if data.accounts:
+            nm_ids_request = [nm for acc, nms in data.accounts for nm in nms.nm_ids]
+            all_nm_ids.update(set(nm_ids_request))
 
         not_found_local_codes = []
 
-        if local_vendor_codes:
-            found_by_local, not_found_local = await article_repo.get_articles_by_local_vendor_codes(
-                local_vendor_codes
+        if data.local_vendor_codes:
+            found_by_local, not_found_lvc = await article_repo.get_articles_by_local_vendor_codes(
+                data.local_vendor_codes
             )
 
             for nm_list in found_by_local.values():
                 all_nm_ids.update(nm_list)
 
-            not_found_local_codes = not_found_local
+            not_found_local_codes = not_found_lvc
 
 
         if all_nm_ids:
@@ -49,4 +55,6 @@ class BaseCardUseCase(ABC):
             valid_nm_ids = []
             not_found_nm_ids = []
 
-        return valid_nm_ids, not_found_local_codes, not_found_nm_ids
+        nms_by_accounts = await article_repo.get_accounts_by_nm_ids(valid_nm_ids)
+
+        return nms_by_accounts, not_found_local_codes, not_found_nm_ids

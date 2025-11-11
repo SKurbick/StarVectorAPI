@@ -15,17 +15,14 @@ class CloseCardUseCase(BaseCardUseCase):
     async def execute(self, data: CloseCardsRequest) -> CardUseCaseResponse:
         result = CardUseCaseResponse(
             operation_type="close_card",
-            all_nm_ids=[],
+            all_nm_ids={},
             invalid_nm_ids=[],
             invalid_local_codes=[],
             failed_accounts=[],
         )
-        request_nm_ids = [nm_id for _, adt in data.accounts.items() if adt.nm_ids for nm_id in adt.nm_ids]
-        request_nm_lvcs = [lvc for _, adt in data.accounts.items() if adt.local_vendor_codes for lvc in adt.local_vendor_codes]
 
         valid_nm_ids, invalid_lv_codes, invalid_nm_ids = await self.get_validated_data(
-            nm_ids=request_nm_ids,
-            local_vendor_codes=request_nm_lvcs,
+            data=data
         )
 
         result.all_nm_ids = valid_nm_ids
@@ -39,12 +36,11 @@ class CloseCardUseCase(BaseCardUseCase):
         card_status_repo = CardStatusRepository(self.pool)
 
         closed_by_account = await card_status_repo.get_cards_by_status(
-            nm_ids=valid_nm_ids,
+            nm_ids=[nm for acc, nms in valid_nm_ids.items() for nm in nms],
             statuses=[CardStatusEnum.closed]
         )
         closed_nm_set = {nm for nms in closed_by_account.values() for nm in nms}
-        cards_to_close = [nm for nm in valid_nm_ids if nm not in closed_nm_set]
-
+        cards_to_close = [nm for acc, nms in valid_nm_ids.items() for nm in nms if nm not in closed_nm_set]
 
         if not cards_to_close:
             logger.info("Все запрошенные карточки уже закрыты")
@@ -83,7 +79,7 @@ class CloseCardUseCase(BaseCardUseCase):
                 })
 
         if celery_data:
-            # celery_client.send_task("reset_wb_stocks_for_closed_card", kwargs={"data": celery_data})
+            celery_client.send_task("reset_wb_stocks_for_closed_card", kwargs={"data": celery_data})
             logger.info(f"Задача отправлена в Celery для аккаунтов: {list(celery_data.keys())}")
 
         return result
