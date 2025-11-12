@@ -575,7 +575,8 @@ class WeeklyFinReportsAggregated(BaseModel):
     """Модель для агрегированных недельных финансовых отчетов WB."""
 
     date_to: date = Field(..., description="Дата")
-    vb_commission: float = Field(..., description="Комиссия ВБ")
+    wb_commission: float = Field(..., description="Комиссия ВБ")
+    wb_commission_percentage: float = Field(..., description="Комиссия ВБ, %")
     to_be_transferred: float = Field(..., description="К перечислению")
     logistics: float = Field(..., description="Логистика")
     total_to_be_paid: float = Field(..., description="Итого к оплате")
@@ -592,6 +593,9 @@ class WeeklyFinReportsAggregated(BaseModel):
     purchase_price_of_sales: int = Field(..., description="Закупочная стоимость продаж")
     purchase_price_of_returns: int = Field(..., description="Закупочная стоимость возвратов")
     purchase_cost: int = Field(..., description="Закупочная стоимость")
+    our_share_before_cost: float = Field(..., description="Наша доля до вычета себестоимости")
+    vp_after_wb: float = Field(..., description="ВП после ВБ")
+    vp_after_wb_percentage: float = Field(..., description="ВП после ВБ, %")
     total_deductions: float = Field(..., description="Сумма удержаний")
     deductions: list[FinReportDeduction] = Field(..., description="Все удержания")
 
@@ -600,7 +604,8 @@ class WeeklyFinReportsAggregated(BaseModel):
             "examples": [
                 {
                     "date_to": "2025-07-18",
-                    "vb_commission": 16554462.84,
+                    "wb_commission": 16554462.84,
+                    "wb_commission_percentage": 29.48,
                     "to_be_transferred": 61360434.8,
                     "logistics": 2606288.52,
                     "total_to_be_paid": 48500574.79,
@@ -617,6 +622,9 @@ class WeeklyFinReportsAggregated(BaseModel):
                     "purchase_price_of_sales": 37563404,
                     "purchase_price_of_returns": 128066,
                     "purchase_cost": 37435338,
+                    "our_share_before_cost": 67.99,
+                    "vp_after_wb": 10548583.47,
+                    "vp_after_wb_percentage": 18.07,
                     "total_deductions": 10160861.44,
                     "deductions": [
                         {

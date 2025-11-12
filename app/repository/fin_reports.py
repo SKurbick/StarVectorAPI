@@ -19,7 +19,8 @@ class FinReportsRepository:
         main_query = """
         SELECT
             fram.date_to,
-            fram."Комиссия ВБ" AS vb_commission,
+            fram."Комиссия ВБ" AS wb_commission,
+            fram."Комиссия ВБ, %" AS wb_commission_percentage,
             fram."К перечислению" AS to_be_transferred,
             fram."Логистика" AS logistics,
             fram."Итого к оплате" AS total_to_be_paid,
@@ -37,6 +38,9 @@ class FinReportsRepository:
             fram."Закупочная стоимость продаж" AS purchase_price_of_sales,
             fram."Закупочная стоимость возвратов" AS purchase_price_of_returns,
             fram."Закупочная стоимость" AS purchase_cost,
+            fram."Наша доля до вычета себестоимости" AS our_share_before_cost,
+            fram."ВП после ВБ" AS vp_after_wb,
+            fram."ВП после ВБ, %" AS vp_after_wb_percentage,
             fdm.grouped_bonus_type_name,
             fdm.total_deduction AS deduction
         FROM ({subquery}) fram
@@ -47,7 +51,7 @@ class FinReportsRepository:
 
         subquery = """
             SELECT *
-            FROM fin_reports_mv
+            FROM weekly_fin_reports_mv
             WHERE date_to BETWEEN $1 AND $2
         """
 
@@ -76,7 +80,8 @@ class FinReportsRepository:
             if not reports.get(report_date_to):
                 reports[report_date_to] = dict(
                     date_to=row["date_to"],
-                    vb_commission=row["vb_commission"],
+                    wb_commission=row["wb_commission"],
+                    wb_commission_percentage=row["wb_commission_percentage"],
                     to_be_transferred=row["to_be_transferred"],
                     logistics=row["logistics"],
                     total_to_be_paid=row["total_to_be_paid"],
@@ -93,6 +98,9 @@ class FinReportsRepository:
                     purchase_price_of_sales=row["purchase_price_of_sales"],
                     purchase_price_of_returns=row["purchase_price_of_returns"],
                     purchase_cost=row["purchase_cost"],
+                    our_share_before_cost=row["our_share_before_cost"],
+                    vp_after_wb=row["vp_after_wb"],
+                    vp_after_wb_percentage=row["vp_after_wb_percentage"],
                     total_deductions=row["total_deductions"],
                     deductions=[],
                 )
