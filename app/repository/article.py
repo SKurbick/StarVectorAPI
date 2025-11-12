@@ -159,6 +159,12 @@ class ArticleRepository:
         nm_ids_by_account: Optional[dict[str, list[int]]] = None,
         local_vendor_codes: Optional[list[str]] = None,
     ) -> tuple[list[dict], list[int], list[str]]:
+        """
+        Возвращает кортеж: 
+            - список словарей с данными по карточке dict('nm_id', 'account', 'local_vendor_code'), 
+            - ненайденные артикулы, 
+            - ненайденные local_vendor_code 
+        """
         if not nm_ids_by_account and not local_vendor_codes:
             return [], [], []
 

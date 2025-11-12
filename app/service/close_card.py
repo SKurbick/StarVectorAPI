@@ -27,12 +27,19 @@ logger = logging.getLogger(__name__)
 
 
 class CloseCardService:
+    """
+    Сервис закрывает карточки и обнуляет остатки.
+    """
+
     def __init__(self, pool: Pool, stock_movement_service: StockMovementService, redis_client: Redis):
         self.pool = pool
         self.stock_movement_service = stock_movement_service
         self.redis_client = redis_client
 
     async def close_cards(self, data: CloseCardsRequest):
+        """
+        Закрыть артикулы и обнулить остатки на маркетплейсе.
+        """
         cache_key = f"close_cards_preview:{data.preview_operation_id}"
         cached = await self.redis_client.get(cache_key)
 
@@ -59,6 +66,9 @@ class CloseCardService:
         return result
 
     async def close_cards_preview(self, data: CloseCardPreviewRequest) -> ClosePreviewResponse:
+        """
+        Возвращает данные по артикулам, переданным к закрытию.
+        """
         article_repo = ArticleRepository(self.pool)
         status_repo = CardStatusRepository(self.pool)
         stocks_repo = CurrentStocksRepository(self.pool)

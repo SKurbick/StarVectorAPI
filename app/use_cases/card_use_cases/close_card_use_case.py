@@ -12,6 +12,10 @@ logger = logging.getLogger(__name__)
 
 
 class CloseCardUseCase(BaseCardUseCase):
+    """
+    Закрытие карточек и обнуление виртуальных остатков.
+    """
+
     async def execute(
         self,
         accounts_data: dict[str, list[int]],
@@ -102,14 +106,12 @@ class CloseCardUseCase(BaseCardUseCase):
         celery_task_ids = []
 
         if accounts_data and successfully_queued > 0:
-            # task = celery_client.send_task(
-            #     "reset_wb_stocks_for_closed_card",
-            #     kwargs={"data": accounts_data}
-            # )
-            # celery_task_ids.append(task.id)
-            celery_task_ids.append("asdasdasdad")
-            # logger.info(f"Celery task {task.id} запущена для {len(accounts_data)} аккаунтов")
-            logger.info(f"Celery task запущена для {len(accounts_data)} аккаунтов")
+            task = celery_client.send_task(
+                "reset_wb_stocks_for_closed_card",
+                kwargs={"data": accounts_data}
+            )
+            celery_task_ids.append(task.id)
+            logger.info(f"Celery task {task.id} запущена для {len(accounts_data)} аккаунтов")
 
         status = "accepted" if not failed_accounts else "partial"
 

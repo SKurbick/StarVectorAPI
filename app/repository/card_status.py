@@ -6,6 +6,10 @@ from app.domain.enums import CardStatusEnum
 
 
 class CardStatusRepository:
+    """
+    Репозиторий для управления статусами карточек товаров.
+    """
+
     def __init__(self, pool: Pool):
         self.pool = pool
 
@@ -16,7 +20,7 @@ class CardStatusRepository:
         exclude_statuses: Optional[list[CardStatusEnum]] = None,
     ) -> dict[str, list[int]]:
         """
-        Возвращает карточки, сгруппированные по аккаунтам.
+        Возвращает карточки со статусами, сгруппированные по аккаунтам.
         """
         query = "SELECT account, nm_id FROM card_status WHERE 1=1"
         params = []
@@ -144,6 +148,10 @@ class CardStatusRepository:
         self,
         nm_account_pairs: list[tuple[int, str]]
     ) -> dict[tuple[int, str], str]:
+        """
+        Возвращает {(account, nm_id): status} для существующих записей в card_status.
+        Если запись отсутствует — nm_id будет присвоен 'active'.
+        """
         if not nm_account_pairs:
             return {}
 
@@ -174,6 +182,6 @@ class CardStatusRepository:
         # Для отсутствующих пар — ставим "active"
         for pair in nm_account_pairs:
             if pair not in found_pairs:
-                result[pair] = "active"
+                result[pair] = CardStatusEnum.active
 
         return result

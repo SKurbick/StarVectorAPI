@@ -1,0 +1,150 @@
+version: '3.8'
+
+services:
+  star_vector_api:
+    build: ./StarVectorAPI
+    container_name: star_vector_api_container
+    image: star_vector_api_image
+    ports:
+      - "8300:8000"
+    networks:
+      - vector_db_default
+      - crm_frontend_network
+
+  swift_pack_label:
+    build: ./SwiftPackLabel
+    container_name: swift_pack_label_container
+    image: swift_pack_label_image
+    restart: always
+    volumes:
+      - excel_data:/app/src/excel_data/data
+      - archives_data:/app/src/archives/data
+      - images_data:/app/src/images/uploads
+    depends_on:
+      - redis
+      - celery_worker
+      - celery_beat
+      - flower
+    ports:
+      - "8301:8001"
+    networks:
+      - vector_db_default
+      - start_qr_network
+
+  celery_worker:
+    build: ./SwiftPackLabel
+    image: swift_pack_label_image
+    command: celery -A src.celery_app.celery worker --loglevel=info --concurrency=4
+    volumes:
+      - excel_data:/app/src/excel_data/data
+      - archives_data:/app/src/archives/data
+      - images_data:/app/src/images/uploads
+    depends_on:
+      - redis
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+    restart: unless-stopped
+    networks:
+      - vector_db_default
+
+  celery_beat:
+    build: ./SwiftPackLabel
+    image: swift_pack_label_image
+    command: celery -A src.celery_app.celery beat --loglevel=info --schedule=/tmp/celerybeat-schedule
+    volumes:
+      - excel_data:/app/src/excel_data/data
+      - archives_data:/app/src/archives/data
+      - images_data:/app/src/images/uploads
+      - celerybeat_data:/tmp
+    depends_on:
+      - redis
+      - celery_worker
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+    restart: unless-stopped
+    networks:
+      - vector_db_default
+
+  flower:
+    build: ./SwiftPackLabel
+    image: swift_pack_label_image
+    command: celery -A src.celery_app.celery flower --address=0.0.0.0 --port=5555 --broker=redis://redis:6379/1 --basic_auth=admin:admin123
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - celery_worker
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+    restart: unless-stopped
+    networks:
+      - vector_db_default
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - vector_db_default
+
+  1c_routing_api:
+    build: ./1CRoutingAPI
+    container_name: 1c_routing_api_container
+    image: 1c_routing_api_image
+    ports:
+      - "8302:8002"
+    networks:
+      - vector_db_default
+
+  crm-frontend:
+    build:
+      context: ./start-crm
+      dockerfile: Dockerfile
+    container_name: crm-frontend
+    image: crm-frontend
+    ports:
+      - "81:80"
+    networks:
+      - crm_frontend_network
+
+  start-qr:
+    build:
+      context: ./start-qr
+      dockerfile: Dockerfile
+    container_name: start-qr
+    image: start-qr
+    ports:
+      - "82:81"
+    networks:
+      - start_qr_network
+
+networks:
+  vector_db_default:
+    external: true
+
+  crm_frontend_network:
+    driver: bridge
+    name: crm_frontend_network
+
+  start_qr_network:
+    driver: bridge
+    name: start_qr_network
+
+volumes:
+  excel_data:
+  archives_data:
+  images_data:
+  celerybeat_data:
+  redis_data:

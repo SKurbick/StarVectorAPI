@@ -2,6 +2,9 @@ from asyncpg import Pool
 
 
 class CurrentStocksRepository:
+    """
+    Таблица: current_stocks_quantity
+    """
     def __init__(self, pool: Pool) -> None:
         self.pool = pool
 
@@ -9,6 +12,9 @@ class CurrentStocksRepository:
         self,
         nm_account_pairs: list[tuple[int, str]]
     ) -> dict[tuple[int, str], int]:
+        """
+        Возвращает виртуальные остатки по ФБС {(nm_id, account): quantity}.
+        """
         if not nm_account_pairs:
             return {}
 
