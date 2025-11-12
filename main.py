@@ -1,15 +1,26 @@
 from contextlib import asynccontextmanager
+import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from app.infrastructure.database import init_db, close_db
-from app.api.endpoints import (article_router, card_data_router, price_discount_router, favicon_router, 
-                               turnover_router, orders_revenues_router, unit_economics_router, net_profit_router, 
+from app.infrastructure.redis_client import redis_client
+from app.api.endpoints import (article_router, card_data_router, price_discount_router, favicon_router,
+                               turnover_router, orders_revenues_router, unit_economics_router, net_profit_router,
                                percent_by_tax_router, stocks_quantity_router, product_router, fin_reports_router,
-                               sales_router, penalties_router)
+                               sales_router, penalties_router, close_card_router, open_card_router)
 from app.config.settings import settings
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
 
 
 # Контекстный менеджер для управления жизненным циклом приложения
@@ -17,10 +28,12 @@ from app.config.settings import settings
 async def lifespan(app: FastAPI):
     # Инициализация пула соединений при старте приложения
     pool = await init_db()
+    await redis_client.connect()
     app.state.pool = pool
     yield
     # Закрытие пула соединений при завершении работы приложения
     await close_db(pool)
+    await redis_client.disconnect()
 
 
 # Создаем экземпляр FastAPI с использованием lifespan
@@ -38,6 +51,8 @@ app.include_router(product_router, prefix="/api")
 app.include_router(fin_reports_router, prefix="/api")
 app.include_router(penalties_router, prefix="/api")
 app.include_router(sales_router, prefix="/api")
+app.include_router(close_card_router, prefix="/api")
+app.include_router(open_card_router, prefix="/api")
 app.include_router(favicon_router)
 
 origins = [

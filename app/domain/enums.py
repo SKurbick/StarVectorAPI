@@ -40,3 +40,11 @@ class LossOwnerEnum(Enum):
                 return item
 
         raise ValueError(f"Invalid loss owner DB value: {value}")
+
+
+class CardStatusEnum(str, Enum):
+    """Список возможных статусов карточек товара"""
+
+    closed = "closed"
+    active = "active"
+    closing_pending = "closing_pending"

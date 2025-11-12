@@ -1,19 +1,14 @@
-from typing import List, Dict
+from fastapi import APIRouter, Depends, HTTPException
 
-from fastapi import APIRouter, Depends, HTTPException, Body
-from app.domain.models import StocksQuantity, ResponseMessage, UpdateStocksQuantityResponseModel
+from app.dependencies import get_stocks_quantity_service, validate_edit_quantity_data
+from app.domain.models import StocksQuantity, ResponseMessageDetails, EditQuantityValidationResult
 from app.service.stocks_quantity import StocksQuantityService
-from app.dependencies import get_stocks_quantity_service
+
 
 router = APIRouter(tags=['Состояние по остаткам'], prefix="/stock")
 
-example_edit_quantity = {
-    "ХАЧАТРЯН": {"stocks": [{"amount": 748, "sku": "2040464284361"}, {"amount": 42, "sku": "2040464284385"}]},
-    "ПИЛОСЯН": {"stocks": [{"amount": 8534, "sku": "2037786392119"}]}
-}
 
-
-@router.get("/quantity", response_model=List[StocksQuantity], description="Состояние остатков")
+@router.get("/quantity", response_model=list[StocksQuantity], description="Состояние остатков")
 async def stocks_quantity(
         service: StocksQuantityService = Depends(get_stocks_quantity_service)
 ):
@@ -23,15 +18,25 @@ async def stocks_quantity(
     return user_details
 
 
-@router.post("/edit_quantity", response_model=ResponseMessage, description="Изменение виртуальных остатков")
+@router.post("/edit_quantity", response_model=ResponseMessageDetails, description="Изменение виртуальных остатков")
 async def edit_stocks_quantity(
-        edit_data: Dict[str, UpdateStocksQuantityResponseModel] = Body(example=example_edit_quantity),
+        validation: EditQuantityValidationResult = Depends(validate_edit_quantity_data),
         service: StocksQuantityService = Depends(get_stocks_quantity_service),
-
 ):
-    # await service.edit_stocks_quantity(edit_data) # метод работает но замокан для тестирования
-    print(edit_data)
+    if validation.allowed:
+        await service.edit_stocks_quantity(validation.allowed)
+
+    details = {"invalid": validation.invalid}
+
+    if validation.closed_with_nonzero:
+        details["closed_with_nonzero"] = validation.closed_with_nonzero
+        details["message"] = (
+            "Некоторые карточки закрыты. Чтобы изменить остатки (кроме 0), "
+            "сначала откройте их. Для обнуления - установите amount=0."
+        )
+
     return {
         "status": 200,
-        "message": "успешно ебать 👍 поздравляю"
+        "message": "Запрос обработан",
+        "details": details
     }

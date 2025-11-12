@@ -1,0 +1,70 @@
+volumes:
+  redis_data:
+  flower_data:
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - dev_network
+
+  celery-worker:
+    build: .
+    command: celery -A celery_app.celery.celery_app worker --loglevel=info
+    depends_on:
+      - redis
+    volumes:
+      - .:/app
+    working_dir: /app
+    environment:
+      - POSTGRES_HOST=host.docker.internal
+    networks:
+      - dev_network
+    restart: unless-stopped
+
+  star_vector_api:
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+      - celery-worker
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app
+    environment:
+      - POSTGRES_HOST=host.docker.internal
+    networks:
+      - dev_network
+    restart: unless-stopped
+
+  flower:
+    build: .
+    command: celery -A celery_app.celery.celery_app flower --port=5555 --persistent=True --basic_auth=admin:admin
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - celery-worker
+    volumes:
+      - flower_data:/app
+    working_dir: /app
+    networks:
+      - dev_network
+    restart: unless-stopped
+
+networks:
+  dev_network:
+    driver: bridge

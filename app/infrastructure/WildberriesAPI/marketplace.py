@@ -1,7 +1,13 @@
 import asyncio
-import time
+import json
+import logging
+from typing import AsyncGenerator
 
 import aiohttp
+from fastapi import HTTPException, status
+
+
+logger = logging.getLogger(__name__)
 
 
 class Wildberries:
@@ -59,45 +65,130 @@ class LeftoversMarketplace:
         }
 
     async def get_amount_from_warehouses(self, warehouse_id, barcodes, step=1000):
-        url = self.url.format(f"{warehouse_id}")
-        barcodes_quantity = []
-        for start in range(0, len(barcodes), step):
-            barcodes_part = barcodes[start: start + step]
+        """
+        Получить остатки по баркодам на одном складе.
+        """
+        result  = await self.get_amount_from_all_warehouses([warehouse_id], barcodes, step)
+        return result
 
-            json_data = {
-                "skus": barcodes_part
-            }
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url=url, headers=self.headers, json=json_data) as response:
-                    response_json = await response.json()
-                    stocks = response_json["stocks"]
-                    barcodes_quantity.extend(stocks)
-                    # if len(stocks) > 0:
-                    #     for stock in stocks:
-                    #         barcodes_quantity.append(
-                    #             {
-                    #                 "Баркод": stock["sku"],
-                    #                 "остаток": stock["amount"]
-                    #             }
-                    #         )
-        return {self.account:barcodes_quantity}
+    async def get_amount_from_all_warehouses(
+        self,
+        warehouse_ids: list[int],
+        barcodes: list[str],
+        step: int = 1000
+    ) -> dict[str, list[dict[str, any]]]:
+        """
+        Получить остатки по баркодам на нескольких складах.
+        """
+        all_stocks = []
+
+        async with aiohttp.ClientSession() as session:
+            for warehouse_id in warehouse_ids:
+                url = self.url.format(warehouse_id)
+                max_retries = 3  # на случай, если несколько баркодов невалидны или допустимые ошибки от wb
+
+                try:
+                    for _ in range(max_retries):
+                        all_ok = True
+
+                        for start in range(0, len(barcodes), step):
+                            barcodes_part = barcodes[start: start + step]
+                            json_data = {"skus": barcodes_part}
+                            
+                            async with session.post(url=url, headers=self.headers, json=json_data) as response:
+                                if response.status in (429, 500):
+                                    await asyncio.sleep(65)
+                                    all_ok = False
+                                    break
+                                elif response.status == 200:
+                                    response_json = await response.json()
+                                    stocks = response_json.get("stocks", [])
+                                    all_stocks.extend(stocks)
+                                else:
+                                    print(f"[{self.account}] Ошибка склада {warehouse_id}: {response.status}")
+
+                        if all_ok:
+                            break
+                except Exception as e:
+                        print(f"[{self.account}] Исключение на складе {warehouse_id}: {e}")
+                        continue
+
+        return {self.account: all_stocks}
 
     async def edit_amount_from_warehouses(self, warehouse_id, edit_barcodes_list, step=1000):
-        url = self.url.format(f"{warehouse_id}")
-        for start in range(0, len(edit_barcodes_list), step):
-            barcodes_part = edit_barcodes_list[start: start + step]
-            print(barcodes_part)
-            json_data = {
-                "stocks": barcodes_part
-            }
-            async with aiohttp.ClientSession() as session:
-                async with session.put(url=url, headers=self.headers, json=json_data) as response:
-                    if response.status > 399:
-                        response_json = await response.json()
-                        print(f"Запрос на изменение остатков: {response_json}")
-                    else:
-                        print(f"Запрос на изменение остатков. Код: {response.status}" )
-                        return response.status
+        """
+        Отправить обновление остатков на один склад продавца.
+        """
+        result = await self.edit_amount_on_warehouses([warehouse_id], edit_barcodes_list, step)
+        return result.get(warehouse_id, False)
+
+    async def send_stock_update(self, session: aiohttp.ClientSession, url: str, stocks: list[dict]) -> tuple[int, dict]:
+        """
+        Вспомогательный метод: отправляет запрос на обновление остатков.
+        """
+        async with session.put(url=url, headers=self.headers, json={"stocks": stocks}) as response:
+            status = response.status
+
+            try:
+                body = await response.json()
+            except:
+                body = {}
+
+            return status, body
+
+    async def edit_amount_on_warehouses(self, warehouse_ids: list[int], edit_barcodes_list: list[dict], step: int = 1000) -> dict[int, bool]:
+        """
+        Отправить обновление остатков на несколько складов.
+        """
+        results = {}
+
+        async with aiohttp.ClientSession() as session:
+            for warehouse_id in warehouse_ids:
+                url = self.url.format(warehouse_id)
+                stocks = edit_barcodes_list.copy()
+                success = False
+                max_retries = 3  # на случай, если несколько баркодов невалидны или допустимые ошибки от wb
+
+                for _ in range(max_retries):
+                    if not stocks:
+                        break
+
+                    all_ok = True
+
+                    for start in range(0, len(stocks), step):
+                        batch = stocks[start:start + step]
+                        status, body = await self.send_stock_update(session, url, batch)
+
+                        if status == 204:
+                            success = True
+                        elif status in (429, 500):
+                            await asyncio.sleep(65)
+                            all_ok = False
+                            break
+                        elif status > 399 and isinstance(body, list):
+                            invalid_skus = set()
+
+                            for error in body:
+                                if "data" in error:
+                                    for item in error["data"]:
+                                        invalid_skus.add(item.get("sku"))
+
+                            if invalid_skus:
+                                stocks = [s for s in stocks if s["sku"] not in invalid_skus]
+                                all_ok = False
+                                break  # выходим из батч-цикла, чтобы повторить со всеми валидными
+                        else:
+                            print(f"[{self.account}] Склад {warehouse_id}: ошибка {status} - {body}")
+                            all_ok = False
+                            break
+
+                    if all_ok:
+                        break
+
+                results[warehouse_id] = success
+
+        return results
+
 
 class WarehouseMarketplaceWB:
     """API складов маркетплейс"""
@@ -124,3 +215,249 @@ class WarehouseMarketplaceWB:
                 print(e)
 
 
+class CardMarketplaceWB:
+    """API WB для работы с карточками товаров."""
+
+    BASE_URL = "https://content-api.wildberries.ru/content/v2/get/cards/list"
+
+    def __init__(
+        self,
+        account_name: str,
+        api_token: str,
+        session: aiohttp.ClientSession,
+    ):
+        self.account_name = account_name
+        self.api_token = api_token
+        self.session = session
+
+    async def _make_request(self, params: dict) -> dict:
+        """Один запрос с обработкой ошибок."""
+        headers = {
+            "Authorization": self.api_token,
+            "Content-Type": "application/json"
+        }
+
+        async with self.session.post(self.BASE_URL, headers=headers, json=params) as response:
+            if response.status == 429:
+                logger.warning(f"[429] {self.account_name} — лимит. Ждём 65 сек...")
+                raise aiohttp.ClientResponseError(
+                    request_info=response.request_info,
+                    history=response.history,
+                    status=429,
+                    message="Too Many Requests"
+                )
+
+            if response.status >= 400:
+                text = await response.text()
+                logger.error(f"[{self.account_name}] Ошибка {response.status}: {text[:300]}")
+                raise aiohttp.ClientResponseError(
+                    request_info=response.request_info,
+                    history=response.history,
+                    status=response.status,
+                    message=text[:300]
+                )
+
+            try:
+                data = await response.json()
+            except json.JSONDecodeError:
+                raw = await response.text()
+                logger.error(f"[{self.account_name}] JSON decode error. Raw: {raw[:300]}")
+                return {}
+
+            return data
+
+    async def iter_cards(self, limit: int = 100) -> AsyncGenerator[list[dict], None]:
+        """
+        Асинхронный генератор карточек. Поддерживает пагинацию WB.
+        """
+        # Ограничение от WB на limit <= 100
+        limit = 100 if limit > 100 else limit
+
+        params = {
+            "settings": {
+                "cursor": {
+                    "limit": limit
+                },
+                "filter": {
+                    "withPhoto": -1
+                }
+            }
+        }
+
+        while True:
+            try:
+                data = await self._make_request(params)
+            except aiohttp.ClientResponseError as e:
+                if e.status == 429:
+                    await asyncio.sleep(65)
+                    continue
+
+                raise
+
+            cards = data.get("cards", [])
+
+            if not cards:
+                break
+
+            yield cards
+
+            cursor = data.get("cursor", {})
+
+            if not cursor:
+                break
+
+            if cursor["total"] < limit:
+                break
+
+            params["settings"]["cursor"]["updatedAt"] = cursor["updatedAt"]
+            params["settings"]["cursor"]["nmID"] = cursor["nmID"]
+
+            await asyncio.sleep(0.6)
+
+    async def get_barcodes_by_nmid(self, nm_ids: list[int]) -> dict[int, list[str]]:
+        """
+        Возвращает словарь {nm_id: [barcodes]}.
+        Использует генератор iter_cards.
+        """
+        result: dict[int, list[str]] = {}
+
+        async for cards_batch in self.iter_cards():
+            for card in cards_batch:
+                nm_id = card.get("nmID")
+
+                if nm_id in nm_ids:
+                    barcodes = []
+
+                    for size in card.get("sizes", []):
+                        barcodes.extend(size.get("skus", []))
+
+                    result[nm_id] = barcodes
+
+            # если нашли все nm_ids — можно завершать
+            if all(nm in result for nm in nm_ids):
+                break
+
+        return result
+
+
+class StockFBWMarketplaceWB:
+    """
+    API WB получения отчетов о движении товаров по ФБО.
+    """
+
+    BASE_URL = "https://seller-analytics-api.wildberries.ru/api/v1/warehouse_remains"
+
+    def __init__(
+        self,
+        account_name: str,
+        api_token: str,
+        session: aiohttp.ClientSession,
+    ):
+        self.account_name = account_name
+        self.api_token = api_token
+        self.session = session
+        self.headers = {
+            "Authorization": api_token,
+            "Content-Type": "application/json",
+        }
+
+    async def _make_wb_request(
+        self,
+        method: str,
+        url: str,
+        expected_status: int = status.HTTP_200_OK,
+        max_retries: int = 3,
+        delay: float = 0.2,
+    ) -> dict[str, any]:
+        """
+        Сделать запрос к WB API.
+        """
+        for attempt in range(max_retries + 1):
+            async with self.session.request(method, url, headers=self.headers) as response:
+                if response.status == expected_status:
+                    return await response.json()
+
+                error_body = ""
+
+                try:
+                    error_body = await response.text()
+                except Exception:
+                    pass
+
+                if response.status == status.HTTP_429_TOO_MANY_REQUESTS:
+                    logger.warning(
+                        f"WB API 429 (попытка {attempt + 1}/{max_retries + 1}): "
+                        f"url={url}"
+                    )
+
+                    if attempt < max_retries:
+                        await asyncio.sleep(delay)
+                        continue
+                    else:
+                        raise HTTPException(
+                            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                            detail=f"Превышено количество попыток ({max_retries + 1}) из-за лимита запросов WB."
+                        )
+
+                raise HTTPException(
+                    status_code=response.status,
+                    detail=f"Ошибка WB API: {response.status} | Body: {error_body[:300]}"
+                )
+
+    async def gen_reports_fbw_stocks(self) -> dict[str, str]:
+        """
+        Сгенерировать отчет по движению товаров по ФБО.
+        """
+        url = f"{self.BASE_URL}?groupByNm=true&filterPics=0&filterVolume=0"
+
+        result = await self._make_wb_request("GET", url, delay=61.0)
+
+        task_id = result.get("data", {}).get("taskId")
+
+        if not task_id:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Ошибка генерации отчета: taskId не получен для аккаунта {self.account_name}"
+            )
+
+        return {"account": self.account_name, "task_id": task_id}
+
+    async def check_done_report(
+        self,
+        task_id: str,
+        max_retries: int = 3,
+        delay: float = 5.0,
+    ) -> bool:
+        """
+        Проверить готовность отчета о дивежении товаров по ФБО.
+        """
+        url = f"{self.BASE_URL}/tasks/{task_id}/status"
+
+        for attempt in range(max_retries):
+            result = await self._make_wb_request("GET", url, delay=5.0)
+
+            status_value = result.get("data", {}).get("status")
+
+            if status_value == "done":
+                return True
+
+            if attempt < max_retries - 1:
+                await asyncio.sleep(delay)
+
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Аккаунт {self.account_name}: отчет {task_id} не готов {max_retries} попыток"
+        )
+
+    async def get_reports_fbw_stocks_result(
+        self,
+        task_id: str,
+    ) -> dict[str, list[dict[str, any]]]:
+        """
+        Получить готовый отчет движения товаров по ФБО.
+        """
+        url = f"{self.BASE_URL}/tasks/{task_id}/download"
+
+        result = await self._make_wb_request("GET", url, delay=61.0)
+
+        return {"account": self.account_name, "data": result}
