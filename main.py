@@ -59,13 +59,11 @@ app.include_router(product_router, prefix="/api")
 app.include_router(fin_reports_router, prefix="/api")
 app.include_router(penalties_router, prefix="/api")
 app.include_router(sales_router, prefix="/api")
-<<<<<<< HEAD
 app.include_router(competitors_prices_router, prefix="/api")
-=======
 app.include_router(close_card_router, prefix="/api")
 app.include_router(open_card_router, prefix="/api")
->>>>>>> dev
 app.include_router(favicon_router)
+
 
 origins = [
     # "http://192.168.2.49:5173",
