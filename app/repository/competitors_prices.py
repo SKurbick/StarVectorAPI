@@ -60,6 +60,7 @@ class CompetitorPriceRepository:
             postgres_query = """
                 SELECT
                     a.local_vendor_code,
+                    a.account,
                     cd.article_id,
                     cd.price,
                     p.name
@@ -129,6 +130,7 @@ class CompetitorPriceRepository:
                 grouped[lvc] = {"name": card["name"], "prices": []}
 
             grouped[lvc]["prices"].append({
+                "account": card["account"],
                 "article_id": card["article_id"],
                 "price": card["price"],
             })

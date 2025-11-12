@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI):
     async with asyncio.TaskGroup() as task_group:
         postgres_task = task_group.create_task(init_postgres_db())
         clickhouse_task = task_group.create_task(init_clickhouse_client())
-        task_group(redis_client.connect())
+        task_group.create_task(redis_client.connect())
 
     app.state.pool = postgres_task.result()
     app.state.clickhouse_client = clickhouse_task.result()

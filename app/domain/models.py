@@ -825,24 +825,80 @@ class PenaltyAnnotationUpdate(BaseModel):
 
 
 class OurPriceItem(BaseModel):
-    article_id: int
-    price: Optional[int]
+    """Модель данных с ценой артикула продавца."""
+
+    account: str = Field(..., description="Аккаунт")
+    article_id: int = Field(..., description="Артикул")
+    price: Optional[int] = Field(None, description="Цена товара")
 
 
 class CompetitorPriceItem(BaseModel):
-    concurrent: str
-    article_id: int
-    price: int
-    found_article: int
-    position: int
+    """Модель данных с ценой артикула конкурента."""
+
+    concurrent: str = Field(..., description="Конкурент")
+    article_id: int = Field(..., description="Артикул товара конкурента")
+    price: int = Field(..., description="Цена товара конкурента")
+    found_article: int = Field(..., description="Артикул продавца, найденный в рекомендациях под артикулом конкурента")
+    position: int = Field(100, description="Позиция артикула продавца в рекомендациях под артикулом конкурента")
     processed_at: datetime
 
 
 class CompetitorPriceResponse(BaseModel):
-    local_vendor_code: str
-    name: Optional[str]
-    our_prices: List[OurPriceItem]
-    competitor_prices: List[CompetitorPriceItem]
+    """Модель ответа для цен конкурентов по локальному артикулу продавца."""
+
+    local_vendor_code: str = Field(..., description="Локальный артикул продавца")
+    name: Optional[str] = Field(..., description="Наименование товара")
+    our_prices: List[OurPriceItem] = Field(..., description="Цены продавца")
+    competitor_prices: List[CompetitorPriceItem] = Field(..., description="Цены конкурента")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "local_vendor_code": "wild1004",
+                    "name": "Терка с контейнером",
+                    "our_prices": [
+                        {
+                            "account": "ДАНИЕЛЯН",
+                            "article_id": 181818310,
+                            "price": 1314
+                        },
+                        {
+                            "account": "СТАРТ",
+                            "article_id": 999999410,
+                            "price": 1314
+                        },
+                    ],
+                    "competitor_prices": [
+                        {
+                            "concurrent": "Второй конкурент",
+                            "article_id": 324000285,
+                            "price": 390,
+                            "found_article": 181818522,
+                            "position": 3,
+                            "processed_at": "2025-11-12T10:00:16Z"
+                        },
+                        {
+                            "concurrent": "Первый конкурент",
+                            "article_id": 160009080,
+                            "price": 671,
+                            "found_article": 181818522,
+                            "position": 1,
+                            "processed_at": "2025-11-12T12:00:14Z"
+                        },
+                        {
+                            "concurrent": "Третий конкурент",
+                            "article_id": 229990717,
+                            "price": 312,
+                            "found_article": 181818522,
+                            "position": 1,
+                            "processed_at": "2025-10-23T14:00:13Z"
+                        }
+                    ]
+                },
+            ]
+        }
+    )
 
 
 class EditQuantityValidationResult(BaseModel):
