@@ -1,9 +1,10 @@
-from typing import Optional
+from typing import Any, Optional, Generator
 
-from asyncpg import Pool, UndefinedTableError
+from asyncpg import Pool, UndefinedTableError, Record, PostgresError
 from fastapi import HTTPException, status
 
 from app.domain.models import WeeklyFinReportsAggregated, FinReportDeduction, PeriodRequestModel
+from app.infrastructure.WildberriesAPI.fin_reports import FIELD_TYPES, normalize_wb_value
 
 
 class FinReportsRepository:
@@ -18,7 +19,8 @@ class FinReportsRepository:
         main_query = """
         SELECT
             fram.date_to,
-            fram."Комиссия ВБ" AS vb_commission,
+            fram."Комиссия ВБ" AS wb_commission,
+            fram."Комиссия ВБ, %" AS wb_commission_percentage,
             fram."К перечислению" AS to_be_transferred,
             fram."Логистика" AS logistics,
             fram."Итого к оплате" AS total_to_be_paid,
@@ -36,6 +38,9 @@ class FinReportsRepository:
             fram."Закупочная стоимость продаж" AS purchase_price_of_sales,
             fram."Закупочная стоимость возвратов" AS purchase_price_of_returns,
             fram."Закупочная стоимость" AS purchase_cost,
+            fram."Наша доля до вычета себестоимости" AS our_share_before_cost,
+            fram."ВП после ВБ" AS vp_after_wb,
+            fram."ВП после ВБ, %" AS vp_after_wb_percentage,
             fdm.grouped_bonus_type_name,
             fdm.total_deduction AS deduction
         FROM ({subquery}) fram
@@ -46,7 +51,7 @@ class FinReportsRepository:
 
         subquery = """
             SELECT *
-            FROM fin_reports_mv
+            FROM weekly_fin_reports_mv
             WHERE date_to BETWEEN $1 AND $2
         """
 
@@ -75,7 +80,8 @@ class FinReportsRepository:
             if not reports.get(report_date_to):
                 reports[report_date_to] = dict(
                     date_to=row["date_to"],
-                    vb_commission=row["vb_commission"],
+                    wb_commission=row["wb_commission"],
+                    wb_commission_percentage=row["wb_commission_percentage"],
                     to_be_transferred=row["to_be_transferred"],
                     logistics=row["logistics"],
                     total_to_be_paid=row["total_to_be_paid"],
@@ -92,6 +98,9 @@ class FinReportsRepository:
                     purchase_price_of_sales=row["purchase_price_of_sales"],
                     purchase_price_of_returns=row["purchase_price_of_returns"],
                     purchase_cost=row["purchase_cost"],
+                    our_share_before_cost=row["our_share_before_cost"],
+                    vp_after_wb=row["vp_after_wb"],
+                    vp_after_wb_percentage=row["vp_after_wb_percentage"],
                     total_deductions=row["total_deductions"],
                     deductions=[],
                 )
@@ -106,3 +115,63 @@ class FinReportsRepository:
         return [
             WeeklyFinReportsAggregated(**report) for report in reports.values()
         ]
+
+    async def save_daily_fin_reports(self, records: list, account: str):
+        """Сохраняет батч записей в БД."""
+        if not records:
+            return 0
+
+        if self.pool is None:
+            raise RuntimeError("Database not connected.")
+
+        try:
+            all_columns = list(FIELD_TYPES.keys())
+            unique_columns = "realizationreport_id", "rrd_id"
+            updatable_columns = [col for col in all_columns if col not in unique_columns]
+
+            columns_sql = ", ".join(all_columns)
+            placeholders_sql = ", ".join(f"${i + 1}" for i in range(len(all_columns)))
+            unique_columns_sql = ", ".join(unique_columns)
+            set_clause_sql = ", ".join(f"{col} = EXCLUDED.{col}" for col in updatable_columns)
+
+            data = self._records_to_list_tuples(records, account, all_columns)
+
+            upsert_query = f"""
+                INSERT INTO daily_fin_reports_full ({columns_sql})
+                VALUES ({placeholders_sql})
+                ON CONFLICT ({unique_columns_sql})
+                DO UPDATE SET {set_clause_sql};
+            """
+
+            async with self.pool.acquire() as conn:
+                async with conn.transaction():
+                    await conn.executemany(upsert_query, data)
+        except PostgresError as e:
+            raise PostgresError(f"{account} | Postgres Error: {e}")
+        except Exception as e:
+            raise Exception(f"{account} | Необработанное исключение: {e}")
+
+        return len(records)
+
+    @staticmethod
+    def _records_to_list_tuples(
+            records: list[Record],
+            account: str, 
+            all_columns: list[str]
+        ) -> Generator[tuple, Any, None]:
+        for record in records:
+            row = []
+
+            for field in all_columns:
+                if field == "account":
+                    row.append(account)
+                    continue
+
+                field_type = FIELD_TYPES.get(field)
+
+                if field_type:
+                    row.append(normalize_wb_value(record.get(field), field_type))
+                else:
+                    row.append(record.get(field))
+
+            yield tuple(row)

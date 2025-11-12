@@ -1,5 +1,4 @@
-from pprint import pprint
-from typing import List
+from typing import List, Optional
 
 from asyncpg import Pool
 from pydantic import ValidationError
@@ -15,27 +14,27 @@ class ArticleRepository:
         async with self.pool.acquire() as conn:
             query = """
             WITH LatestCostPrice AS (
-                SELECT 
+                SELECT
                     local_vendor_code,
                     purchase_price,
                     status_by_lvc,
                     created_at
                 FROM (
-                    SELECT 
+                    SELECT
                         local_vendor_code,
                         purchase_price,
                         status_by_lvc,
                         created_at,
                         ROW_NUMBER() OVER (
-                            PARTITION BY local_vendor_code 
+                            PARTITION BY local_vendor_code
                             ORDER BY created_at DESC
                         ) AS rn
                     FROM cost_price
                 ) t
                 WHERE rn = 1
             )
-            SELECT 
-                a.account, 
+            SELECT
+                a.account,
                 lcp.purchase_price,
                 lcp.status_by_lvc,
                 lcp.local_vendor_code,
@@ -54,16 +53,16 @@ class ArticleRepository:
                 cd.local_card_name,
                 -- Добавляем остальные нужные поля из card_data...
                 crfs.stocks_quantity
-            FROM 
+            FROM
                 article a
-            INNER JOIN 
+            INNER JOIN
                 LatestCostPrice lcp
                 ON a.local_vendor_code = lcp.local_vendor_code
-            INNER JOIN 
+            INNER JOIN
                 card_data cd
                 ON a.nm_id = cd.article_id
-            LEFT JOIN 
-                current_real_fbs_stocks_qty crfs 
+            LEFT JOIN
+                current_real_fbs_stocks_qty crfs
                 ON a.local_vendor_code = crfs.local_vendor_code;
                             """
             rows = await conn.fetch(query)
@@ -84,3 +83,148 @@ class ArticleRepository:
                     continue
 
             return result
+
+    async def get_articles_by_local_vendor_codes(
+        self, local_vendor_codes: list[str]
+    ) -> tuple[dict[str, list[int]], list[str]]:
+        """
+        Возвращает:
+            - словарь: local_vendor_code → список nm_id (может быть пустым, но обычно 1),
+            - список local_vendor_code, для которых не найдено ни одного nm_id.
+        """
+        if not local_vendor_codes:
+            return {}, []
+
+        query = """
+            SELECT local_vendor_code, nm_id
+            FROM article
+            WHERE local_vendor_code = ANY($1)
+            ORDER BY local_vendor_code;
+        """
+
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, local_vendor_codes)
+
+        found = {}
+
+        for row in rows:
+            code = row["local_vendor_code"]
+            if code not in found:
+                found[code] = []
+            found[code].append(row["nm_id"])
+
+        not_found = [code for code in local_vendor_codes if code not in found]
+
+        return found, not_found
+
+    async def check_nm_ids_exist(self, nm_ids: list[int]) -> tuple[set[int], set[int]]:
+        """Возвращает (найденные_nm_ids, не_найденные_nm_ids)."""
+        if not nm_ids:
+            return set(), set()
+
+        query = "SELECT nm_id FROM article WHERE nm_id = ANY($1)"
+        rows = await self.pool.fetch(query, nm_ids)
+        found = {row["nm_id"] for row in rows}
+        not_found = set(nm_ids) - found
+
+        return list(found), list(not_found)
+
+    async def get_accounts_by_nm_ids(self, nm_ids: list[int]) -> dict[str, list[int]]:
+        """Возвращает словарь: account → [nm_id, ...]"""
+        if not nm_ids:
+            return {}
+
+        query = """
+            SELECT account, nm_id
+            FROM article
+            WHERE nm_id = ANY($1)
+            ORDER BY account
+        """
+
+        rows = await self.pool.fetch(query, nm_ids)
+        result = {}
+
+        for row in rows:
+            acc = row["account"]
+
+            if acc not in result:
+                result[acc] = []
+
+            result[acc].append(row["nm_id"])
+
+        return result
+
+    async def get_articles_by_criteria(
+        self,
+        nm_ids_by_account: Optional[dict[str, list[int]]] = None,
+        local_vendor_codes: Optional[list[str]] = None,
+    ) -> tuple[list[dict], list[int], list[str]]:
+        """
+        Возвращает кортеж: 
+            - список словарей с данными по карточке dict('nm_id', 'account', 'local_vendor_code'), 
+            - ненайденные артикулы, 
+            - ненайденные local_vendor_code 
+        """
+        if not nm_ids_by_account and not local_vendor_codes:
+            return [], [], []
+
+        all_requested_nm_ids: set[int] = set()
+        all_requested_lvc: set[str] = set()
+
+        if nm_ids_by_account:
+            for nm_list in nm_ids_by_account.values():
+                all_requested_nm_ids.update(nm_list)
+
+        if local_vendor_codes:
+            all_requested_lvc.update(local_vendor_codes)
+
+
+        where_clauses = []
+        params = []
+        param_idx = 1
+
+        if nm_ids_by_account:
+            account_nm_pairs = []
+
+            for account, nm_list in nm_ids_by_account.items():
+                for nm in nm_list:
+                    account_nm_pairs.append((account, nm))
+
+            if account_nm_pairs:
+                placeholders = ", ".join(f"(${i*2+1}, ${i*2+2})" for i in range(len(account_nm_pairs)))
+                where_clauses.append(f"(account, nm_id) IN ({placeholders})")
+
+                for acc, nm in account_nm_pairs:
+                    params.extend([acc, nm])
+
+                param_idx += len(account_nm_pairs) * 2
+
+        if local_vendor_codes:
+            if where_clauses:
+                where_clauses.append("OR")
+
+            placeholders = ", ".join(f"${param_idx + i}" for i in range(len(local_vendor_codes)))
+            where_clauses.append(f"local_vendor_code = ANY(ARRAY[{placeholders}])")
+            params.extend(local_vendor_codes)
+            param_idx += len(local_vendor_codes)
+
+        query = "SELECT nm_id, account, local_vendor_code FROM article"
+
+        if where_clauses:
+            query += " WHERE " + " ".join(where_clauses)
+
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, *params)
+
+        found_articles = [
+            {"nm_id": r["nm_id"], "account": r["account"], "local_vendor_code": r["local_vendor_code"]}
+            for r in rows
+        ]
+
+        found_nm_ids = {r["nm_id"] for r in found_articles}
+        found_lvc = {r["local_vendor_code"] for r in found_articles if r["local_vendor_code"]}
+
+        invalid_nm_ids = list(all_requested_nm_ids - found_nm_ids)
+        invalid_lvc = list(all_requested_lvc - found_lvc)
+
+        return found_articles, invalid_nm_ids, invalid_lvc

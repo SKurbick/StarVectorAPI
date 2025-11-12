@@ -1,58 +1,108 @@
 import asyncio
 import datetime
-from pprint import pprint
-from typing import List, Dict
+import logging
 
 from app.config.settings import get_wb_tokens
-from app.repository import StocksQuantityRepository
 from app.domain.models import StocksQuantity, UpdateStocksQuantityResponseModel
 from app.infrastructure.WildberriesAPI.marketplace import WarehouseMarketplaceWB, LeftoversMarketplace
+from app.repository import StocksQuantityRepository
+
+
+logger = logging.getLogger(__name__)
 
 
 class StocksQuantityService:
     def __init__(self, stocks_quantity_repository: StocksQuantityRepository):
         self.stocks_quantity_repository = stocks_quantity_repository
 
-    async def get_all_data(self) -> List[StocksQuantity]:
+    async def get_all_data(self) -> list[StocksQuantity]:
         return await self.stocks_quantity_repository.get_all_data()
 
-    #
-    async def edit_stocks_quantity(self, edit_data: Dict[str, UpdateStocksQuantityResponseModel]):
-        api_tokens = await get_wb_tokens()  # получение всех токенов
+    async def edit_stocks_quantity(self, edit_data: dict[str, UpdateStocksQuantityResponseModel]):
+        """
+        Обновить остатки по аккаунтам на маркетплейсе и в базе данных.
+        """
+        api_tokens = await get_wb_tokens()
         tasks = []
-        actualize_data = {}
 
         for account, account_data in edit_data.items():
-            skus = [stocks_data.sku for stocks_data in account_data.stocks]
-            actualize_data[account] = skus
             token = api_tokens[account.capitalize()]
-            warehouses = await WarehouseMarketplaceWB(token=token).get_account_warehouse()
-            qty_edit = LeftoversMarketplace(token=token, account=account)
-            print(account_data.model_dump())
-            task = asyncio.create_task(qty_edit.edit_amount_from_warehouses(warehouse_id=warehouses[0]["id"],
-                                                                            edit_barcodes_list=account_data.model_dump()['stocks']))
+            warehouse_client = WarehouseMarketplaceWB(token=token)
+            warehouses = await warehouse_client.get_account_warehouse()
+            warehouse_ids = [w["id"] for w in warehouses]
 
-            print("actualize_data",actualize_data)
+            if not warehouse_ids:
+                continue
 
+            wb_client = LeftoversMarketplace(token=token, account=account)
+            stocks_list = account_data.model_dump()["stocks"]
+
+            task = asyncio.create_task(
+                wb_client.edit_amount_on_warehouses(warehouse_ids, stocks_list)
+            )
             tasks.append(task)
 
-        gather_result = await asyncio.gather(*tasks)  # возможно пригодится ответ от WB
+        if tasks:
+            update_stockgathers_result = await asyncio.gather(*tasks, return_exceptions=True)  # возможно пригодится ответ от WB
 
+            for result in update_stockgathers_result:
+                if isinstance(result, Exception):
+                    logger.exception(f"Ошибка обновления остатков: {result}")
+
+
+        logger.info(f"Начало получения остатков для аккаунтов: {list(edit_data.keys())}")
         tasks = []
-        for account, account_data in actualize_data.items():
+        account_warehouse_map = {}
+
+        for account, account_data in edit_data.items():
             token = api_tokens[account.capitalize()]
-            qty_state = LeftoversMarketplace(token, account=account)
-            warehouses = await WarehouseMarketplaceWB(token=token).get_account_warehouse()
-            task = asyncio.create_task(qty_state.get_amount_from_warehouses(warehouse_id=warehouses[0]['id'], barcodes=account_data))
+            warehouse_client = WarehouseMarketplaceWB(token=token)
+            warehouses = await warehouse_client.get_account_warehouse()
+            warehouse_ids = [w["id"] for w in warehouses]
+            account_warehouse_map[account] = warehouse_ids
+
+            if not warehouse_ids:
+                logger.warning(f"Аккаунт {account}: не найдены склады, пропуск")
+                continue
+
+            wb_client = LeftoversMarketplace(token=token, account=account)
+            barcodes = [item.sku for item in account_data.stocks]
+            logger.debug(f"Аккаунт {account}: запрос остатков для {len(barcodes)} баркодов на складах {warehouse_ids}")
+
+            task = asyncio.create_task(
+                wb_client.get_amount_from_all_warehouses(warehouse_ids, barcodes)
+            )
             tasks.append(task)
-        gather_result = await asyncio.gather(*tasks)  # получение новых остатков
+
+        if not tasks:
+            logger.warning("Нет задач для получения остатков — все аккаунты пропущены")
+            return
+
+        get_amount_gather_result = await asyncio.gather(*tasks, return_exceptions=True)  
+
         data_to_update = []
         last_datetime = datetime.datetime.today()
-        for gr in gather_result:
-            for account, account_data in gr.items():
-                for quantity_data in account_data:
+
+        for result in get_amount_gather_result:
+            if isinstance(result, Exception):
+                logger.exception(f"Ошибка получения остатков: {result}")
+                continue
+
+            for account, stocks in result.items():
+                for stock in stocks:
                     data_to_update.append(
-                        (account, str(quantity_data['sku']), "ФБС", quantity_data['amount'], last_datetime)
+                        (
+                            account,
+                            str(stock["sku"]),
+                            "ФБС", # или можно брать из warehouse info
+                            stock["amount"],
+                            last_datetime
+                        )
                     )
-        # обновление остатков в БД
-        await self.stocks_quantity_repository.update_fbs_data(data_to_update)
+
+        if data_to_update:
+            logger.info(f"Обновление БД: {len(data_to_update)} записей")
+            await self.stocks_quantity_repository.update_fbs_data(data_to_update)
+            logger.info("Обновление остатков в БД успешно завершено")
+        else:
+            logger.warning("Нет данных для обновления в БД")

@@ -18,3 +18,20 @@ class CardDataRepository:
             rows = await conn.fetch("SELECT * FROM card_data ")
 
             return [CardData(**row) for row in rows]
+
+    async def get_article_ids_by_barcodes(self, barcodes: list[str]) -> dict[str, int]:
+        """
+        Возвращает словарь: {barcode: article_id}.
+        Баркоды, не найденные в БД, отсутствуют в результате.
+        """
+        if not barcodes:
+            return {}
+
+        query = """
+            SELECT barcode, article_id
+            FROM card_data
+            WHERE barcode = ANY($1)
+        """
+
+        rows = await self.pool.fetch(query, barcodes)
+        return {row["barcode"]: row["article_id"] for row in rows}

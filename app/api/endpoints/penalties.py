@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, status
 from app.dependencies import get_penalty_service, get_dates_period_filter
 from app.domain.models import DaylyPenaltiesReport, PeriodRequestModel, PenaltyAnnotationUpdate, ResponseMessage
 from app.service.penalties import PenaltyService
+from app.domain.enums import LossOwnerEnum
 
 
 router = APIRouter(prefix="/penalties", tags=["Штрафы WB"])
@@ -28,3 +29,11 @@ async def update_penalty_annotation(
         status=status.HTTP_200_OK,
         message="Penalty annotations successfully updated"
     )
+
+@router.get("/loss_owners", status_code=status.HTTP_200_OK,
+            description="Список доступных владельцев потерь")
+async def get_all_loss_owners() -> list[dict[str, int | str]]:
+    return [
+        {"id": owner.id, "loss_owner": owner.value_for_db}
+        for owner in LossOwnerEnum
+    ]

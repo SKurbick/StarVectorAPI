@@ -1,5 +1,6 @@
 from datetime import date, datetime
-from typing import Optional, List, Union, Dict
+from typing import Optional, List, Union, Dict, Literal, Any
+from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, RootModel
 
@@ -574,7 +575,8 @@ class WeeklyFinReportsAggregated(BaseModel):
     """Модель для агрегированных недельных финансовых отчетов WB."""
 
     date_to: date = Field(..., description="Дата")
-    vb_commission: float = Field(..., description="Комиссия ВБ")
+    wb_commission: float = Field(..., description="Комиссия ВБ")
+    wb_commission_percentage: float = Field(..., description="Комиссия ВБ, %")
     to_be_transferred: float = Field(..., description="К перечислению")
     logistics: float = Field(..., description="Логистика")
     total_to_be_paid: float = Field(..., description="Итого к оплате")
@@ -591,6 +593,9 @@ class WeeklyFinReportsAggregated(BaseModel):
     purchase_price_of_sales: int = Field(..., description="Закупочная стоимость продаж")
     purchase_price_of_returns: int = Field(..., description="Закупочная стоимость возвратов")
     purchase_cost: int = Field(..., description="Закупочная стоимость")
+    our_share_before_cost: float = Field(..., description="Наша доля до вычета себестоимости")
+    vp_after_wb: float = Field(..., description="ВП после ВБ")
+    vp_after_wb_percentage: float = Field(..., description="ВП после ВБ, %")
     total_deductions: float = Field(..., description="Сумма удержаний")
     deductions: list[FinReportDeduction] = Field(..., description="Все удержания")
 
@@ -599,7 +604,8 @@ class WeeklyFinReportsAggregated(BaseModel):
             "examples": [
                 {
                     "date_to": "2025-07-18",
-                    "vb_commission": 16554462.84,
+                    "wb_commission": 16554462.84,
+                    "wb_commission_percentage": 29.48,
                     "to_be_transferred": 61360434.8,
                     "logistics": 2606288.52,
                     "total_to_be_paid": 48500574.79,
@@ -616,6 +622,9 @@ class WeeklyFinReportsAggregated(BaseModel):
                     "purchase_price_of_sales": 37563404,
                     "purchase_price_of_returns": 128066,
                     "purchase_cost": 37435338,
+                    "our_share_before_cost": 67.99,
+                    "vp_after_wb": 10548583.47,
+                    "vp_after_wb_percentage": 18.07,
                     "total_deductions": 10160861.44,
                     "deductions": [
                         {
@@ -648,31 +657,27 @@ class PenaltyDetailsResponse(BaseModel):
     srid: Optional[str] = Field(..., description="Srid")
     warehouse_type: Optional[str] = Field(..., description="Тип склада")
     local_vendor_code: Optional[str] = field_configs["local_vendor_code"]
-    shk_id: Optional[str] = Field(..., description="ШК")
+    shk_id: Optional[int] = Field(..., description="ШК")
 
     supplier_status: Optional[str] = Field(..., description="Статус поставщика")
     supply_id: Optional[str] = Field(..., description="Номер поставки")
     internal_status: Optional[str] = Field(None, description="Внутренний статус заказа")
-    internal_status_setting_date: Optional[date] = Field(None, description="Дата установки внутреннего статуса")
+    internal_status_setting_date: Optional[datetime] = Field(None, description="Дата установки внутреннего статуса")
     wb_status: Optional[str] = Field(..., description="Статус WB")
-    wb_status_setting_date: Optional[date] = Field(None, description="Дата установки статуса WB")
-    assembler_name: Optional[str] = Field(None, description="ФИО сборщика")
-    operator_name: Optional[str] = Field(None, description="ФИО оператора")
+    wb_status_setting_date: Optional[datetime] = Field(None, description="Дата установки статуса WB")
+    converted_price: Optional[float] = Field(None, description="Цена товара на момент сборки")
+    penalty_rate: Optional[float] = Field(None, description="Процент штрафа от цены товара")
     assembly_id: Optional[int] = Field(..., description="Номер сборочного задания")
-    assembly_start_date: Optional[date] = Field(None, description="Начало сборки заказа")
-    assembly_end_date: Optional[date] = Field(None, description="Окончание сборки заказа")
-    transferred_to_delivery_at: Optional[date] = Field(None, description="Дата передачи товара в доставку")
+    assembly_start_date: Optional[datetime] = Field(None, description="Начало сборки заказа")
+    assembly_end_date: Optional[datetime] = Field(None, description="Окончание сборки заказа")
+    transferred_to_delivery_at: Optional[datetime] = Field(None, description="Дата передачи товара в доставку")
 
-    loss_owner: Optional[str] = Field(None, description="Владелец потерь")
+    loss_owner: Optional[int] = Field(1, description="Владелец потерь")
     comment: Optional[str] = Field(None, description="Комментарий к штрафу")
 
-    @field_validator("loss_owner", mode="after")
-    @classmethod
-    def set_default_loss_owner(cls, v):
-        if v is None:
-            return LossOwnerEnum.warehouse
-
-        return v
+    # TODO: если накапливаются эти данные, добавить получение значений
+    operator_name: Optional[str] = Field(None, description="ФИО оператора")
+    assembler_name: Optional[str] = Field(None, description="ФИО сборщика")
 
 
 class DaylyPenaltiesReport(BaseModel):
@@ -690,30 +695,32 @@ class DaylyPenaltiesReport(BaseModel):
                         {
                             "sale_dt": "2025-08-01",
                             "order_date": "2025-07-18",
-                            "penalty": 1604,
+                            "nm_id": 123456789,
+                            "penalty": 138.41,
                             "count_items": 1,
                             "bonus_type_name": "Выявленные расхождения в карточке товара после приемки на складе WB",
-                            "nm_id": 163901269,
-                            "subject_name": "Наборы кухонных принадлежностей",
+                            "subject_name": "Помпы для воды",
                             "account": "Вектор",
-                            "srid": "22021130613098888.0.0",
+                            "srid": "8054745045712921857.0.0",
                             "warehouse_type": "Склад WB",
-                            "local_vendor_code": "wild352",
-                            "shk_id": "37450221111.0",
+                            "local_vendor_code": "wild1234",
+                            "shk_id": 37450221111,
                             "supplier_status": "complete",
-                            "supply_id": "WB-GI-000000",
-                            "internal_status": None,
-                            "internal_status_setting_date": "2025-08-01",
-                            "wb_status": "defect",
-                            "wb_status_setting_date": "2025-08-01",
-                            "assembler_name": None,
-                            "operator_name": None,
-                            "assembly_id": 3922282071,
-                            "assembly_start_date": "2025-08-01",
-                            "assembly_end_date": "2025-08-01",
-                            "transferred_to_delivery_at": "2025-08-01",
-                            "loss_owner": "Поставщик",
-                            "comment": "Недостача при приёмке"
+                            "supply_id": "WB-GI-180719950",
+                            "internal_status": "DELIVERED",
+                            "internal_status_setting_date": "2025-08-01T12:26:38.804285",
+                            "wb_status": "waiting",
+                            "wb_status_setting_date": "2025-10-15T12:26:38.804285",
+                            "converted_price": 1277,
+                            "penalty_rate": 29.18,
+                            "assembly_id": 0,
+                            "assembly_start_date": "2025-08-01T12:26:38.804285",
+                            "assembly_end_date": "2025-08-01T12:26:38.804285",
+                            "transferred_to_delivery_at": "2025-08-01T12:26:38.804285",
+                            "loss_owner": 6,
+                            "comment": "согласованный пересорт в виду отсутствия товара",
+                            "operator_name": "Александров",
+                            "assembler_name": "Сергеев"
                         },
                     ]
                 },
@@ -766,22 +773,30 @@ class PenaltyAnnotationUpdate(BaseModel):
 
     penalty: PenaltyIdentifier
     loss_owner: LossOwnerEnum = Field(
-        LossOwnerEnum.warehouse,
+        1,
         description="Владелец потерь: Склад (по умолчанию), Офис, Поставщик, ВБ или Прочее"
     )
     comment: Optional[str] = Field(None, description="Комментарий к штрафу")
 
     @field_validator("loss_owner", mode="before")
     @classmethod
-    def normalize_loss_owner(cls, v):
+    def validate_loss_owner(cls, v):
+        if isinstance(v, int):
+            return LossOwnerEnum.from_id(v)
+
         if isinstance(v, str):
-            normalized = v.strip().lower()
+            try:
+                return LossOwnerEnum.from_id(int(v))
+            except ValueError:
+                pass
 
-            for enum_item in LossOwnerEnum:
-                if enum_item.lower() == normalized:
-                    return enum_item
+        if isinstance(v, LossOwnerEnum):
+            return v
 
-        return v
+        raise ValueError(
+            "loss_owner должен быть целочисленным (1–7). "
+            "Например: 1 для 'Склад', 2 для 'Офис', и т.д."
+        )
 
     @field_validator("comment", mode="before")
     @classmethod
@@ -801,7 +816,7 @@ class PenaltyAnnotationUpdate(BaseModel):
                         "bonus_type_name": "Штраф МП. Невыполненный заказ ",
                         "srid": "22021130613098888.0.0"
                     },
-                    "loss_owner": "Поставщик",
+                    "loss_owner": 1,
                     "comment": "Недостача при приёмке"
                 },
             ]
@@ -828,3 +843,265 @@ class CompetitorPriceResponse(BaseModel):
     name: Optional[str]
     our_prices: List[OurPriceItem]
     competitor_prices: List[CompetitorPriceItem]
+
+
+class EditQuantityValidationResult(BaseModel):
+    """
+    Результат валидации запроса на изменение остатков.
+
+    Содержит разрешённые и запрещённые к редактированию баркоды,
+    сгруппированные по аккаунтам.
+    """
+    allowed: dict[str, UpdateStocksQuantityResponseModel]
+    invalid: dict[str, list[str]]
+    closed_with_nonzero: dict[str, list[str]]
+
+
+class ResponseMessageDetails(ResponseMessage):
+    """Расширенный ответ с дополнительными данными."""
+    details: Optional[Any] = None
+
+
+class AccountCardData(BaseModel):
+    nm_ids: list[int] = Field(..., example=[111222333, 444555666], description="Артикулы карточек")
+
+
+class CardDataByAccountRequest(BaseModel):
+    accounts: Optional[dict[str, AccountCardData]] = Field(
+        None,
+        description="Словарь где ключ - имя аккаунта, значение - данные карточек",
+        example={
+            "account_1": {
+                "nm_ids": [111222333, 444555666]
+            },
+            "account_2": {
+                "nm_ids": [111222333, 444555666]
+            }
+        }
+    )
+    local_vendor_codes: Optional[list[str]] = Field(None, example=["wild123", "wild456"], description="id товаров")
+
+    @model_validator(mode="after")
+    def at_least_one_field(self):
+        if not self.accounts and not self.local_vendor_codes:
+            raise ValueError("Необходимо указать 'accounts' или 'wild_ids'.")
+
+        return self
+
+class CloseCardPreviewRequest(CardDataByAccountRequest):
+    pass
+
+
+class CloseCardsRequest(BaseModel):
+    preview_operation_id: str = Field(..., description="operation_id из /preview")
+
+
+class OpenCardsRequest(CardDataByAccountRequest):
+    pass
+
+
+class WarehouseFBWStock(BaseModel):
+    warehouse_name: str
+    quantity: int
+
+
+class PreviewCardSummary(BaseModel):
+    nm_id: int
+    local_vendor_code: Optional[str] = None
+    account: str
+    current_status: str
+    current_virtual_stock: int
+    warehouses: list[WarehouseFBWStock]
+    will_be_closed: bool
+    reason_to_skip: Optional[str] = None
+
+
+class ClosePreviewResponse(BaseModel):
+    operation_id: str = Field(default_factory=lambda: str(uuid4()))
+    timestamp: datetime = Field(default_factory=datetime.now)
+    summary: dict[str, list[PreviewCardSummary]]
+    stats: dict[
+        Literal["total", "to_close", "already_closed", "invalid", "no_stock"],
+        int
+    ]
+    details: dict[
+        Literal["invalid_nm_ids", "invalid_local_codes"],
+        list[Union[int, str]]
+    ]
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "operation_id": "cb7041cf-0b5c-45a5-9c9e-b4ca02f9cfd3",
+                    "timestamp": "2025-11-12T10:04:42.105207",
+                    "summary": {
+                        "ЛОПАТИНА": [
+                            {
+                                "nm_id": 191919180,
+                                "local_vendor_code": "wild123",
+                                "account": "ЛОПАТИНА",
+                                "current_status": "active",
+                                "current_virtual_stock": 3,
+                                "warehouses": [],
+                                "will_be_closed": True,
+                                "reason_to_skip": None
+                            }
+                        ],
+                        "СТАРТ": [
+                            {
+                                "nm_id": 181818693,
+                                "local_vendor_code": "wild123",
+                                "account": "СТАРТ",
+                                "current_status": "active",
+                                "current_virtual_stock": 2,
+                                "warehouses": [
+                                {
+                                    "warehouse_name": "Всего находится на складах",
+                                    "quantity": 1
+                                },
+                                {
+                                    "warehouse_name": "Самара (Новосемейкино)",
+                                    "quantity": 1
+                                }
+                                ],
+                                "will_be_closed": True,
+                                "reason_to_skip": None
+                            }
+                        ],
+                        "ТОНОЯН": [
+                            {
+                                "nm_id": 202020031,
+                                "local_vendor_code": "wild123",
+                                "account": "ТОНОЯН",
+                                "current_status": "active",
+                                "current_virtual_stock": 4,
+                                "warehouses": [
+                                {
+                                    "warehouse_name": "В пути до получателей",
+                                    "quantity": 2
+                                }
+                                ],
+                                "will_be_closed": True,
+                                "reason_to_skip": None
+                            }
+                        ],
+                        "ХАЧАТРЯН": [
+                            {
+                                "nm_id": 110711529,
+                                "local_vendor_code": "wild123",
+                                "account": "ХАЧАТРЯН",
+                                "current_status": "active",
+                                "current_virtual_stock": 1,
+                                "warehouses": [],
+                                "will_be_closed": True,
+                                "reason_to_skip": None
+                            }
+                        ]
+                    },
+                    "stats": {
+                        "total": 4,
+                        "to_close": 4,
+                        "already_closed": 0,
+                        "invalid": 0,
+                        "no_stock": 0
+                    },
+                    "details": {
+                        "invalid_nm_ids": [111111222, 5566778987],
+                        "invalid_local_codes": [
+                            "wild456"
+                        ]
+                    }
+                }
+            ]
+        }
+    )
+
+
+class ClosedCardResult(BaseModel):
+    nm_id: int
+    account: str
+    old_status: str
+    new_status: str
+    success: bool
+    error: Optional[str] = None
+
+
+class CloseOperationResponse(BaseModel):
+    operation_id: str
+    timestamp: datetime
+    status: Literal["accepted", "partial", "failed"]
+    summary: dict[str, list[ClosedCardResult]]
+    stats: dict[
+        Literal["total_requested", "successfully_queued", "already_closed", "failed_db"],
+        int
+    ]
+    celery_task_ids: list[str]
+    details: dict[
+        Literal["failed_accounts"],
+        list[Union[int, str, dict]]
+    ]
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "operation_id": "be0524ad-45d5-4323-9335-c5aa35d9d484",
+                    "timestamp": "2025-11-12T10:14:59.250849",
+                    "status": "accepted",
+                    "summary": {
+                        "ЛОПАТИНА": [
+                            {
+                                "nm_id": 191919180,
+                                "account": "ЛОПАТИНА",
+                                "old_status": "active",
+                                "new_status": "closing_pending",
+                                "success": True,
+                                "error": None
+                            }
+                        ],
+                        "СТАРТ": [
+                            {
+                                "nm_id": 181818693,
+                                "account": "СТАРТ",
+                                "old_status": "active",
+                                "new_status": "closing_pending",
+                                "success": True,
+                                "error": None
+                            }
+                        ],
+                        "ТОНОЯН": [
+                            {
+                                "nm_id": 202020031,
+                                "account": "ТОНОЯН",
+                                "old_status": "active",
+                                "new_status": "closing_pending",
+                                "success": True,
+                                "error": None
+                            }
+                        ],
+                        "ХАЧАТРЯН": [
+                            {
+                                "nm_id": 110711529,
+                                "account": "ХАЧАТРЯН",
+                                "old_status": "active",
+                                "new_status": "closing_pending",
+                                "success": True,
+                                "error": None
+                            }
+                        ]
+                    },
+                    "stats": {
+                        "total_requested": 4,
+                        "successfully_queued": 4,
+                        "already_closed": 0,
+                        "failed_db": 0
+                    },
+                    "celery_task_ids": [],
+                    "details": {
+                        "failed_accounts": []
+                    }
+                }
+            ]
+        }
+    )

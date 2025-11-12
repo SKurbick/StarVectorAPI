@@ -1,9 +1,11 @@
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
+
 from app.domain.models import ArticleDetails
 from app.service.article import ArticleService
 from app.dependencies import get_article_service
+
 
 router = APIRouter(tags=['Articles'])
 
