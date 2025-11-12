@@ -1,7 +1,8 @@
-from fastapi import Request, Depends
+from collections import defaultdict
+
+from fastapi import Request, Depends, Body
 from asyncpg import Pool
 
-from fastapi import Body
 
 from app.dependencies.card_status import get_card_status_service
 from app.dependencies.card_data import get_card_data_service
@@ -33,73 +34,53 @@ def get_stocks_quantity_service(repository: StocksQuantityRepository = Depends(g
 
 
 async def validate_edit_quantity_data(
-    edit_data: dict[str, UpdateStocksQuantityResponseModel] = Body(example=example_edit_quantity),
+    edit_data: dict[str, UpdateStocksQuantityResponseModel] = Body(...),
     card_status_service: CardStatusService = Depends(get_card_status_service),
     card_data_service: CardDataService = Depends(get_card_data_service),
 ) -> EditQuantityValidationResult:
-    """
-    Возвращает разрешённые и запрещённые к редактированию баркоды.
-    Запрещены: карточки со статусами 'closed' и 'closing_pending'.
-    """
-
-    all_barcodes = []
-
-    for account_data in edit_data.values():
-        for item in account_data.stocks:
-            all_barcodes.append(item.sku)
-
-    all_barcodes = list(set(all_barcodes))
+    all_barcodes = {
+        item.sku
+        for account_data in edit_data.values()
+        for item in account_data.stocks
+    }
 
     if not all_barcodes:
-        return EditQuantityValidationResult(allowed={}, forbidden={})
+        return EditQuantityValidationResult(allowed={}, invalid={}, closed_with_nonzero={})
 
-    barcode_to_nm = await card_data_service.get_article_ids_by_barcodes(all_barcodes)
 
-    nm_ids = list(set(barcode_to_nm.values())) if barcode_to_nm else []
-    nm_to_status = await card_status_service.get_status_by_nm_ids(nm_ids)
+    barcode_to_nm = await card_data_service.get_article_ids_by_barcodes(list(all_barcodes))
 
-    allowed_barcodes = set()
-    forbidden_barcodes = set()
-    forbidden_statuses = {CardStatusEnum.closed, CardStatusEnum.closing_pending}
+    nm_ids = list(set(barcode_to_nm.values()))
+    nm_to_status = await card_status_service.get_status_by_nm_ids(nm_ids) if nm_ids else {}
 
-    for barcode in all_barcodes:
-        nm_id = barcode_to_nm.get(barcode)
-
-        if nm_id is None:
-            forbidden_barcodes.add(barcode)
-            continue
-
-        status = nm_to_status.get(nm_id)
-
-        if status in forbidden_statuses:
-            forbidden_barcodes.add(barcode)
-        else:
-            allowed_barcodes.add(barcode)
-
-    allowed = {}
-    forbidden = {}
+    allowed_items_by_account = defaultdict(list)
+    invalid_barcodes_by_account = defaultdict(list)
+    closed_with_nonzero_by_account = defaultdict(list)
 
     for account, account_data in edit_data.items():
-        allowed_items = []
-        forbidden_list = []
-
         for item in account_data.stocks:
-            if item.sku in allowed_barcodes:
-                allowed_items.append(item)
+            barcode = item.sku
+            nm_id = barcode_to_nm.get(barcode)
+
+            if nm_id is None:
+                invalid_barcodes_by_account[account].append(barcode)
+                continue
+
+            status = nm_to_status.get(nm_id, "active")
+            is_closed = status in {CardStatusEnum.closed, CardStatusEnum.closing_pending}
+
+            if not is_closed or item.amount == 0:
+                allowed_items_by_account[account].append(item)
             else:
-                forbidden_list.append(item.sku)
+                closed_with_nonzero_by_account[account].append(barcode)
 
-        if allowed_items:
-            allowed[account] = allowed_items
-        if forbidden_list:
-            forbidden[account] = forbidden_list
-
-    allowed_validated = {
+    allowed = {
         acc: UpdateStocksQuantityResponseModel(stocks=items)
-        for acc, items in allowed.items()
+        for acc, items in allowed_items_by_account.items()
     }
 
     return EditQuantityValidationResult(
-        allowed=allowed_validated,
-        forbidden=forbidden
+        allowed=allowed,
+        invalid=dict(invalid_barcodes_by_account),
+        closed_with_nonzero=dict(closed_with_nonzero_by_account),
     )

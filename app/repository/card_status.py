@@ -66,7 +66,7 @@ class CardStatusRepository:
     ) -> list[int]:
         """
         Универсальный метод обновления статуса карточек.
-        
+
         Args:
             account: аккаунт
             nm_ids: список nm_id
@@ -139,3 +139,41 @@ class CardStatusRepository:
         rows = await self.pool.fetch(query, nm_ids)
 
         return {row["nm_id"]: row["status"] for row in rows}
+
+    async def get_status_by_nm_and_account(
+        self,
+        nm_account_pairs: list[tuple[int, str]]
+    ) -> dict[tuple[int, str], str]:
+        if not nm_account_pairs:
+            return {}
+
+        placeholders = ", ".join(
+            f"(${i*2+1}, ${i*2+2})" for i in range(len(nm_account_pairs))
+        )
+        query = f"""
+            SELECT nm_id, account, status
+            FROM card_status
+            WHERE (nm_id, account) IN ({placeholders})
+        """
+
+        params = []
+
+        for nm_id, account in nm_account_pairs:
+            params.extend([nm_id, account])
+
+        rows = await self.pool.fetch(query, *params)
+
+        result = {}
+        found_pairs = set()
+
+        for row in rows:
+            key = (row["nm_id"], row["account"])
+            result[key] = row["status"]
+            found_pairs.add(key)
+
+        # Для отсутствующих пар — ставим "active"
+        for pair in nm_account_pairs:
+            if pair not in found_pairs:
+                result[pair] = "active"
+
+        return result

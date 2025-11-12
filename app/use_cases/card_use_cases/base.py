@@ -9,7 +9,7 @@ from app.domain.models import CardDataByAccountRequest
 
 class BaseCardUseCase(ABC):
     def __init__(
-        self, 
+        self,
         pool: Pool,
     ) -> None:
         self.pool = pool
@@ -18,20 +18,13 @@ class BaseCardUseCase(ABC):
     async def execute(self, *args, **kwargs):
         raise NotImplementedError
 
-    # надо вернуть аккаунты и nm_ids, невалидные nm_ids, невалидные lvc
-    async def get_validated_data(self, data: CardDataByAccountRequest) -> tuple[list[int], list[str], list[int]]:
-        """
-        Возвращает:
-            - валидные nm_id (объединённые из nm_ids и local_vendor_codes),
-            - local_vendor_codes, по которым ничего не найдено,
-            - nm_ids, которых нет в БД.
-        """
+    async def get_validated_data(self, data: CardDataByAccountRequest) -> tuple[dict[str, list[int]], list[str], list[int]]:
         article_repo = ArticleRepository(self.pool)
 
         all_nm_ids = set()
 
         if data.accounts:
-            nm_ids_request = [nm for acc, nms in data.accounts for nm in nms.nm_ids]
+            nm_ids_request = [nm for acc, nms in data.accounts.items() for nm in nms.nm_ids]
             all_nm_ids.update(set(nm_ids_request))
 
         not_found_local_codes = []

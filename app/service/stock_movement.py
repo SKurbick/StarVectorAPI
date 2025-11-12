@@ -38,7 +38,7 @@ class StockMovementService:
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Не найдено соответствующих учетных записей для предоставленных данных."
             )
-        
+
         logger.info(f"Получение отчетов по движению товаров для аккаунтов: {list(valid_accounts.keys())}")
 
         async with aiohttp.ClientSession() as session:

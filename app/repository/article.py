@@ -1,4 +1,4 @@
-from typing import List, Any
+from typing import List, Optional
 
 from asyncpg import Pool
 from pydantic import ValidationError
@@ -116,7 +116,7 @@ class ArticleRepository:
         not_found = [code for code in local_vendor_codes if code not in found]
 
         return found, not_found
-    
+
     async def check_nm_ids_exist(self, nm_ids: list[int]) -> tuple[set[int], set[int]]:
         """Возвращает (найденные_nm_ids, не_найденные_nm_ids)."""
         if not nm_ids:
@@ -153,3 +153,72 @@ class ArticleRepository:
             result[acc].append(row["nm_id"])
 
         return result
+
+    async def get_articles_by_criteria(
+        self,
+        nm_ids_by_account: Optional[dict[str, list[int]]] = None,
+        local_vendor_codes: Optional[list[str]] = None,
+    ) -> tuple[list[dict], list[int], list[str]]:
+        if not nm_ids_by_account and not local_vendor_codes:
+            return [], [], []
+
+        all_requested_nm_ids: set[int] = set()
+        all_requested_lvc: set[str] = set()
+
+        if nm_ids_by_account:
+            for nm_list in nm_ids_by_account.values():
+                all_requested_nm_ids.update(nm_list)
+
+        if local_vendor_codes:
+            all_requested_lvc.update(local_vendor_codes)
+
+
+        where_clauses = []
+        params = []
+        param_idx = 1
+
+        if nm_ids_by_account:
+            account_nm_pairs = []
+
+            for account, nm_list in nm_ids_by_account.items():
+                for nm in nm_list:
+                    account_nm_pairs.append((account, nm))
+
+            if account_nm_pairs:
+                placeholders = ", ".join(f"(${i*2+1}, ${i*2+2})" for i in range(len(account_nm_pairs)))
+                where_clauses.append(f"(account, nm_id) IN ({placeholders})")
+
+                for acc, nm in account_nm_pairs:
+                    params.extend([acc, nm])
+
+                param_idx += len(account_nm_pairs) * 2
+
+        if local_vendor_codes:
+            if where_clauses:
+                where_clauses.append("OR")
+
+            placeholders = ", ".join(f"${param_idx + i}" for i in range(len(local_vendor_codes)))
+            where_clauses.append(f"local_vendor_code = ANY(ARRAY[{placeholders}])")
+            params.extend(local_vendor_codes)
+            param_idx += len(local_vendor_codes)
+
+        query = "SELECT nm_id, account, local_vendor_code FROM article"
+
+        if where_clauses:
+            query += " WHERE " + " ".join(where_clauses)
+
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, *params)
+
+        found_articles = [
+            {"nm_id": r["nm_id"], "account": r["account"], "local_vendor_code": r["local_vendor_code"]}
+            for r in rows
+        ]
+
+        found_nm_ids = {r["nm_id"] for r in found_articles}
+        found_lvc = {r["local_vendor_code"] for r in found_articles if r["local_vendor_code"]}
+
+        invalid_nm_ids = list(all_requested_nm_ids - found_nm_ids)
+        invalid_lvc = list(all_requested_lvc - found_lvc)
+
+        return found_articles, invalid_nm_ids, invalid_lvc

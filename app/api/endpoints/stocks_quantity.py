@@ -23,17 +23,20 @@ async def edit_stocks_quantity(
         validation: EditQuantityValidationResult = Depends(validate_edit_quantity_data),
         service: StocksQuantityService = Depends(get_stocks_quantity_service),
 ):
-    allowed = validation.allowed
-    forbidden = validation.forbidden
+    if validation.allowed:
+        await service.edit_stocks_quantity(validation.allowed)
 
-    if allowed:
-        # await service.edit_stocks_quantity(allowed)  # метод работает но замокан для тестирования
-        print(f"allowed - {allowed}")
-    
+    details = {"invalid": validation.invalid}
+
+    if validation.closed_with_nonzero:
+        details["closed_with_nonzero"] = validation.closed_with_nonzero
+        details["message"] = (
+            "Некоторые карточки закрыты. Чтобы изменить остатки (кроме 0), "
+            "сначала откройте их. Для обнуления - установите amount=0."
+        )
+
     return {
         "status": 200,
-        "message": "успешно ебать 👍 поздравляю",
-        "details": {
-            "forbidden": forbidden
-        }
+        "message": "Запрос обработан",
+        "details": details
     }

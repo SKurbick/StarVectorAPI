@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from typing import Optional, List, Union, Dict, Literal, Any
+from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, RootModel
 
@@ -822,8 +823,9 @@ class EditQuantityValidationResult(BaseModel):
     Содержит разрешённые и запрещённые к редактированию баркоды,
     сгруппированные по аккаунтам.
     """
-    allowed: Dict[str, UpdateStocksQuantityResponseModel]
-    forbidden: Dict[str, List[str]]  # account → [barcode, ...]
+    allowed: dict[str, UpdateStocksQuantityResponseModel]
+    invalid: dict[str, list[str]]
+    closed_with_nonzero: dict[str, list[str]]
 
 
 class ResponseMessageDetails(ResponseMessage):
@@ -857,19 +859,68 @@ class CardDataByAccountRequest(BaseModel):
 
         return self
 
+class CloseCardPreviewRequest(CardDataByAccountRequest):
+    pass
 
-class CloseCardsRequest(CardDataByAccountRequest):
-    user_confirmation: bool = Field(False, description="Подтверждение пользователя на закрытие карточек")
+
+class CloseCardsRequest(BaseModel):
+    preview_operation_id: str = Field(..., description="operation_id из /preview")
 
 
 class OpenCardsRequest(CardDataByAccountRequest):
     pass
 
 
-class CardUseCaseResponse(BaseModel):
-    """Модель ответа выполнения сценария карточек."""
-    operation_type: str
-    all_nm_ids: dict[str, list[int]]
-    invalid_nm_ids: list[int]
-    invalid_local_codes: list[str]
-    failed_accounts: list[dict[str, Any]]
+class WarehouseFBWStock(BaseModel):
+    warehouse_name: str
+    quantity: int
+
+
+class PreviewCardSummary(BaseModel):
+    nm_id: int
+    local_vendor_code: Optional[str] = None
+    account: str
+    current_status: str
+    current_virtual_stock: int
+    warehouses: list[WarehouseFBWStock]
+    will_be_closed: bool
+    reason_to_skip: Optional[str] = None
+
+
+class ClosePreviewResponse(BaseModel):
+    operation_id: str = Field(default_factory=lambda: str(uuid4()))
+    timestamp: datetime = Field(default_factory=datetime.now)
+    summary: dict[str, list[PreviewCardSummary]]
+    stats: dict[
+        Literal["total", "to_close", "already_closed", "invalid", "no_stock"],
+        int
+    ]
+    details: dict[
+        Literal["invalid_nm_ids", "invalid_local_codes"],
+        list[Union[int, str]]
+    ]
+
+
+class ClosedCardResult(BaseModel):
+    nm_id: int
+    account: str
+    old_status: str
+    new_status: str
+    success: bool
+    error: Optional[str] = None
+
+
+class CloseOperationResponse(BaseModel):
+    operation_id: str
+    timestamp: datetime
+    status: Literal["accepted", "partial", "failed"]
+    summary: dict[str, list[ClosedCardResult]]
+    stats: dict[
+        Literal["total_requested", "successfully_queued", "already_closed", "failed_db"],
+        int
+    ]
+    celery_task_ids: list[str]
+    details: dict[
+        Literal["failed_accounts"],
+        list[Union[int, str, dict]]
+    ]

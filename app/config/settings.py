@@ -17,6 +17,13 @@ class Settings(BaseSettings):
     SCHEDULER_API_KEY: str
     CELERY_BROKER_URL: str
     CELERY_RESULT_BACKEND: str
+    REDIS_HOST: str
+    REDIS_PORT: int
+    REDIS_DB: int
+    REDIS_PASSWORD: str
+    REDIS_TIMEOUT: float
+    REDIS_MAX_CONNECTIONS: int
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

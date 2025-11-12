@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 def redis_cache_async(
-    redis_instance: Redis = redis_client,
+    redis_instance: Redis = None,
     ttl: int = 60,
     lock_ttl: int = 70,
     wait_for_result_ttl: int = 75,
@@ -33,6 +33,15 @@ def redis_cache_async(
     def decorator(func: Callable[..., Awaitable[any]]) -> Callable[..., Awaitable[any]]:
         @wraps(func)
         async def wrapper(*args, **kwargs) -> any:
+            redis_cl = redis_instance
+
+            if redis_cl is None:
+                try:
+                    redis_cl = redis_client.get_client()
+                except RuntimeError:
+                    await redis_client.connect()
+                    redis_cl = redis_client.get_client()
+
             sig = inspect.signature(func)
             bound_args = sig.bind(*args, **kwargs)
             bound_args.apply_defaults()
@@ -50,15 +59,15 @@ def redis_cache_async(
             cache_key = f"{key_prefix}:{hashlib.md5(":".join(key_parts).encode()).hexdigest()}"
 
             try:
-                cached_result = await redis_instance.get(cache_key)
+                cached_result = await redis_cl.get(cache_key)
 
                 if cached_result:
-                    return json.loads(cached_result.decode("utf-8"))
+                    return json.loads(cached_result)
             except Exception as e:
                 logger.warning(f"Ошибка получения кэша для ключа '{cache_key}': {e}")
-            
+
             lock_key = f"lock:{cache_key}"
-            lock = redis_instance.lock(lock_key, timeout=lock_ttl)
+            lock = redis_cl.lock(lock_key, timeout=lock_ttl)
 
             acquired = await lock.acquire(blocking=False)
 
@@ -67,7 +76,7 @@ def redis_cache_async(
                     logger.info(f"Получен Lock для ключа for key: {lock_key}, выполнение '{func.__qualname__}'")
                     result = await func(*args, **kwargs)
 
-                    await redis_instance.setex(cache_key, ttl, json.dumps(result, ensure_ascii=False))
+                    await redis_cl.setex(cache_key, ttl, json.dumps(result, ensure_ascii=False))
                     logger.info(f"Записан кеш для '{func.__qualname__}', key: {cache_key}, ttl: {ttl}")
 
                     return result
@@ -83,12 +92,12 @@ def redis_cache_async(
                 for _ in range(int(wait_for_result_ttl / 0.5)): # Проверяем кэш каждые 0.5 сек
                     await asyncio.sleep(0.5)
 
-                    cached_result = await redis_instance.get(cache_key)
+                    cached_result = await redis_cl.get(cache_key)
 
                     if cached_result:
                         logger.info(f"Получение данных из кэша после ожидания блокировки, key: {cache_key}")
-                        return json.loads(cached_result.decode("utf-8"))
-                
+                        return json.loads(cached_result)
+
                 logger.error(f"Истекло время ожидания результата после разблокировки ключа: {lock_key}")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

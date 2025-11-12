@@ -15,6 +15,8 @@ from .schedulers import verify_scheduler_api_key
 from .card_status import get_card_status_service
 from .close_card import get_close_card_service
 from .open_card import get_open_card_service
+from .stock_movement import get_stock_movement_service
+from .database import get_pool
 
 
 __all__ = [
@@ -46,4 +48,5 @@ __all__ = [
     "get_card_status_service",
     "get_close_card_service",
     "get_open_card_service",
+    "get_stock_movement_service",
 ]
