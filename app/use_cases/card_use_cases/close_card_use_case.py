@@ -106,12 +106,17 @@ class CloseCardUseCase(BaseCardUseCase):
         celery_task_ids = []
 
         if accounts_data and successfully_queued > 0:
-            task = celery_client.send_task(
-                "reset_wb_stocks_for_closed_card",
-                kwargs={"data": accounts_data}
-            )
-            celery_task_ids.append(task.id)
-            logger.info(f"Celery task {task.id} запущена для {len(accounts_data)} аккаунтов")
+            try:
+                task = celery_client.send_task(
+                    "reset_wb_stocks_for_closed_card",
+                    kwargs={"data": accounts_data}
+                )
+                celery_task_ids.append(task.id)
+                logger.info(f"Celery task {task.id} запущена для {len(accounts_data)} аккаунтов")
+            except Exception as e:
+                message = f"Ошибка во время отпровления фоновой задачи задачи 'reset_wb_stocks_for_closed_card': {e}"
+                logging.exception(message)
+                raise Exception(message)
 
         status = "accepted" if not failed_accounts else "partial"
 
