@@ -5,3 +5,4 @@ asyncpg
 pydantic-settings
 cryptography
 aiohttp
+clickhouse-connect

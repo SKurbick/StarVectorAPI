@@ -1,5 +1,6 @@
 from datetime import datetime, date
 from typing import Optional, List, Union, Dict, Literal
+from dataclasses import dataclass
 
 from pydantic import BaseModel, field_validator, model_validator, RootModel, field_validator
 from pydantic import ConfigDict
@@ -423,3 +424,13 @@ class WeeklyOrdersResponse(RootModel[Dict[int, Dict[str, int]]]):
             }]
         }
     )
+
+
+class CompetitorResponseModel(BaseModel):
+    date: str
+    article_id: int
+    found_article: int | None
+    price: int
+    wild: str
+    position: int | None
+    competitor: str
