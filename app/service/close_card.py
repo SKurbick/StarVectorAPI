@@ -59,11 +59,17 @@ class CloseCardService:
             )
 
         card_closer = CloseCardUseCase(self.pool)
-        result = await card_closer.execute(accounts_data, preview_operation_id=data.preview_operation_id)
 
-        await self.redis_client.delete(cache_key)
+        try:
+            result = await card_closer.execute(accounts_data, preview_operation_id=data.preview_operation_id)
+            await self.redis_client.delete(cache_key)
+            return result
+        except Exception as e:
+            return HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Ошибка во время закрытия карточек: {e}"
+            )
 
-        return result
 
     async def close_cards_preview(self, data: CloseCardPreviewRequest) -> ClosePreviewResponse:
         """
