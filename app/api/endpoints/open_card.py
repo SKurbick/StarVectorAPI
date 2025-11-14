@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from app.dependencies import get_open_card_service
-from app.service.open_card import OpenCardsRequest
+from app.service.open_card import OpenCardService
 from app.domain.models import OpenCardsRequest
 
 
@@ -11,6 +11,6 @@ router  = APIRouter(prefix="/opening_cards", tags=["Открытие карто�
 @router.post("/open")
 async def open_cards(
     data: OpenCardsRequest,
-    service: OpenCardsRequest = Depends(get_open_card_service),
+    service: OpenCardService = Depends(get_open_card_service),
 ):
     return await service.open_cards(data)
