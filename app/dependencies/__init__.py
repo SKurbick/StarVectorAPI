@@ -9,8 +9,10 @@ from .stocks_quantity import get_stocks_quantity_service, get_stocks_quantity_re
 from .turnover import get_turnover_service, get_turnover_repository
 from .fin_reports import get_fin_reports_service
 from .penalties import get_penalty_service
-from . sales import get_sale_service
+from .sales import get_sale_service
 from .filters import get_dates_period_filter, get_months_filter
+from .database import get_pool, get_clickhouse_client
+from .competitors_prices import get_competitor_price_service
 from .schedulers import verify_scheduler_api_key
 from .card_status import get_card_status_service
 from .close_card import get_close_card_service
@@ -43,6 +45,9 @@ __all__ = [
     "get_months_filter",
     "get_penalty_service",
     "get_sale_service",
+    "get_pool",
+    "get_clickhouse_client",
+    "get_competitor_price_service",
     "verify_scheduler_api_key",
     "validate_edit_quantity_data",
     "get_card_status_service",

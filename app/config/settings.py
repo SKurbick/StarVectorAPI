@@ -9,7 +9,15 @@ class Settings(BaseSettings):
     POSTGRES_DB: str
     POSTGRES_HOST: str
     POSTGRES_PORT: str
+
+    CLICKHOUSE_USER: str
+    CLICKHOUSE_PASSWORD: str
+    CLICKHOUSE_DB: str
+    CLICKHOUSE_HOST: str
+    CLICKHOUSE_PORT: str
+
     TOKENS_FILE_NAME: str
+
     APP_IP_ADDRESS: str
     APP_PORT: int
     FRONTEND_API_ADDRESS: str
