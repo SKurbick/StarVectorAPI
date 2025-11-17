@@ -1161,3 +1161,23 @@ class CloseOperationResponse(BaseModel):
             ]
         }
     )
+
+
+class OrderHistoryResponseModel(BaseModel):
+    wild: str
+    date: str
+    total_orders_sum: int
+    total_orders_count: int
+    average_bill: float | None
+    marginal: str
+    conditional_profit: int
+    net_profit: int
+    profitability: str
+    purchase_price: int
+    adversting: int
+    views: int
+    clicks: int
+    carts: int
+    drr: str
+    physical_quantity: int | None
+    wb_quantity: int | None
