@@ -1,7 +1,7 @@
 from asyncpg import Pool
 from clickhouse_connect.driver.asyncclient import AsyncClient
 from fastapi import HTTPException
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 
 class CompetitorPriceRepository:
@@ -10,7 +10,41 @@ class CompetitorPriceRepository:
         self.pool = pool
 
     async def get_all_competitor_prices(self) -> List[Dict[str, Any]]:
-        # Запрос к ClickHouse: получаем актуальные цены конкурентов
+        """
+        Получить цены конкурентов и цены продавца.
+
+        Данные сгруппированы по local_vendor_code.
+        """
+        try:
+            competitor_prices_by_lvc = await self.fetch_competitor_prices()
+            lv_codes = list(competitor_prices_by_lvc.keys())
+            our_prices_by_lvc = await self.fetch_seller_prices(lv_codes)
+
+            # Сборка финального результата
+            result = []
+
+            for lv_code, our_prices in our_prices_by_lvc.items():
+                if lv_code not in competitor_prices_by_lvc:
+                    continue
+
+                result.append({
+                    "local_vendor_code": lv_code,
+                    "name": our_prices["name"],
+                    "our_prices": our_prices["prices"],
+                    "competitor_prices": competitor_prices_by_lvc[lv_code],
+                })
+
+            return result
+
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Ошибка во время выполнения get_all_competitor_prices: {str(e)}")
+
+    async def fetch_competitor_prices(self) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Получить актуальные цены конкурентов.
+
+        Данные группируются по wild (local_vendor_code).
+        """
         clickhouse_query = """
             SELECT
                 wild,
@@ -42,97 +76,82 @@ class CompetitorPriceRepository:
             WHERE rn = 1
             ORDER BY wild, concurrent
         """
-
         try:
             clickhouse_result = await self.client.query(clickhouse_query)
 
             if clickhouse_result is None:
-                raise HTTPException(status_code=500, detail="Failed to fetch competitor data from ClickHouse")
+                raise Exception("Не получены данные из ClickHouse")
 
-            competitor_prices_by_lvc = self.group_competitor_prices(clickhouse_result)
+            # Группирует данные конкурентов по wild (local_vendor_code)
+            grouped = {}
+            columns = clickhouse_result.column_names
 
-            # Запрос к PostgreSQL: получаем наши карточки по local_vendor_code
-            lv_codes = list(competitor_prices_by_lvc.keys())
+            for row in clickhouse_result.result_rows:
+                item = dict(zip(columns, row))
+                wild = item["wild"]
 
-            if not lv_codes:
-                return []
+                if wild not in grouped:
+                    grouped[wild] = []
 
-            postgres_query = """
-                SELECT
-                    a.local_vendor_code,
-                    a.account,
-                    cd.article_id,
-                    cd.price,
-                    p.name
-                FROM article a
-                LEFT JOIN products p ON p.id = a.local_vendor_code
-                LEFT JOIN card_data cd ON a.nm_id = cd.article_id
-                WHERE a.local_vendor_code = ANY($1)
-                ORDER BY a.local_vendor_code
-            """
-
-            async with self.pool.acquire() as conn:
-                cards_data = await conn.fetch(postgres_query, lv_codes)
-
-            our_prices_by_lvc = self.group_our_prices(cards_data)
-
-            # Сборка финального результата
-            result = []
-
-            for lv_code, our_prices in our_prices_by_lvc.items():
-                if lv_code not in competitor_prices_by_lvc:
-                    continue
-
-                result.append({
-                    "local_vendor_code": lv_code,
-                    "name": our_prices["name"],
-                    "our_prices": our_prices["prices"],
-                    "competitor_prices": competitor_prices_by_lvc[lv_code],
+                grouped[wild].append({
+                    "concurrent": item["concurrent"],
+                    "article_id": item["article_id"],
+                    "price": item["price"],
+                    "found_article": item["found_article"],
+                    "position": item["position"],
+                    "processed_at": item["processed_at"],
                 })
 
-            return result
-
+            return grouped
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error fetching competitor prices: {str(e)}")
+            raise Exception(f"Ошибка во время получения цен конкурентов: {e}")
 
-    def group_competitor_prices(self, clickhouse_result) -> Dict[str, List[Dict[str, Any]]]:
-        """Группирует данные конкурентов по wild (local_vendor_code)."""
-        grouped = {}
-        columns = clickhouse_result.column_names
+    async def fetch_seller_prices(self, local_vendor_codes: Optional[list[str]] = None) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Получить цены продавца.
 
-        for row in clickhouse_result.result_rows:
-            item = dict(zip(columns, row))
-            wild = item["wild"]
+        Данные группируются по local_vendor_code.
+        """
+        postgres_query = """
+            SELECT DISTINCT ON (a.local_vendor_code, a.nm_id)
+                a.local_vendor_code,
+                a.account,
+                a.nm_id,
+                sh.spp_price,
+                p.name
+            FROM article a
+            LEFT JOIN products p ON p.id = a.local_vendor_code
+            LEFT JOIN spp_history sh ON a.nm_id = sh.nm_id
+        """
 
-            if wild not in grouped:
-                grouped[wild] = []
+        params = []
 
-            grouped[wild].append({
-                "concurrent": item["concurrent"],
-                "article_id": item["article_id"],
-                "price": item["price"],
-                "found_article": item["found_article"],
-                "position": item["position"],
-                "processed_at": item["processed_at"],
-            })
+        if local_vendor_codes:
+            params.append(local_vendor_codes)
+            postgres_query += f" WHERE a.local_vendor_code = ANY(${len(params)})"
 
-        return grouped
+        postgres_query += " ORDER BY a.local_vendor_code, a.nm_id, sh.created_at DESC"
 
-    def group_our_prices(self, our_cards) -> Dict[str, List[Dict[str, Any]]]:
-        """Группирует наши цены по local_vendor_code."""
-        grouped = {}
+        try:
+            async with self.pool.acquire() as conn:
+                cards_data = await conn.fetch(postgres_query, *params)
 
-        for card in our_cards:
+            # Группирует наши цены по local_vendor_code
+            grouped = {}
 
-            lvc = card["local_vendor_code"]
+            for card in cards_data:
 
-            if lvc not in grouped:
-                grouped[lvc] = {"name": card["name"], "prices": []}
+                lvc = card["local_vendor_code"]
 
-            grouped[lvc]["prices"].append({
-                "account": card["account"],
-                "article_id": card["article_id"],
-                "price": card["price"],
-            })
+                if lvc not in grouped:
+                    grouped[lvc] = {"name": card["name"], "prices": []}
 
-        return grouped
+                grouped[lvc]["prices"].append({
+                    "account": card["account"],
+                    "article_id": card["nm_id"],
+                    "price": card["spp_price"],
+                })
+
+            return grouped
+        except Exception as e:
+            raise Exception(f"Ошибка во время получения цен продавца: {e}")
