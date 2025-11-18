@@ -1,6 +1,4 @@
 from asyncpg import Pool, PostgresError, InterfaceError, ConnectionFailureError, ConnectionDoesNotExistError
-from datetime import date
-from fastapi import HTTPException
 
 from app.domain.models import OrderHistoryResponseModel
 from app.utils.decorators import error_handler_http
@@ -22,8 +20,7 @@ class OrderHistoryRepository:
     )
     async def get_orders_history(
             self,
-            start_day: date | None,
-            end_day: date | None
+            wild: str | None
 	) -> list[OrderHistoryResponseModel]:
         async with self.pool.acquire() as conn:
             query = """
@@ -41,8 +38,7 @@ class OrderHistoryRepository:
                         SUM(add_to_cart_count) AS total_carts
                     FROM orders_articles_analyze
                     WHERE 
-                        ($1::date IS NULL OR date >= $1::date) AND
-                        ($2::date IS NULL OR date <= $2::date)
+                        local_vendor_code LIKE $1
                     GROUP BY local_vendor_code, DATE_TRUNC('day', date)
                 ),
                 balance_agg AS (
@@ -89,10 +85,10 @@ class OrderHistoryRepository:
                 FROM aggregated_data ad
                 LEFT JOIN balance_agg ba ON ad.wild = ba.product_id
                 LEFT JOIN wb_stock_aggregated wb_agg ON ad.wild = wb_agg.wild AND ad.date_day = wb_agg.date_day
-                ORDER BY ad.date_day;
+                ORDER BY ad.date_day DESC;
             """
 
-            rows = await conn.fetch(query, start_day, end_day)
+            rows = await conn.fetch(query, wild)
             return [
                 OrderHistoryResponseModel(
                     wild=row["wild"],
