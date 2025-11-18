@@ -1181,3 +1181,200 @@ class OrderHistoryResponseModel(BaseModel):
     drr: str
     physical_quantity: int | None
     wb_quantity: int | None
+
+
+class CardDimensions(BaseModel):
+    """
+    Габариты товара.
+    """
+
+    length: float
+    width: float
+    height: float
+    weightBrutto: float
+
+
+class WBCharacteristic(BaseModel):
+    """
+    Модель характеристики карточки товара на Wildberries.
+    """
+
+    id: int
+    value: Union[str, int, float, list[Union[str, int, float]]]
+
+
+class CardSize(BaseModel):
+    """
+    Размер товара
+    """
+
+    tech_size: str
+    ru_size: str
+
+
+class CreateCardAccountInfo(BaseModel):
+    """
+    Модель аккаунта для создания карточек на маркетплейсе.
+    """
+
+    account_id: int
+    cards_count: int = Field(default=1, ge=1)
+
+
+class CreateCardMarketplaceData(BaseModel):
+    """
+    Базовая модель для всех маркетплейсов с данными для создания карточек.
+    """
+
+    accounts: Optional[list[CreateCardAccountInfo]] = None
+
+
+class CreateCardMarketplaceDataOnWB(CreateCardMarketplaceData):
+    """
+    Модель данных для создания карточек на Wildberries.    
+    """
+
+    subject_id: int
+    brand: str
+    dimensions: CardDimensions
+    characteristics: Optional[list[WBCharacteristic]]
+    sizes: Optional[list[CardSize]]
+
+
+class CreateCardMarketplaceRequest(BaseModel):
+    """
+    Модель запроса для создания карточек товара на одном маркетплейсе.
+    """
+
+    name: str
+    data: CreateCardMarketplaceData
+
+
+class CreateCardsRequest(BaseModel):
+    """
+    Модель запроса для создания карточек товаров на маркетплейсах.
+    """
+
+    local_vendor_code: str
+    marketplaces: list[CreateCardMarketplaceRequest]
+
+
+class CreateCardResponseSummary(BaseModel):
+    """
+    Статистика по запросу на создание карточек на маркетплейсах.
+    """
+
+    total_cards_to_create: int
+    marketplaces_count: int
+    accounts_count: int
+
+
+class CreateCardResponseCardInfo(BaseModel):
+    """
+    Информация о карточке запланированной к созданию на маркетплейсе. 
+    """
+
+    vendor_code: str
+    status: str
+    updated_at: datetime
+
+
+class CreateCardResponseAccountDetails(BaseModel):
+    """
+    Иноформация по карточкам аккаунта, запланированным к созданию на маркетплейсе.
+    """
+
+    account: str
+    cards_count_requested: int
+    cards_to_create: list[CreateCardResponseCardInfo]
+
+
+class CreateCardWBMarcketplaceDetails(BaseModel):
+    """
+    Данные по товару, переданные в Wildberries во время запроса на создание карточек.
+    """
+
+    subject: str
+    brand: str
+
+
+CreateCardMarketplaceDetails = Union[
+    CreateCardWBMarcketplaceDetails,
+]
+
+
+class CreateCardResponseMarketplaceDetails(BaseModel):
+    """
+    Информация о запланированных к созданию карточках по маркетплейсу.
+    """
+
+    marketplace: str
+    data: CreateCardMarketplaceDetails
+    accounts: list[CreateCardResponseAccountDetails]
+
+
+class CreateCardResponseItemDetails(BaseModel):
+    """
+    Модель ответа по запланированным к созданию карточек товара на маркетплейсах.
+    """
+
+    local_vendor_code: str
+    title: str
+    marketplaces: list[CreateCardResponseMarketplaceDetails]
+
+
+class CreateCardsResponse(BaseModel):
+    """
+    Модель ответа на запрос по созданию карточек.
+    """
+
+    task_id: str
+    timestamp: datetime
+    status: str
+    summary: CreateCardResponseSummary
+    details: list[CreateCardResponseItemDetails]
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "task_id": "task_abc123xyz789",
+                    "timestamp": "2025-11-12T10:04:42.105207",
+                    "status": "pending",
+                    "summary": {
+                    "total_cards_to_create": 3,
+                    "marketplaces_count": 1,
+                    "accounts_count": 1
+                    },
+                    "details": [
+                        {
+                            "local_vendor_code": "wild123",
+                            "title": "Бутылка для воды пластиковая с крышкой",
+                            "marketplaces": [
+                                {
+                                    "marketplace": "wildberries",
+                                    "data": {
+                                        "subject": "Бутылка для воды",
+                                        "brand": "MyBrand"
+                                    },
+                                    "accounts": [
+                                        {
+                                            "account": "СТАРТ",
+                                            "cards_count_requested": 1,
+                                            "cards_to_create": [
+                                                {
+                                                    "vendor_code": "wild123/d123",
+                                                    "status": "pending_creating",
+                                                    "updated_at": "2025-11-12T10:04:42.105207"
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    )
