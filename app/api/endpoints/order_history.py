@@ -1,4 +1,3 @@
-from datetime import date
 from fastapi import APIRouter, Depends, Query
 
 from app.dependencies.order_history import get_order_history_service
@@ -11,9 +10,8 @@ router = APIRouter(tags=["Orders History"])
 
 @router.get("/orders_history", status_code=200, response_model=list[OrderHistoryResponseModel])
 async def get_orders_history(
-    start_day: date | None = Query(None), 
-    end_day: date | None = Query(None), 
+    wild: str | None = Query(None), 
     service: OrderHistoryService = Depends(get_order_history_service)
 ) -> list[OrderHistoryResponseModel]:
 
-    return await service.get_orders_history(start_day, end_day)
+    return await service.get_orders_history(wild)
