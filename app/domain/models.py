@@ -1378,3 +1378,60 @@ class CreateCardsResponse(BaseModel):
             ]
         }
     )
+
+
+class SubjectData(BaseModel):
+    id: int
+    name: str
+
+
+class CategoryData(BaseModel):
+    id: int
+    name: str
+    subjects: list[SubjectData]
+
+
+class CategoriesResponse(BaseModel):
+    categories: list[CategoryData] = Field(
+        default_factory=list,
+        description="Список категорий с вложенными предметами",
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "categories": [
+                        {
+                            "id": 123,
+                            "name": "Автоаксессуары и дополнительное оборудование",
+                            "subjects": [
+                                {
+                                    "id": 456,
+                                    "name": "Аварийное оборудование"
+                                },
+                                {
+                                    "id": 789, 
+                                    "name": "Автобаферы"
+                                }
+                            ]
+                        },
+                        {
+                            "id": 124,
+                            "name": "Спортивная одежда",
+                            "subjects": [
+                                {
+                                    "id": 457,
+                                    "name": "Болеро спортивные"
+                                },
+                                {
+                                    "id": 458,
+                                    "name": "Велокуртки"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    )

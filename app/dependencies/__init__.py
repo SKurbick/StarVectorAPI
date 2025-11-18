@@ -19,6 +19,7 @@ from .close_card import get_close_card_service
 from .open_card import get_open_card_service
 from .stock_movement import get_stock_movement_service
 from .database import get_pool
+from .subject_data import get_subject_data_service
 
 
 __all__ = [
@@ -54,4 +55,5 @@ __all__ = [
     "get_close_card_service",
     "get_open_card_service",
     "get_stock_movement_service",
+    "get_subject_data_service",
 ]

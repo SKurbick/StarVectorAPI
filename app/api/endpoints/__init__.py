@@ -17,6 +17,7 @@ from .close_card import router as close_card_router
 from .open_card import router as open_card_router
 from .order_history import router as orders_history_router
 from .upload_cards import router as upload_cards_router
+from .subject_data import router as subject_data_router
 
 
 __all__ = [
@@ -39,4 +40,5 @@ __all__ = [
     'open_card_router',
     'orders_history_router',
     'upload_cards_router',
+    'subject_data_router',
 ]
