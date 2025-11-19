@@ -1,12 +1,14 @@
 from collections import defaultdict
 from typing import NoReturn
 
-from asyncpg import Pool, PostgresError, UndefinedTableError
-from fastapi import HTTPException, status
+from asyncpg import Pool, PostgresError, UndefinedTableError, InterfaceError, ConnectionFailureError, ConnectionDoesNotExistError
+from fastapi import HTTPException, status, UploadFile
 
-from app.domain.enums import LossOwnerEnum
+from app.domain.enums import LossOwnerEnum, ExcelParserEnum
 from app.domain.models import (DaylyPenaltiesReport, PenaltyDetailsResponse,
                                PeriodRequestModel, PenaltyAnnotationUpdate)
+from app.utils.decorators import error_handler_http
+from app.utils.utils import get_columns_values_from_excel_file
 
 
 class PenaltyRepository:
@@ -157,3 +159,105 @@ class PenaltyRepository:
                 status_code=422,
                 detail=f"PoistgresError: {e}"
             )
+    @error_handler_http(
+            status_code=500,
+            message='Database error occured',
+            exceptions=(
+                PostgresError,
+                InterfaceError,
+                ConnectionFailureError,
+                ConnectionDoesNotExistError
+            )
+    )    
+    async def update_penalty_annotations_from_excel(
+            self,
+            upload_file: UploadFile
+    ) -> NoReturn:
+        
+        PARSER_TO_DB = {
+            "penalty_date": "date",
+            "nm_id": "nm_id",
+            "bonus_type_name": "bomus_type_name",
+            "srid": "srid",
+            "loss_owner": "loss_owner",
+            "comment": "comment",
+        }
+
+        column_indices = [e.value for e in ExcelParserEnum]
+
+        try:
+            rows = get_columns_values_from_excel_file(
+                upload_file=upload_file,
+                column_indices=column_indices,
+                enum_mapping=ExcelParserEnum,
+                start_row=2
+            )
+        except Exception as error:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Ошибка чтения Excel: {error}"
+            )
+        
+        conflict_cols_sql = "date, nm_id, bonus_type_name, srid"
+
+        async with self.pool.acquire() as conn:
+
+            async with conn.transaction():
+
+                for row_idx, row in enumerate(rows, start=2):
+                    key = {
+                        "date": row.get("penalty_date"),
+                        "nm_id": row.get("nm_id"),
+                        "bonus_type_name": row.get("bonus_type_name"),
+                        "srid": row.get("srid"),
+                    }
+                        
+                        
+                    penalty_exists = await conn.fetchval(
+                        """
+                        SELECT EXISTS (
+                            SELECT 1 FROM penalties_mv
+                            WHERE date = $1 AND nm_id = $2 AND bonus_type_name = $3 AND srid = $4
+                        )
+                        """,
+                        key["date"], key["nm_id"], key["bonus_type_name"], key["srid"]
+                    )
+
+                    data_cols = {}
+
+                    for parser_key, db_col in PARSER_TO_DB.items():
+
+                        if parser_key in ("penalty_date", "nm_id", "bonus_type_name", "srid"):
+                            continue
+
+                        if parser_key in row:
+                            val = row.get(parser_key)
+
+                            if parser_key == "loss_owner" and val is not None:
+                                val = getattr(val, "value_for_db", val)
+
+                            data_cols[db_col] = val
+                    
+                    insert_cols = list(key.keys()) + list(data_cols.keys())
+                    insert_vals = list(key.values()) + list(data_cols.values())
+
+                    placeholders = ", ".join(f"{i}" for i in range(1, len(insert_vals) + 1))
+                    cols_sql = ", ".join(insert_cols)
+
+                    if data_cols:
+                        update_sql = ", ".join(f"{col} = EXCLUDED.{col}" for col in data_cols.keys())
+                    else:
+                        update_sql = None
+
+                    if update_sql:
+                        sql = (
+                            f"INSERT INTO penalty_annotations ({cols_sql}) VALUES ({placeholders}) "
+                            f"ON CONFLICT ({conflict_cols_sql}) DO UPDATE SET {update_sql};"
+                        )
+                    else:
+                        sql = (
+                            f"INSERT INTO penalty_annotations ({cols_sql}) VALUES ({placeholders}) "
+                            f"ON CONFLICT ({conflict_cols_sql}) DO NOTHING;"
+                        )
+
+                    result = await conn.execute(sql, *insert_vals)

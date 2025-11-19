@@ -48,3 +48,14 @@ class CardStatusEnum(str, Enum):
     closed = "closed"
     active = "active"
     closing_pending = "closing_pending"
+
+
+class ExcelParserEnum(Enum):
+    "Соответствие названия ключа с позицией столбца в Excel файле"
+
+    penalty_date = 1
+    nm_id = 5
+    bonus_type_name = 4
+    srid = 13
+    loss_owner = 28
+    comment = 29
