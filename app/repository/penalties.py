@@ -213,7 +213,7 @@ class PenaltyRepository:
                     }
                         
                         
-                    penalty_exists = await conn.fetchval(
+                    await conn.fetchval(
                         """
                         SELECT EXISTS (
                             SELECT 1 FROM penalties_mv
@@ -260,4 +260,4 @@ class PenaltyRepository:
                             f"ON CONFLICT ({conflict_cols_sql}) DO NOTHING;"
                         )
 
-                    result = await conn.execute(sql, *insert_vals)
+                    await conn.execute(sql, *insert_vals)

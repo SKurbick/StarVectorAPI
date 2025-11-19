@@ -34,4 +34,4 @@ class PenaltyService:
                 detail="Необходимо загрузить Excel файл в формате .xlsx, xlsm"
             )
 
-        return self.repository.update_penalty_annotations_from_excel(upload_file=upload_file)
+        return await self.repository.update_penalty_annotations_from_excel(upload_file=upload_file)

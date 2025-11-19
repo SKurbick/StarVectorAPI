@@ -38,7 +38,7 @@ async def get_all_loss_owners() -> list[dict[str, int | str]]:
         for owner in LossOwnerEnum
     ]
 
-@router.patch("/penalty_annotation_from_excel", status_code=status.HTTP_200_OK,
+@router.put("/penalty_annotation_from_excel", status_code=status.HTTP_200_OK,
               description="Обновление аннотаций к штрафам с Excel файла")
 async def update_penalty_annotations_from_excel(
     upload_file: UploadFile = File(...),
