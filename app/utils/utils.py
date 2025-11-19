@@ -1,6 +1,29 @@
 from openpyxl import load_workbook
 from enum import Enum
 from fastapi import UploadFile
+from datetime import datetime
+
+
+def normalize_value(key_name: str, value):
+
+    if value is None:
+        return None
+    
+    if key_name == "penalty_date":
+        if isinstance(value, str):
+            return datetime.strptime(value.strip(), "%d.%m.%Y").date()
+        elif isinstance(value, datetime):
+            return value.date()
+        
+    elif key_name == "nm_id":
+        value_str = str(value).replace("\xa0", "").replace(" ", '').split(".")[0]
+        return int(value_str)
+    
+    elif key_name in ("bonus_type_name", "srid", "loss_owner", "comment"):
+        return str(value).replace("\xa0", ' ').strip()
+    
+    else:
+        return value
 
 
 def get_columns_values_from_excel_file(
@@ -23,7 +46,7 @@ def get_columns_values_from_excel_file(
     upload_file.file.seek(0)
 
     wb = load_workbook(
-        filename=upload_file,
+        filename=upload_file.file,
         read_only=True,
         data_only=True
     )
@@ -51,7 +74,7 @@ def get_columns_values_from_excel_file(
                 if col_idx - 1 < len(row):
                     cell_value = row[col_idx - 1]
                     if isinstance(col_idx, str):
-                        cell_value = cell_value.replace("\xa0", " ")
+                        cell_value = normalize_value(key_name=key_name, value=cell_value)
                     else:
                         cell_value = None
                     
