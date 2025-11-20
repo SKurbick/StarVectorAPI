@@ -20,7 +20,7 @@ class FinReportsRepository:
         SELECT
             fram.date_to,
             fram."Комиссия ВБ" AS wb_commission,
-            fram."Комиссия ВБ, %" AS wb_commission_percentage,
+            fram."Комиссия ВБ pct" AS wb_commission_percentage,
             fram."К перечислению" AS to_be_transferred,
             fram."Логистика" AS logistics,
             fram."Итого к оплате" AS total_to_be_paid,
@@ -40,7 +40,7 @@ class FinReportsRepository:
             fram."Закупочная стоимость" AS purchase_cost,
             fram."Наша доля до вычета себестоимости" AS our_share_before_cost,
             fram."ВП после ВБ" AS vp_after_wb,
-            fram."ВП после ВБ, %" AS vp_after_wb_percentage,
+            fram."ВП после ВБ pct" AS vp_after_wb_percentage,
             fdm.grouped_bonus_type_name,
             fdm.total_deduction AS deduction
         FROM ({subquery}) fram
