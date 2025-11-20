@@ -5,6 +5,16 @@ from datetime import datetime
 
 
 def normalize_value(key_name: str, value):
+    """Функция для преобразования типа данных распаршенного Excel, в соответствии с
+    типами данных столбцов БД.
+
+    Args:
+        key_name (str): ключ, значение которого нужно преобразовать
+        value (_type_): значение по ключу, которое нужно преобразовать
+
+    Returns:
+        _type_: преобразованные данные
+    """
 
     if value is None:
         return None
@@ -18,7 +28,7 @@ def normalize_value(key_name: str, value):
     elif key_name == "nm_id":
         value_str = str(value).replace("\xa0", "").replace(" ", '').split(".")[0]
         return int(value_str)
-    
+        
     elif key_name in ("bonus_type_name", "srid", "loss_owner", "comment"):
         return str(value).replace("\xa0", ' ').strip()
     
@@ -73,7 +83,7 @@ def get_columns_values_from_excel_file(
 
                 if col_idx - 1 < len(row):
                     cell_value = row[col_idx - 1]
-                    if isinstance(col_idx, str):
+                    if cell_value is not None:
                         cell_value = normalize_value(key_name=key_name, value=cell_value)
                     else:
                         cell_value = None
