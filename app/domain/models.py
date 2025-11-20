@@ -1435,3 +1435,56 @@ class CategoriesResponse(BaseModel):
             ]
         }
     )
+
+
+class WbCharacteristic(BaseModel):
+    """
+    Модель одной характеристики предмета от Wildberries.
+    """
+
+    charc_id: int
+    name: str
+    required: bool
+    unit_name: Optional[str]
+    max_count: int
+    popular: bool
+    charc_type: str
+
+
+class GetWbCharcsResponse(BaseModel):
+    """
+    Модель получения харектеристик предмета Wildberries.
+    """
+
+    subject_id: int
+    characteristics: list[WbCharacteristic]
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "subject_id": 12345,
+                    "characteristics": [
+                        {
+                            "charc_id": 123,
+                            "name": "Цвет",
+                            "required": True,
+                            "unit_name": None,
+                            "max_count": 3,
+                            "popular": True,
+                            "charc_type": "массив строк"
+                        },
+                        {
+                            "charc_id": 456,
+                            "name": "Вес",
+                            "required": False,
+                            "unit_name": "грамм",
+                            "max_count": 1,
+                            "popular": False,
+                            "charc_type": "число"
+                        }
+                    ]
+                }
+            ]
+        }
+    )
