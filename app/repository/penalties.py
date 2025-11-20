@@ -203,6 +203,7 @@ class PenaltyRepository:
         async with self.pool.acquire() as conn:
 
             async with conn.transaction():
+                errors = []
 
                 for row_idx, row in enumerate(rows, start=2):
                     key = {
@@ -211,7 +212,31 @@ class PenaltyRepository:
                         "bonus_type_name": row.get("bonus_type_name"),
                         "srid": row.get("srid"),
                     }
-                        
+
+                    missing_fields = []
+                    for field_name, field_value in key.items():
+                        if field_value is None:
+                            missing_fields.append(field_name)
+
+                    if missing_fields:
+                        errors.append(
+                            f"Строка {row_idx}: отсутствуют обязательные поля: Дата/Тип штрафа/NM ID/SRID"
+                        )
+                        continue
+
+                if errors:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Обнаружены ошибки в данных:\n" + "\n".join(errors)
+                    )
+                
+                for row_idx, row in enumerate(rows, start=2):
+                    key = {
+                        "date": row.get("penalty_date"),
+                        "nm_id": row.get("nm_id"),
+                        "bonus_type_name": row.get("bonus_type_name"),
+                        "srid": row.get("srid"),
+                    }
                         
                     await conn.fetchval(
                         """
@@ -241,7 +266,7 @@ class PenaltyRepository:
                     insert_cols = list(key.keys()) + list(data_cols.keys())
                     insert_vals = list(key.values()) + list(data_cols.values())
 
-                    placeholders = ", ".join(f"{i}" for i in range(1, len(insert_vals) + 1))
+                    placeholders = ", ".join(f"${i}" for i in range(1, len(insert_vals) + 1))
                     cols_sql = ", ".join(insert_cols)
 
                     if data_cols:
