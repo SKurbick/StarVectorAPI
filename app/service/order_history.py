@@ -1,3 +1,4 @@
+from datetime import date
 from fastapi import HTTPException, status
 
 from app.domain.models import OrderHistoryResponseModel
@@ -10,14 +11,34 @@ class OrderHistoryService:
 
     async def get_orders_history(
             self, 
-            wild: str | None
+            product_id: str, 
+            start: date,
+            end: date
     ) -> list[OrderHistoryResponseModel]:
 
         # если не указан wild в query
-        if not wild:
+        if not product_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail='Необходимо полностью указать wild'
             )
+        
+        if start and start > date.today():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail='Начало периода не может быть больше сегодняшней даты'
+            )
+        
+        if start and not isinstance(start, date):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Некорректный тип данных. Введите дату в формате ГГГГ-ММ-ДД"
+            )
+        
+        if end and not isinstance(end, date):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Некорректный тип данных. Введите дату в формате ГГГГ-ММ-ДД"
+            )
 
-        return await self.repository.get_orders_history(wild)
+        return await self.repository.get_orders_history(product_id, start, end)

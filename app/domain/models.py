@@ -1164,10 +1164,14 @@ class CloseOperationResponse(BaseModel):
 
 
 class OrderHistoryResponseModel(BaseModel):
-    wild: str
+    product_id: str
     date: str
     total_orders_sum: int
+    total_orders_sum_7d: int
+    avg_sum_rub_7d: int
     total_orders_count: int
+    total_orders_count_7d: int
+    avg_orders_count_7d: int
     average_bill: float | None
     marginal: str
     conditional_profit: int
@@ -1181,3 +1185,4 @@ class OrderHistoryResponseModel(BaseModel):
     drr: str
     physical_quantity: int | None
     wb_quantity: int | None
+    participation_in_adversting: bool

@@ -1,3 +1,4 @@
+from datetime import date
 from asyncpg import Pool, PostgresError, InterfaceError, ConnectionFailureError, ConnectionDoesNotExistError
 
 from app.domain.models import OrderHistoryResponseModel
@@ -20,7 +21,9 @@ class OrderHistoryRepository:
     )
     async def get_orders_history(
             self,
-            wild: str | None
+            product_id: str,
+            start: date | None,
+            end: date | None
 	) -> list[OrderHistoryResponseModel]:
         async with self.pool.acquire() as conn:
             query = """
@@ -38,8 +41,34 @@ class OrderHistoryRepository:
                         SUM(add_to_cart_count) AS total_carts
                     FROM orders_articles_analyze
                     WHERE 
-                        local_vendor_code LIKE $1
+                        local_vendor_code LIKE $1 AND
+                        ($2::date IS NULL OR date >= $2::date) AND
+                        ($3::date IS NULL OR date <= $3::date)
                     GROUP BY local_vendor_code, DATE_TRUNC('day', date)
+                ),
+                aggregated_data_with_rolling as (
+                    SELECT *,
+                    SUM(total_orders_sum) OVER (
+                        PARTITION BY wild
+                        ORDER BY date_day
+                        ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+                    ) AS total_orders_sum_7d,
+                    AVG(total_orders_sum) OVER (
+                        PARTITION BY wild
+                        ORDER BY date_day
+                        ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+                    ) AS avg_orders_sum_7d,
+                    SUM(total_orders_count) OVER (
+                        PARTITION BY wild
+                        ORDER BY date_day
+                        ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+                    ) AS total_orders_count_7d,
+                    AVG(total_orders_count) OVER (
+                        PARTITION BY wild
+                        ORDER BY date_day
+                        ROWS BETWEEN 6 PRECEDING AND CURRENT ROW 
+                    ) AS avg_orders_count_7d
+                    FROM aggregated_data
                 ),
                 balance_agg AS (
                     SELECT
@@ -54,6 +83,9 @@ class OrderHistoryRepository:
                         DATE_TRUNC('day', date) AS date_day,
                         article_id
                     FROM orders_articles_analyze
+                    WHERE 
+                        ($2::date IS NULL OR date >= $2::date) AND
+                        ($3::date IS NULL OR date <= $3::date)
                 ),
                 wb_stock_aggregated AS (
                     SELECT
@@ -65,10 +97,14 @@ class OrderHistoryRepository:
                     GROUP BY asl.wild, asl.date_day
                 )
                 SELECT
-                    ad.wild,
+                    ad.wild AS product_id,
                     TO_CHAR(ad.date_day, 'YYYY-MM-DD') as date,
                     ad.total_orders_sum AS total_orders_sum,
+                    ad.total_orders_sum_7d,
+                    ROUND(ad.avg_orders_sum_7d, 0) as avg_sum_rub_7d,
                     ad.total_orders_count AS total_orders_count,
+                    ad.total_orders_count_7d,
+                    ROUND(ad.avg_orders_count_7d, 0) AS avg_orders_count_7d,
                     COALESCE(ROUND(ad.total_orders_sum / NULLIF(ad.total_orders_count, 0), 2), 0) AS average_bill,
                     COALESCE(ROUND(ad.total_profit / NULLIF(ad.total_orders_sum, 0), 2), 0) AS marginal,
                     ad.total_profit AS conditional_profit,
@@ -81,20 +117,25 @@ class OrderHistoryRepository:
                     ad.total_carts AS carts,
                     COALESCE(ROUND(ad.total_adv_spend / NULLIF(ad.total_orders_sum, 0), 2), 0) AS drr,
                     COALESCE(ba.avg_physical_quantity, 0) AS physical_quantity,
-                    COALESCE(wb_agg.total_wb_quantity, 0) AS wb_quantity
-                FROM aggregated_data ad
+                    COALESCE(wb_agg.total_wb_quantity, 0) AS wb_quantity,
+                    (ad.total_adv_spend > 0) AS participation_in_adversting
+                FROM aggregated_data_with_rolling ad
                 LEFT JOIN balance_agg ba ON ad.wild = ba.product_id
                 LEFT JOIN wb_stock_aggregated wb_agg ON ad.wild = wb_agg.wild AND ad.date_day = wb_agg.date_day
                 ORDER BY ad.date_day DESC;
             """
 
-            rows = await conn.fetch(query, wild)
+            rows = await conn.fetch(query, product_id, start, end)
             return [
                 OrderHistoryResponseModel(
-                    wild=row["wild"],
+                    product_id=row["product_id"],
                     date=row["date"],
                     total_orders_sum=row["total_orders_sum"],
+                    total_orders_sum_7d=row["total_orders_sum_7d"],
+                    avg_sum_rub_7d = row["avg_sum_rub_7d"],
                     total_orders_count=row["total_orders_count"],
+                    total_orders_count_7d = row["total_orders_count_7d"],
+                    avg_orders_count_7d = row["avg_orders_count_7d"],
                     average_bill=row["average_bill"],
                     marginal=f'{int(row["marginal"] * 100)}%',
                     conditional_profit=row["conditional_profit"],
@@ -107,7 +148,8 @@ class OrderHistoryRepository:
                     carts=row["carts"],
                     drr=f'{int(row["drr"] * 100)}%',
                     physical_quantity=row["physical_quantity"],
-                    wb_quantity=row["wb_quantity"]
+                    wb_quantity=row["wb_quantity"],
+                    participation_in_adversting = row["participation_in_adversting"]
 				) 
                 for row in rows
                 ]
