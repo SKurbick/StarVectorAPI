@@ -11,10 +11,10 @@ router = APIRouter(tags=["Orders History"])
 
 @router.get("/orders_history", status_code=200, response_model=list[OrderHistoryResponseModel])
 async def get_orders_history(
-    wild: str = Query(...),
+    product_id: str = Query(...),
     start: date | None = Query(None),
     end: date | None = Query(None),
     service: OrderHistoryService = Depends(get_order_history_service)
 ) -> list[OrderHistoryResponseModel]:
 
-    return await service.get_orders_history(wild, start, end)
+    return await service.get_orders_history(product_id, start, end)

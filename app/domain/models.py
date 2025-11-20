@@ -1164,7 +1164,7 @@ class CloseOperationResponse(BaseModel):
 
 
 class OrderHistoryResponseModel(BaseModel):
-    wild: str
+    product_id: str
     date: str
     total_orders_sum: int
     total_orders_sum_7d: int

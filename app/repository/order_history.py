@@ -21,7 +21,7 @@ class OrderHistoryRepository:
     )
     async def get_orders_history(
             self,
-            wild: str,
+            product_id: str,
             start: date | None,
             end: date | None
 	) -> list[OrderHistoryResponseModel]:
@@ -97,7 +97,7 @@ class OrderHistoryRepository:
                     GROUP BY asl.wild, asl.date_day
                 )
                 SELECT
-                    ad.wild,
+                    ad.wild AS product_id,
                     TO_CHAR(ad.date_day, 'YYYY-MM-DD') as date,
                     ad.total_orders_sum AS total_orders_sum,
                     ad.total_orders_sum_7d,
@@ -125,10 +125,10 @@ class OrderHistoryRepository:
                 ORDER BY ad.date_day DESC;
             """
 
-            rows = await conn.fetch(query, wild, start, end)
+            rows = await conn.fetch(query, product_id, start, end)
             return [
                 OrderHistoryResponseModel(
-                    wild=row["wild"],
+                    product_id=row["product_id"],
                     date=row["date"],
                     total_orders_sum=row["total_orders_sum"],
                     total_orders_sum_7d=row["total_orders_sum_7d"],
