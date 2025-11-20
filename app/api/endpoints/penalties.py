@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, UploadFile, File
 
 from app.dependencies import get_penalty_service, get_dates_period_filter
 from app.domain.models import DaylyPenaltiesReport, PeriodRequestModel, PenaltyAnnotationUpdate, ResponseMessage
@@ -37,3 +37,15 @@ async def get_all_loss_owners() -> list[dict[str, int | str]]:
         {"id": owner.id, "loss_owner": owner.value_for_db}
         for owner in LossOwnerEnum
     ]
+
+@router.put("/penalty_annotation_from_excel", status_code=status.HTTP_200_OK,
+              description="Обновление аннотаций к штрафам с Excel файла")
+async def update_penalty_annotations_from_excel(
+    upload_file: UploadFile = File(...),
+    service: PenaltyService = Depends(get_penalty_service)
+) -> ResponseMessage:
+    await service.update_penalty_annotations_from_excel(upload_file=upload_file)
+    return ResponseMessage(
+        status=status.HTTP_200_OK,
+        message="Penalty annotations successfully updated"
+    )
