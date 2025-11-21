@@ -87,5 +87,6 @@ class ProductNoteRepository:
                     await conn.execute(query, *all_params)
 
                 else:
+                    set_clauses.append("updated_at = NOW()")
                     query = f"UPDATE product_notes SET {', '.join(set_clauses)} WHERE {template_conditions}"
                     await conn.execute(query, *all_params)
