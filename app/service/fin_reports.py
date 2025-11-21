@@ -126,3 +126,9 @@ class FinReportsService:
         except Exception as e:
             logging.exception(f"Критическая ошибка при обработке аккаунта {account}: {e}")
             raise Exception(e)
+
+    async def update_daily_fin_reports_agg(self, number_of_last_days: int = 1):
+        """
+        Обновить таблицу для сводных данных.
+        """
+        return await self.repository.update_daily_fin_reports_agg(number_of_last_days)
