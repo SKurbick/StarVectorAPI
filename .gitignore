@@ -8,3 +8,5 @@ logs/
 log/
 .ruff_cache
 .mypy_cache
+
+.docker-compose.dev.yml
