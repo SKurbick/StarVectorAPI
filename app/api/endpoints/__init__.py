@@ -16,6 +16,7 @@ from .competitors_prices import router as competitors_prices_router
 from .close_card import router as close_card_router
 from .open_card import router as open_card_router
 from .order_history import router as orders_history_router
+from .product_note import router as product_note_router
 
 
 __all__ = [
@@ -37,4 +38,5 @@ __all__ = [
     'close_card_router',
     'open_card_router',
     'orders_history_router',
+    'product_note_router',
 ]
