@@ -19,19 +19,45 @@ class CardDataRepository:
 
             return [CardData(**row) for row in rows]
 
-    async def get_article_ids_by_barcodes(self, barcodes: list[str]) -> dict[str, int]:
+    async def get_article_ids_by_barcodes(self, barcodes: dict[str, list[str]]) -> dict[str, dict[str, int]]:
         """
-        Возвращает словарь: {barcode: article_id}.
+        Возвращает nm_id карточек с баркодами, сгруппированные по аккаунтам.
         Баркоды, не найденные в БД, отсутствуют в результате.
         """
-        if not barcodes:
+        where_conditions = []
+        params = []
+
+        for acc, skus in barcodes.items():
+            if not skus:
+                continue
+
+            where_conditions.append(
+                f"(a.account = ${len(params) + 1} AND cd.barcode = ANY(${len(params) + 2}))"
+            )
+            params.extend((acc, skus))
+
+        if not where_conditions:
             return {}
 
         query = """
-            SELECT barcode, article_id
-            FROM card_data
-            WHERE barcode = ANY($1)
+            SELECT a.account, cd.article_id, cd.barcode
+            FROM card_data cd
+            LEFT JOIN article a ON a.nm_id = cd.article_id
         """
 
-        rows = await self.pool.fetch(query, barcodes)
-        return {row["barcode"]: row["article_id"] for row in rows}
+        query += " WHERE " + " OR ".join(where_conditions)
+        query += " ORDER BY a.account, cd.article_id, cd.barcode"
+
+        rows = await self.pool.fetch(query, *params)
+
+        result = {}
+
+        for row in rows:
+            account = row["account"]
+
+            if not account in result:
+                result[account] = {}
+
+            result[account][row["barcode"]] = row["article_id"]
+
+        return result
