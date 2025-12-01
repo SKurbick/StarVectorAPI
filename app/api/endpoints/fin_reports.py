@@ -23,7 +23,7 @@ async def get_weekly_fin_reports_agg(
     return await service.get_fin_reports_aggregated(period, number_of_last_weeks)
 
 
-@router.post("/jobs/fetch_daily_financial_reports", status_code=200, include_in_schema=False)
+@router.post("/jobs/fetch_daily_financial_reports", status_code=200, include_in_schema=True)
 async def fetch_daily_fin_reports(
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
@@ -46,7 +46,7 @@ async def fetch_daily_fin_reports(
         )
 
 
-@router.post("/jobs/update_daily_fin_reports_agg", status_code=200, include_in_schema=False)
+@router.post("/jobs/update_daily_fin_reports_agg", status_code=200, include_in_schema=True)
 async def update_daily_fin_reports_agg(
     number_of_last_days: int = Query(1, description="1 - за предыдущий день. 2, 3 и далее - количество последних дней"),
     service: FinReportsService = Depends(get_fin_reports_service),
