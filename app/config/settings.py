@@ -32,8 +32,6 @@ class Settings(BaseSettings):
     REDIS_TIMEOUT: float
     REDIS_MAX_CONNECTIONS: int
 
-    MARKETPLACE_CLIENT_APP_URL: str
-
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

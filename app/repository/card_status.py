@@ -83,7 +83,7 @@ class CardStatusRepository:
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 where_clause = "account = $1 AND nm_id = ANY($2)"
-                params = [account, nm_ids]
+                params = [account.upper(), nm_ids]
 
                 if from_status is not None:
                     where_clause += " AND status = $3"
@@ -121,13 +121,13 @@ class CardStatusRepository:
                     ON CONFLICT (nm_id, account)
                     DO UPDATE SET status = $3, updated_at = NOW()
                 """
-                await conn.execute(upsert_query, to_update, account, new_status)
+                await conn.execute(upsert_query, to_update, account.upper(), new_status)
 
                 log_query = """
                     INSERT INTO card_status_log (nm_id, account, status, changed_at)
                     SELECT unnest($1::bigint[]), $2, $3, NOW()
                 """
-                await conn.execute(log_query, to_update, account, new_status)
+                await conn.execute(log_query, to_update, account.upper(), new_status)
 
                 return to_update
 

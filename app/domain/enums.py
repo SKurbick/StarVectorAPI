@@ -48,6 +48,10 @@ class CardStatusEnum(str, Enum):
     closed = "closed"
     active = "active"
     closing_pending = "closing_pending"
+    new = "new"
+    on_sale = "on_sale"
+    trashed = "trashed"
+    deleted = "deleted"
 
 
 class ExcelParserEnum(Enum):

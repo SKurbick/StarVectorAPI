@@ -61,3 +61,23 @@ class CardDataRepository:
             result[account][row["barcode"]] = row["article_id"]
 
         return result
+
+    async def create_card_data(self, data):
+        query = """
+        INSERT INTO card_data (
+            article_id, barcode, height, length, width,
+            weight_brutto, subject_name, last_update_time
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        ON CONFLICT (article_id) DO UPDATE 
+        SET height = EXCLUDED.height,
+            length = EXCLUDED.length,
+            width = EXCLUDED.width,
+            weight_brutto = EXCLUDED.weight_brutto,                
+            subject_name = EXCLUDED.subject_name,
+            last_update_time = EXCLUDED.last_update_time
+        """
+
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.executemany(query, data)
