@@ -14,5 +14,5 @@ class CardDataService:
     async def get_all_card_data(self) -> List[CardData]:
         return await self.card_data_repository.get_all_card_data()
 
-    async def get_article_ids_by_barcodes(self,  barcodes: list[str]) -> dict[str, int]:
+    async def get_article_ids_by_barcodes(self, barcodes: dict[str, list[str]]) -> dict[str, dict[str, int]]:
         return await self.card_data_repository.get_article_ids_by_barcodes(barcodes)

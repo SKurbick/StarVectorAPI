@@ -37,7 +37,7 @@ class ArticleRepository:
                 a.account,
                 lcp.purchase_price,
                 lcp.status_by_lvc,
-                lcp.local_vendor_code,
+                a.local_vendor_code,
                 -- Явно перечисляем нужные поля из card_data вместо cd.*
                 cd.article_id,
                 cd.barcode,
@@ -52,10 +52,11 @@ class ArticleRepository:
                 cd.manager,
                 cd.local_card_name,
                 -- Добавляем остальные нужные поля из card_data...
-                crfs.stocks_quantity
+                crfs.stocks_quantity,
+                pn.note
             FROM
                 article a
-            INNER JOIN
+            LEFT JOIN
                 LatestCostPrice lcp
                 ON a.local_vendor_code = lcp.local_vendor_code
             INNER JOIN
@@ -63,7 +64,9 @@ class ArticleRepository:
                 ON a.nm_id = cd.article_id
             LEFT JOIN
                 current_real_fbs_stocks_qty crfs
-                ON a.local_vendor_code = crfs.local_vendor_code;
+                ON a.local_vendor_code = crfs.local_vendor_code
+            LEFT JOIN product_notes pn 
+            	on a.nm_id = pn.nm_id and a.account = pn.account and a.local_vendor_code = pn.local_vendor_code;
                             """
             rows = await conn.fetch(query)
             result = []

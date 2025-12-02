@@ -11,22 +11,34 @@ class OrderHistoryService:
 
     async def get_orders_history(
             self, 
-            start_day: date | None, 
-            end_day: date | None
+            product_id: str, 
+            start: date,
+            end: date
     ) -> list[OrderHistoryResponseModel]:
 
-        # обработка ошибки: если указаны start_day и end_day и start_day > end_day
-        if start_day and end_day and start_day > end_day:
+        # если не указан wild в query
+        if not product_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Start_day cannot be greater than end_day"
+                detail='Необходимо полностью указать wild'
             )
-            
-        # если start_day = будущей дате
-        if start_day and start_day > date.today():
+        
+        if start and start > date.today():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail='Start_day is in the future'
-        )
+                detail='Начало периода не может быть больше сегодняшней даты'
+            )
+        
+        if start and not isinstance(start, date):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Некорректный тип данных. Введите дату в формате ГГГГ-ММ-ДД"
+            )
+        
+        if end and not isinstance(end, date):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Некорректный тип данных. Введите дату в формате ГГГГ-ММ-ДД"
+            )
 
-        return await self.repository.get_orders_history(start_day=start_day, end_day=end_day)
+        return await self.repository.get_orders_history(product_id, start, end)

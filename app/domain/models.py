@@ -116,6 +116,7 @@ class CostPrice(BaseModel):
 
 class ArticleDetails(AccountBase, CostPrice, CardData):
     stocks_quantity: Union[int, None]
+    note: str | None
 
     class Config:
         json_schema_extra = {
@@ -138,7 +139,8 @@ class ArticleDetails(AccountBase, CostPrice, CardData):
                  # "logistic_from_wb_wh_to_opp": 123.12,
                  # "commission_wb": 12.12,
                  "rating": 4.99,
-                 "stocks_quantity": 123
+                 "stocks_quantity": 123,
+                 "note": "Какая-то заметка"
                  },
             ]
         }
@@ -1164,10 +1166,14 @@ class CloseOperationResponse(BaseModel):
 
 
 class OrderHistoryResponseModel(BaseModel):
-    wild: str
+    product_id: str
     date: str
     total_orders_sum: int
+    total_orders_sum_7d: int
+    avg_sum_rub_7d: int
     total_orders_count: int
+    total_orders_count_7d: int
+    avg_orders_count_7d: int
     average_bill: float | None
     marginal: str
     conditional_profit: int
@@ -1181,6 +1187,21 @@ class OrderHistoryResponseModel(BaseModel):
     drr: str
     physical_quantity: int | None
     wb_quantity: int | None
+    participation_in_adversting: bool
+
+
+class ProductNoteIdentifier(BaseModel):
+    """Идентификатор заметки."""
+
+    nm_id: int = Field(...)
+    product_id: str = Field(...)
+    account: str = Field(...)
+
+
+class ProductNoteUpdate(BaseModel):
+    """Модель для обновления заметок."""
+    identifier: ProductNoteIdentifier
+    note: str
 
 
 class CardDimensions(BaseModel):
