@@ -195,6 +195,7 @@ class FinReportsRepository:
                 FROM supply_to_sellers_warehouse
                 WHERE is_valid = TRUE
                 AND supplier_name != 'РВБ ООО'
+                AND quantity != 0
                 ORDER BY local_vendor_code, supply_date DESC
             )
         """
