@@ -37,7 +37,7 @@ class ArticleRepository:
                 a.account,
                 lcp.purchase_price,
                 lcp.status_by_lvc,
-                lcp.local_vendor_code,
+                a.local_vendor_code,
                 -- Явно перечисляем нужные поля из card_data вместо cd.*
                 cd.article_id,
                 cd.barcode,
@@ -56,7 +56,7 @@ class ArticleRepository:
                 pn.note
             FROM
                 article a
-            INNER JOIN
+            LEFT JOIN
                 LatestCostPrice lcp
                 ON a.local_vendor_code = lcp.local_vendor_code
             INNER JOIN
