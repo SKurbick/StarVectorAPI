@@ -1202,3 +1202,11 @@ class ProductNoteUpdate(BaseModel):
     """Модель для обновления заметок."""
     identifier: ProductNoteIdentifier
     note: str
+
+class ICNetProfitData(BaseModel):
+    """Чистая прибыль по ИУ день"""
+    date: date
+    net_profit: float
+
+class ICNetProfitResponseModel(ArticleBase):
+    data: list[ICNetProfitData]
