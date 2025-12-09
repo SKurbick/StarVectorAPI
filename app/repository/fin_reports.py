@@ -156,7 +156,7 @@ class FinReportsRepository:
     @staticmethod
     def _records_to_list_tuples(
             records: list[Record],
-            account: str, 
+            account: str,
             all_columns: list[str]
         ) -> Generator[tuple, Any, None]:
         for record in records:
@@ -182,46 +182,67 @@ class FinReportsRepository:
         """
         if not isinstance(number_of_last_days, int):
             raise ValueError("'number_of_last_days' - ожидаем тип параметра 'int'.")
-        
+
         str_interval = f"{number_of_last_days} day"
 
-
-        latest_supply_price_cte = """
-            latest_supply_price AS (
-                SELECT DISTINCT ON (local_vendor_code)
-                    local_vendor_code,
-                    supply_date,
-                    ROUND(amount_with_vat / quantity, 2) AS price_per_item
-                FROM supply_to_sellers_warehouse
-                WHERE is_valid = TRUE
-                AND supplier_name != 'РВБ ООО'
-                AND quantity != 0
-                ORDER BY local_vendor_code, supply_date DESC
+        latest_purchase_price_cte = """
+            latest_purchase_price AS (
+                SELECT DISTINCT ON (LOWER(stsw.local_vendor_code))
+                    LOWER(stsw.local_vendor_code) AS local_vendor_code,
+                    ROUND(amount_with_vat/quantity, 2) AS price_per_item
+                FROM supply_to_sellers_warehouse stsw
+                WHERE stsw.is_valid = True
+                    AND LOWER(stsw.local_vendor_code) LIKE 'wild%'
+                    AND stsw.supplier_name != 'РВБ ООО'
+                    AND stsw.quantity != 0
+                ORDER BY LOWER(stsw.local_vendor_code), stsw.supply_date DESC
+            )
+        """
+        vendor_codes_match_cte = """
+            vendor_codes_match AS (
+                SELECT distinct ON (LOWER(a.vendor_code))
+                    LOWER(a.vendor_code) AS vendor_code,
+                    LOWER(a.local_vendor_code) AS local_vendor_code
+                FROM article a
+                WHERE LOWER(a.local_vendor_code) LIKE 'wild%'
             )
         """
         purchase_cost_by_date_cte = f"""
             purchase_cost_by_date AS (
                 SELECT
-                    f.date_from,
-                    SUM(CASE WHEN f.supplier_oper_name = 'Продажа' THEN f.quantity * l.price_per_item ELSE 0 END) AS purchase_cost_sales,
-                    SUM(CASE WHEN f.supplier_oper_name = 'Возврат' THEN f.quantity * l.price_per_item ELSE 0 END) AS purchase_cost_returns
-                FROM daily_fin_reports_full f
-                LEFT JOIN latest_supply_price l
-                    ON f.sa_name = l.local_vendor_code
-                WHERE f.supplier_oper_name IN ('Продажа', 'Возврат')
-                AND f.date_from BETWEEN (CURRENT_DATE - INTERVAL '{str_interval}') AND (CURRENT_DATE - INTERVAL '1 day')
-                GROUP BY f.date_from
+                    f_1.date_from,
+                    SUM(
+                        CASE
+                            WHEN f_1.supplier_oper_name = 'Продажа'
+                            THEN f_1.quantity * lpp.price_per_item
+                            ELSE 0
+                        END
+                    ) AS purchase_cost_sales,
+                    SUM(
+                        CASE
+                            WHEN f_1.supplier_oper_name = 'Возврат'
+                            THEN f_1.quantity * lpp.price_per_item
+                            ELSE 0
+                        END
+                    ) AS purchase_cost_returns
+                FROM daily_fin_reports_full f_1
+                LEFT JOIN vendor_codes_match vcm
+                    ON LOWER(f_1.sa_name) = vcm.vendor_code
+                LEFT JOIN latest_purchase_price lpp
+                    ON vcm.local_vendor_code = lpp.local_vendor_code
+                WHERE f_1.supplier_oper_name IN ('Продажа', 'Возврат')
+                    AND f_1.date_from BETWEEN (CURRENT_DATE - INTERVAL '{str_interval}') AND (CURRENT_DATE - INTERVAL '1 day')
+                GROUP BY f_1.date_from
             )
         """
-
         financials_cte = f"""
             financials AS (
                 SELECT
                     f.date_from,
                     SUM(CASE WHEN f.supplier_oper_name = 'Продажа' THEN f.retail_price_withdisc_rub ELSE 0 END)
-                - SUM(CASE WHEN f.supplier_oper_name = 'Возврат' THEN f.retail_price_withdisc_rub ELSE 0 END)
-                - (
-                        SUM(CASE WHEN f.supplier_oper_name = 'Продажа' THEN f.ppvz_for_pay ELSE 0 END)
+                    - SUM(CASE WHEN f.supplier_oper_name = 'Возврат' THEN f.retail_price_withdisc_rub ELSE 0 END)
+                    - (
+                    SUM(CASE WHEN f.supplier_oper_name = 'Продажа' THEN f.ppvz_for_pay ELSE 0 END)
                     - SUM(CASE WHEN f.supplier_oper_name = 'Коррекция продаж' THEN f.ppvz_for_pay ELSE 0 END)
                     + SUM(CASE WHEN f.supplier_oper_name = 'Добровольная компенсация при возврате' THEN f.ppvz_for_pay ELSE 0 END)
                     + SUM(CASE WHEN f.supplier_oper_name = 'Коррекция возвратов' THEN f.ppvz_for_pay ELSE 0 END)
@@ -230,32 +251,32 @@ class FinReportsRepository:
                     + SUM(CASE WHEN f.supplier_oper_name = 'Корректировка эквайринга' THEN f.ppvz_for_pay ELSE 0 END)
                     ) AS wb_commission,
                     SUM(CASE WHEN f.supplier_oper_name = 'Продажа' THEN f.ppvz_for_pay ELSE 0 END)
-                - SUM(CASE WHEN f.supplier_oper_name = 'Коррекция продаж' THEN f.ppvz_for_pay ELSE 0 END)
-                + SUM(CASE WHEN f.supplier_oper_name = 'Добровольная компенсация при возврате' THEN f.ppvz_for_pay ELSE 0 END)
-                + SUM(CASE WHEN f.supplier_oper_name = 'Коррекция возвратов' THEN f.ppvz_for_pay ELSE 0 END)
-                - SUM(CASE WHEN f.supplier_oper_name = 'Возврат' THEN f.ppvz_for_pay ELSE 0 END)
-                + SUM(CASE WHEN f.supplier_oper_name = 'Компенсация ущерба' THEN f.ppvz_for_pay ELSE 0 END)
-                + SUM(CASE WHEN f.supplier_oper_name = 'Корректировка эквайринга' THEN f.ppvz_for_pay ELSE 0 END) AS payout,
+                    - SUM(CASE WHEN f.supplier_oper_name = 'Коррекция продаж' THEN f.ppvz_for_pay ELSE 0 END)
+                    + SUM(CASE WHEN f.supplier_oper_name = 'Добровольная компенсация при возврате' THEN f.ppvz_for_pay ELSE 0 END)
+                    + SUM(CASE WHEN f.supplier_oper_name = 'Коррекция возвратов' THEN f.ppvz_for_pay ELSE 0 END)
+                    - SUM(CASE WHEN f.supplier_oper_name = 'Возврат' THEN f.ppvz_for_pay ELSE 0 END)
+                    + SUM(CASE WHEN f.supplier_oper_name = 'Компенсация ущерба' THEN f.ppvz_for_pay ELSE 0 END)
+                    + SUM(CASE WHEN f.supplier_oper_name = 'Корректировка эквайринга' THEN f.ppvz_for_pay ELSE 0 END) AS payout,
                     SUM(CASE WHEN f.supplier_oper_name = 'Логистика' THEN f.delivery_rub ELSE 0 END)
-                + SUM(CASE WHEN f.supplier_oper_name = 'Коррекция логистики' THEN f.delivery_rub ELSE 0 END) AS logistics,
+                    + SUM(CASE WHEN f.supplier_oper_name = 'Коррекция логистики' THEN f.delivery_rub ELSE 0 END) AS logistics,
                     SUM(CASE WHEN f.supplier_oper_name = 'Продажа' THEN f.ppvz_for_pay ELSE 0 END)
-                - SUM(CASE WHEN f.supplier_oper_name = 'Коррекция продаж' THEN f.ppvz_for_pay ELSE 0 END)
-                + SUM(CASE WHEN f.supplier_oper_name = 'Добровольная компенсация при возврате' THEN f.ppvz_for_pay ELSE 0 END)
-                + SUM(CASE WHEN f.supplier_oper_name = 'Коррекция возвратов' THEN f.ppvz_for_pay ELSE 0 END)
-                - SUM(CASE WHEN f.supplier_oper_name = 'Возврат' THEN f.ppvz_for_pay ELSE 0 END)
-                + SUM(CASE WHEN f.supplier_oper_name = 'Компенсация ущерба' THEN f.ppvz_for_pay ELSE 0 END)
-                + SUM(CASE WHEN f.supplier_oper_name = 'Корректировка эквайринга' THEN f.ppvz_for_pay ELSE 0 END)
-                - SUM(CASE WHEN f.supplier_oper_name = 'Штраф' THEN f.penalty ELSE 0 END)
-                - SUM(CASE WHEN f.supplier_oper_name = 'Удержание' THEN f.deduction ELSE 0 END)
-                - SUM(CASE WHEN f.supplier_oper_name = 'Платная приемка' THEN f.acceptance ELSE 0 END)
-                - (
-                        SUM(CASE WHEN f.supplier_oper_name = 'Логистика' THEN f.delivery_rub ELSE 0 END)
+                    - SUM(CASE WHEN f.supplier_oper_name = 'Коррекция продаж' THEN f.ppvz_for_pay ELSE 0 END)
+                    + SUM(CASE WHEN f.supplier_oper_name = 'Добровольная компенсация при возврате' THEN f.ppvz_for_pay ELSE 0 END)
+                    + SUM(CASE WHEN f.supplier_oper_name = 'Коррекция возвратов' THEN f.ppvz_for_pay ELSE 0 END)
+                    - SUM(CASE WHEN f.supplier_oper_name = 'Возврат' THEN f.ppvz_for_pay ELSE 0 END)
+                    + SUM(CASE WHEN f.supplier_oper_name = 'Компенсация ущерба' THEN f.ppvz_for_pay ELSE 0 END)
+                    + SUM(CASE WHEN f.supplier_oper_name = 'Корректировка эквайринга' THEN f.ppvz_for_pay ELSE 0 END)
+                    - SUM(CASE WHEN f.supplier_oper_name = 'Штраф' THEN f.penalty ELSE 0 END)
+                    - SUM(CASE WHEN f.supplier_oper_name = 'Удержание' THEN f.deduction ELSE 0 END)
+                    - SUM(CASE WHEN f.supplier_oper_name = 'Платная приемка' THEN f.acceptance ELSE 0 END)
+                    - (
+                    SUM(CASE WHEN f.supplier_oper_name = 'Логистика' THEN f.delivery_rub ELSE 0 END)
                     + SUM(CASE WHEN f.supplier_oper_name = 'Коррекция логистики' THEN f.delivery_rub ELSE 0 END)
                     ) AS total_to_pay,
                     SUM(CASE WHEN f.supplier_oper_name = 'Продажа' THEN f.retail_price_withdisc_rub ELSE 0 END)
-                - SUM(CASE WHEN f.supplier_oper_name = 'Возврат' THEN f.retail_price_withdisc_rub ELSE 0 END)
-                - SUM(CASE WHEN f.supplier_oper_name = 'Коррекция возвратов' THEN f.retail_price_withdisc_rub ELSE 0 END)
-                + SUM(CASE WHEN f.supplier_oper_name = 'Коррекция продаж' THEN f.retail_price_withdisc_rub ELSE 0 END) AS revenue,
+                    - SUM(CASE WHEN f.supplier_oper_name = 'Возврат' THEN f.retail_price_withdisc_rub ELSE 0 END)
+                    - SUM(CASE WHEN f.supplier_oper_name = 'Коррекция возвратов' THEN f.retail_price_withdisc_rub ELSE 0 END)
+                    + SUM(CASE WHEN f.supplier_oper_name = 'Коррекция продаж' THEN f.retail_price_withdisc_rub ELSE 0 END) AS revenue,
                     SUM(f.retail_price_withdisc_rub) AS retail_price_disc,
                     SUM(f.penalty) AS penalties,
                     SUM(f.storage_fee) AS storage_fee,
@@ -272,7 +293,7 @@ class FinReportsRepository:
             )
         """
 
-        all_cte_query = f"WITH {latest_supply_price_cte},{purchase_cost_by_date_cte},{financials_cte} "
+        all_cte_query = f"WITH {latest_purchase_price_cte},{vendor_codes_match_cte},{purchase_cost_by_date_cte},{financials_cte} "
         full_query = all_cte_query + """
             INSERT INTO daily_fin_reports_agg
             SELECT
