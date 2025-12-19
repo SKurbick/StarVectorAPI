@@ -332,7 +332,29 @@ class FinReportsRepository:
             FROM financials f
             LEFT JOIN purchase_cost_by_date p
                 ON f.date_from = p.date_from
-            ON CONFLICT (date_from) DO NOTHING;
+            ON CONFLICT (date_from) DO UPDATE SET
+                wb_commission = EXCLUDED.wb_commission,
+                wb_commission_pct = EXCLUDED.wb_commission_pct,
+                payout = EXCLUDED.payout,
+                logistics = EXCLUDED.logistics,
+                total_to_pay = EXCLUDED.total_to_pay,
+                revenue = EXCLUDED.revenue,
+                retail_price_disc = EXCLUDED.retail_price_disc,
+                penalties = EXCLUDED.penalties,
+                storage_fee = EXCLUDED.storage_fee,
+                deductions = EXCLUDED.deductions,
+                paid_acceptance = EXCLUDED.paid_acceptance,
+                credit_transfers = EXCLUDED.credit_transfers,
+                to_client_cancel = EXCLUDED.to_client_cancel,
+                from_client_cancel = EXCLUDED.from_client_cancel,
+                from_client_return = EXCLUDED.from_client_return,
+                to_client_sale = EXCLUDED.to_client_sale,
+                purchase_cost_sales = EXCLUDED.purchase_cost_sales,
+                purchase_cost_returns = EXCLUDED.purchase_cost_returns,
+                purchase_cost_total = EXCLUDED.purchase_cost_total,
+                margin_before_cost_pct = EXCLUDED.margin_before_cost_pct,
+                gp_after_wb = EXCLUDED.gp_after_wb,
+                gp_after_wb_pct = EXCLUDED.gp_after_wb_pct;
         """
 
         try:
@@ -389,7 +411,8 @@ class FinReportsRepository:
                     WHEN bonus_type_name ~~ 'Предоставление услуг по подписке «Джем»%'::text THEN 'Предоставление услуг по подписке «Джем»'::text
                     ELSE bonus_type_name
                 END
-            ON CONFLICT (date_from, grouped_bonus_type_name) DO NOTHING;
+            ON CONFLICT (date_from, grouped_bonus_type_name) DO UPDATE SET
+                total_deduction = EXCLUDED.total_deduction
         """
 
         try:
