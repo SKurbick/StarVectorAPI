@@ -60,3 +60,19 @@ async def update_daily_fin_reports_agg(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error while updating daily financial reports_agg: {e}",
         )
+
+
+@router.post("/jobs/update_daily_fin_reports_deductions", status_code=200, include_in_schema=True)
+async def update_daily_fin_reports_deductions(
+    number_of_last_days: int = Query(1, description="1 - за предыдущий день. 2, 3 и далее - количество последних дней"),
+    service: FinReportsService = Depends(get_fin_reports_service),
+    _: None = Depends(verify_scheduler_api_key)
+):
+    try:
+        result = await service.update_daily_fin_reports_deduction(number_of_last_days)
+        return {"message": "Daily financial reports deductions updated successfully", "detail": result}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error while updating daily financial reports deductions: {e}",
+        )

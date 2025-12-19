@@ -340,4 +340,61 @@ class FinReportsRepository:
                 async with conn.transaction():
                     await conn.execute(full_query)
         except PostgresError as e:
-            raise Exception(f"Ошибка при обновлении таблицы: {e}")
+            raise Exception(f"Ошибка при обновлении таблицы daily_fin_reports_agg: {e}")
+
+    async def update_daily_fin_reports_deductions(self, number_of_last_days: int = 1) -> None:
+        """
+        Обновить таблицу с удержаниями из ежедневных финансовых отчетов."
+        """
+        if not isinstance(number_of_last_days, int):
+            raise ValueError("'number_of_last_days' - ожидаем тип параметра 'int'.")
+
+        str_interval = f"{number_of_last_days} day"
+
+        query = f"""
+            INSERT INTO daily_fin_reports_deductions (
+                date_from,
+                grouped_bonus_type_name,
+                total_deduction
+            )
+            SELECT
+                date_from,
+                CASE
+                    WHEN bonus_type_name ~~ 'Перевод на баланс заёмщика для оплаты по кредиту%'::text THEN 'Перевод на баланс заёмщика для оплаты по кредиту'::text
+                    WHEN bonus_type_name ~~ 'Списание за отзыв%'::text THEN 'Списание за отзыв'::text
+                    WHEN bonus_type_name ~~ 'Перевод на баланс заёмщика для оплаты процентов по кредиту%'::text THEN 'Перевод на баланс заёмщика для оплаты процентов по кредиту'::text
+                    WHEN bonus_type_name ~~ 'Перевод на баланс заёмщика для оплаты основного долга по кредиту%'::text THEN 'Перевод на баланс заёмщика для оплаты основного долга по кредиту'::text
+                    WHEN bonus_type_name ~~ 'Перевод на баланс заёмщика для оплаты комиссии по кредиту%'::text THEN 'Перевод на баланс заёмщика для оплаты комиссии по кредиту'::text
+                    WHEN bonus_type_name ~~ 'Услуги доставки транзитных поставок%'::text THEN 'Услуги доставки транзитных поставок'::text
+                    WHEN bonus_type_name ~~ 'Акт утилизации товара(склад)%'::text THEN 'Акт утилизации товара(склад)'::text
+                    WHEN bonus_type_name ~~ 'Оказание услуг «WB Продвижение»%'::text THEN 'Оказание услуг «WB Продвижение»'::text
+                    WHEN bonus_type_name ~~ 'Предоставление услуг по подписке «Джем»%'::text THEN 'Предоставление услуг по подписке «Джем»'::text
+                    ELSE bonus_type_name
+                END AS grouped_bonus_type_name,
+                SUM(deduction) AS total_deduction
+            FROM daily_fin_reports_full
+            WHERE supplier_oper_name = ANY (ARRAY['Удержание'::text, 'Удержания'::text])
+            AND date_from BETWEEN (NOW() - INTERVAL '{str_interval}')::date AND (NOW() - INTERVAL '1 day')::date
+            GROUP BY
+                date_from,
+                CASE
+                    WHEN bonus_type_name ~~ 'Перевод на баланс заёмщика для оплаты по кредиту%'::text THEN 'Перевод на баланс заёмщика для оплаты по кредиту'::text
+                    WHEN bonus_type_name ~~ 'Списание за отзыв%'::text THEN 'Списание за отзыв'::text
+                    WHEN bonus_type_name ~~ 'Перевод на баланс заёмщика для оплаты процентов по кредиту%'::text THEN 'Перевод на баланс заёмщика для оплаты процентов по кредиту'::text
+                    WHEN bonus_type_name ~~ 'Перевод на баланс заёмщика для оплаты основного долга по кредиту%'::text THEN 'Перевод на баланс заёмщика для оплаты основного долга по кредиту'::text
+                    WHEN bonus_type_name ~~ 'Перевод на баланс заёмщика для оплаты комиссии по кредиту%'::text THEN 'Перевод на баланс заёмщика для оплаты комиссии по кредиту'::text
+                    WHEN bonus_type_name ~~ 'Услуги доставки транзитных поставок%'::text THEN 'Услуги доставки транзитных поставок'::text
+                    WHEN bonus_type_name ~~ 'Акт утилизации товара(склад)%'::text THEN 'Акт утилизации товара(склад)'::text
+                    WHEN bonus_type_name ~~ 'Оказание услуг «WB Продвижение»%'::text THEN 'Оказание услуг «WB Продвижение»'::text
+                    WHEN bonus_type_name ~~ 'Предоставление услуг по подписке «Джем»%'::text THEN 'Предоставление услуг по подписке «Джем»'::text
+                    ELSE bonus_type_name
+                END
+            ON CONFLICT (date_from, grouped_bonus_type_name) DO NOTHING;
+        """
+
+        try:
+            async with self.pool.acquire() as conn:
+                async with conn.transaction():
+                    await conn.execute(query)
+        except PostgresError as e:
+            raise Exception(f"Ошибка при обновлении таблицы daily_fin_reports_deductions: {e}")
