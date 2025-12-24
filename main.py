@@ -12,9 +12,7 @@ from app.api.endpoints import (article_router, card_data_router, price_discount_
                                turnover_router, orders_revenues_router, unit_economics_router, net_profit_router,
                                percent_by_tax_router, stocks_quantity_router, product_router, fin_reports_router,
                                sales_router, penalties_router, close_card_router, open_card_router, competitors_prices_router,
-                               orders_history_router, product_note_router, subject_data_router, product_cards_router)
-
-
+                               orders_history_router, product_note_router, subject_data_router, product_cards_router, ic_net_profit_router)
 from app.config.settings import settings
 
 
@@ -68,6 +66,7 @@ app.include_router(orders_history_router, prefix="/api")
 app.include_router(subject_data_router, prefix="/api")
 app.include_router(product_note_router, prefix="/api")
 app.include_router(product_cards_router, prefix="/api")
+app.include_router(ic_net_profit_router, prefix="/api")
 
 app.include_router(favicon_router)
 

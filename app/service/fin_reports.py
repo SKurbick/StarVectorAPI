@@ -132,3 +132,9 @@ class FinReportsService:
         Обновить таблицу для сводных данных.
         """
         return await self.repository.update_daily_fin_reports_agg(number_of_last_days)
+
+    async def update_daily_fin_reports_deduction(self, number_of_last_days: int = 1):
+        """
+        Обновить таблицу с удержаниями из ежедневных финансовых отчетов."
+        """
+        return await self.repository.update_daily_fin_reports_deductions(number_of_last_days)

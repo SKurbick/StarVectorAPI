@@ -19,6 +19,7 @@ from .order_history import router as orders_history_router
 from .product_note import router as product_note_router
 from .subject_data import router as subject_data_router
 from .product_cards import router as product_cards_router
+from.ic_net_profit import router as ic_net_profit_router
 
 
 __all__ = [
@@ -43,4 +44,5 @@ __all__ = [
     'subject_data_router',
     'product_note_router',
     'product_cards_router',
+    'ic_net_profit_router',
 ]

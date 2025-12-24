@@ -1235,7 +1235,7 @@ class CategoriesResponse(BaseModel):
                                     "name": "Аварийное оборудование"
                                 },
                                 {
-                                    "id": 789, 
+                                    "id": 789,
                                     "name": "Автобаферы"
                                 }
                             ]
@@ -1549,3 +1549,12 @@ class UpdateWBCardsResponse(BaseModel):
     account: str = Field(..., description="Аккаунт")
     updated: list[int] = Field(..., description="Список обновлённых nm_id")
     errors: list[str] = Field(..., description="Список ошибок")
+
+
+class ICNetProfitData(BaseModel):
+    """Чистая прибыль по ИУ день"""
+    date: date
+    net_profit: float
+
+class ICNetProfitResponseModel(ArticleBase):
+    data: list[ICNetProfitData]
