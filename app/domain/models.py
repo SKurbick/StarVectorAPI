@@ -1210,3 +1210,22 @@ class ICNetProfitData(BaseModel):
 
 class ICNetProfitResponseModel(ArticleBase):
     data: list[ICNetProfitData]
+
+class SalesManagementBaseSumm(BaseModel):
+    """Схема продаж по категориям"""
+    subject_name: str | None
+    summ: int
+
+class SalesManagementBaseSummWithDate(SalesManagementBaseSumm):
+    """Схема продаж по категориям с датами"""
+    date: date
+
+class SalesManagementBaseSummWithSKU(SalesManagementBaseSummWithDate):
+    """Схема продаж по категориям с датами и SKU"""
+    sku_percentage: int
+
+class SalesManagementManagerRow(BaseModel):
+    """Схема менеджеров по категориям с датами"""
+    manager: str
+    subject_name: str
+    date: date
