@@ -37,6 +37,8 @@ async def get_revenue_by_period(
 ):
     if date_start < date_end:
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="reverse date")
+    if date_start == date_end:
+        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="error period")
     result = await service.get_sum_revenue_category_by_period_with_managers(
         start_date=date_start,
         end_date=date_end,
@@ -55,6 +57,8 @@ async def get_individual_condition_by_period(
 ):
     if date_start < date_end:
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="reverse date")
+    if date_start == date_end:
+        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="error period")
     result = await service.get_sums_individual_conditions_by_period_with_category(
         start_date=date_start,
         end_date=date_end)

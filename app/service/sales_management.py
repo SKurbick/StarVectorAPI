@@ -129,7 +129,7 @@ class SalesManagementService:
         old_period_avg_sums_rows = await self.repository.get_old_sums_revenue_by_category_and_period(
             start_date=start_date - datetime.timedelta(days=period.days + 1),
             end_date=end_date - datetime.timedelta(days=period.days + 1),
-            period=period.days
+            period=period.days + 1
         )
         valid_sums_rows = [SalesManagementBaseSummWithSKU(**r) for r in sums_rows]
         valid_manager_rows = [SalesManagementManagerRow(**r) for r in manager_rows]
@@ -141,7 +141,8 @@ class SalesManagementService:
             if valid_result.get(i.subject_name) is None:
                 valid_result[i.subject_name] = {
                     "manager": "",
-                    "old_period_avg": ""
+                    "old_period_avg": 0,
+                    "sku_period_avg": 0
                 }
             if valid_result[i.subject_name].get("dates") is None:
                 valid_result[i.subject_name]["dates"] = [
@@ -169,17 +170,20 @@ class SalesManagementService:
             today_sales_sum = 0
             yesterday_sales_sum = 0
             sums_now_period = 0
+            avg_sku_period = 0
             for i in valid_result[k]["dates"]:
                 if i['date'] == start_date:
                     today_sales_sum = i['summ']
                     i['summ'] = i['summ']
                     i['sku_percentage'] = i['sku_percentage']
+                    avg_sku_period += i['sku_percentage']
                     continue
                 if i['date'] == start_date - datetime.timedelta(days=1):
                     yesterday_sales_sum = i['summ']
                 sums_now_period += i['summ']
                 i['summ'] = i['summ']
                 i['sku_percentage'] = i['sku_percentage']
+                avg_sku_period += i['sku_percentage']
             valid_result[k]["sales_today_to_tomorrow"] = self._math_percent_create(
                 low_num=today_sales_sum,
                 up_num=yesterday_sales_sum
@@ -190,6 +194,7 @@ class SalesManagementService:
                 old_period_avg=valid_result[k].get("old_period_avg"),
             )
             valid_result[k]["old_period_avg"] = valid_result[k]["old_period_avg"]
+            valid_result[k]["sku_period_avg"] = round(avg_sku_period / period.days + 1)
         if valid_result.get(None):
             del valid_result[None]
 
