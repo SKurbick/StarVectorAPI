@@ -166,7 +166,6 @@ class SalesManagementService:
 
         # Математические расчеты тут появляются значения "Продажи сегодня ко вчера", "Рост средней к прошлой"
         for k, _ in valid_result.items():
-            # TODO delete special symbols and use self_math_func
             today_sales_sum = 0
             yesterday_sales_sum = 0
             sums_now_period = 0
