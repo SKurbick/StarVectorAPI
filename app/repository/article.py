@@ -65,7 +65,7 @@ class ArticleRepository:
             LEFT JOIN
                 current_real_fbs_stocks_qty crfs
                 ON a.local_vendor_code = crfs.local_vendor_code
-            LEFT JOIN product_notes pn 
+            LEFT JOIN product_notes pn
             	on a.nm_id = pn.nm_id and a.account = pn.account and a.local_vendor_code = pn.local_vendor_code;
                             """
             rows = await conn.fetch(query)
@@ -163,10 +163,10 @@ class ArticleRepository:
         local_vendor_codes: Optional[list[str]] = None,
     ) -> tuple[list[dict], list[int], list[str]]:
         """
-        Возвращает кортеж: 
-            - список словарей с данными по карточке dict('nm_id', 'account', 'local_vendor_code'), 
-            - ненайденные артикулы, 
-            - ненайденные local_vendor_code 
+        Возвращает кортеж:
+            - список словарей с данными по карточке dict('nm_id', 'account', 'local_vendor_code'),
+            - ненайденные артикулы,
+            - ненайденные local_vendor_code
         """
         if not nm_ids_by_account and not local_vendor_codes:
             return [], [], []
@@ -231,3 +231,92 @@ class ArticleRepository:
         invalid_lvc = list(all_requested_lvc - found_lvc)
 
         return found_articles, invalid_nm_ids, invalid_lvc
+
+    async def get_article_by_nm_id_and_account(self, nm_id: int, account: str):
+        query = """
+        SELECT
+            a.nm_id,
+            a.account,
+            a.vendor_code,
+            a.local_vendor_code,
+            a.created_at
+        FROM article a
+        WHERE a.nm_id = $1 AND a.account = $2
+        """
+
+        async with self.pool.acquire() as conn:
+            return await conn.fetchrow(query, nm_id, account.upper())
+
+    async def get_vendor_codes_by_local_and_account(self, local_vendor_code: str, account: str) -> list[str]:
+        query = """
+            SELECT
+                a.vendor_code
+            FROM article a
+            WHERE a.local_vendor_code = $1 AND account = $2
+        """
+
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, local_vendor_code, account.upper())
+
+        return [row["vendor_code"] for row in rows]
+
+    async def create_article(
+        self,
+        nm_id: int,
+        account: str,
+        vendor_code: str,
+        local_vendor_code: str
+    ):
+        query = """
+        INSERT INTO article (nm_id, account, vendor_code, local_vendor_code)
+        VALUES ($1, $2, $3, $4)
+        """
+
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute(
+                    query,
+                    nm_id,
+                    account.upper(),
+                    vendor_code,
+                    local_vendor_code,
+                )
+
+    async def update_article(
+        self,
+        nm_id: int,
+        account: Optional[str] = None,
+        vendor_code: Optional[str] = None,
+        local_vendor_code: Optional[str] = None
+    ):
+        query = """
+        UPDATE article
+        SET
+        """
+        params = []
+        set_conditions = []
+
+        if account:
+            set_conditions.append(f"account = ${len(params) + 1}")
+            params.append(account.upper())
+
+        if vendor_code:
+            set_conditions.append(f"vendor_code = ${len(params) + 1}")
+            params.append(vendor_code)
+
+        if local_vendor_code:
+            set_conditions.append(f"local_vendor_code = ${len(params) + 1}")
+            params.append(local_vendor_code)
+
+        if not params:
+            raise ValueError("Нет параметров для обновления таблицы article")
+
+        full_query = query + " " + ", ".join(set_conditions) + f" WHERE nm_id = ${len(params) + 1}"
+
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute(
+                    full_query,
+                    *params,
+                    nm_id,
+                )

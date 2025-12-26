@@ -1190,7 +1190,6 @@ class OrderHistoryResponseModel(BaseModel):
     participation_in_adversting: bool
 
 
-
 class ProductNoteIdentifier(BaseModel):
     """Идентификатор заметки."""
 
@@ -1198,10 +1197,359 @@ class ProductNoteIdentifier(BaseModel):
     product_id: str = Field(...)
     account: str = Field(...)
 
+
 class ProductNoteUpdate(BaseModel):
     """Модель для обновления заметок."""
     identifier: ProductNoteIdentifier
     note: str
+
+
+class SubjectData(BaseModel):
+    id: int
+    name: str
+
+
+class CategoryData(BaseModel):
+    id: int
+    name: str
+    subjects: list[SubjectData]
+
+
+class CategoriesResponse(BaseModel):
+    categories: list[CategoryData] = Field(
+        default_factory=list,
+        description="Список категорий с вложенными предметами",
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "categories": [
+                        {
+                            "id": 123,
+                            "name": "Автоаксессуары и дополнительное оборудование",
+                            "subjects": [
+                                {
+                                    "id": 456,
+                                    "name": "Аварийное оборудование"
+                                },
+                                {
+                                    "id": 789,
+                                    "name": "Автобаферы"
+                                }
+                            ]
+                        },
+                        {
+                            "id": 124,
+                            "name": "Спортивная одежда",
+                            "subjects": [
+                                {
+                                    "id": 457,
+                                    "name": "Болеро спортивные"
+                                },
+                                {
+                                    "id": 458,
+                                    "name": "Велокуртки"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    )
+
+
+class Dimensions(BaseModel):
+    """Габариты и вес товара."""
+
+    width: int = Field(..., description="Ширина, см")
+    height: int = Field(..., description="Высота, см")
+    length: int = Field(..., description="Длина, см")
+    weight_brutto: float = Field(..., description="Вес брутто, кг")
+    is_valid: bool = Field(..., description="Флаг корректности габаритов")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "width": 200,
+                    "height": 150,
+                    "length": 300,
+                    "weight_brutto": 1.25,
+                    "is_valid": True
+                }
+            ]
+        }
+    )
+
+
+class CardCharcs(BaseModel):
+    """Характеристика карточки товара."""
+
+    id: int = Field(..., description="ID характеристики в WB")
+    name: str = Field(..., description="Название характеристики")
+    value: Union[int, float, list[str]] = Field(..., description="Значение характеристики")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {"id": 12345, "name": "Цвет", "value": "Красный"},
+                {"id": 67890, "name": "Размер", "value": 42}
+            ]
+        }
+    )
+
+
+class Size(BaseModel):
+    """Размер товара."""
+
+    chrt_id: int = Field(..., description="Уникальный ID размера в WB")
+    tech_size: str = Field(..., description="Технический размер")
+    wb_size: str = Field(..., description="Российский размер товара")
+    price: Optional[int] = Field(None, description="Цена за размер, руб")
+    skus: List[str] = Field(..., description="Список баркодов (SKU) для размера")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "chrt_id": 1234567,
+                    "tech_size": "42",
+                    "wb_size": "M",
+                    "price": 1990,
+                    "skus": ["203847293847"]
+                }
+            ]
+        }
+    )
+
+
+class Wholesale(BaseModel):
+    """Оптовые настройки товара."""
+
+    enabled: bool = Field(..., description="Включена ли оптовая продажа")
+    quantum: Optional[int] = Field(None, description="Минимальная партия для опта")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {"enabled": False, "quantum": None},
+                {"enabled": True, "quantum": 10}
+            ]
+        }
+    )
+
+
+class Tag(BaseModel):
+    """Тег карточки товара."""
+
+    id: int = Field(..., description="ID тега")
+    name: str = Field(..., description="Название тега")
+    color: str = Field(..., description="Цвет тега в HEX", examples=["#FF5733"])
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {"id": 101, "name": "Новинка", "color": "#FF5733"}
+            ]
+        }
+    )
+
+
+class WbCard(BaseModel):
+    """Полная модель карточки товара Wildberries."""
+
+    nm_id: int = Field(..., description="Артикул Wildberries (nmID)")
+    imt_id: int = Field(..., description="ID номенклатурной матрицы")
+    nm_uuid: str = Field(..., description="Уникальный UUID карточки")
+    subject_id: int = Field(..., description="ID предмета")
+    subject_name: str = Field(..., description="Название предмета")
+    vendor_code: str = Field(..., description="Артикул продавца")
+    brand: Optional[str] = Field(None, description="Бренд")
+    title: Optional[str] = Field(None, description="Название товара")
+    description: Optional[str] = Field(None, description="Описание товара",)
+    need_kiz: bool = Field(..., description="Требуется ли КИЗ (маркировка)")
+    photos: Optional[list[dict[str, str]]] = Field(None, description="Список URL фото", examples=[[{"big": "https://..."}]])
+    video: Optional[str] = Field(None, description="URL видео")
+    wholesale: Optional[Wholesale] = Field(None, description="Оптовые настройки")
+    dimensions: Dimensions = Field(..., description="Габариты товара")
+    characteristics: list[CardCharcs] = Field(..., description="Характеристики")
+    sizes: list[Size] = Field(..., description="Размеры товара")
+    tags: list[Tag] = Field(..., description="Теги")
+    created_at: datetime = Field(..., description="Дата создания карточки")
+    updated_at: datetime = Field(..., description="Дата последнего обновления")
+
+
+class WbCardTrashed(BaseModel):
+    """Модель карточки, перемещённой в корзину."""
+
+    nm_id: int = Field(..., description="Артикул Wildberries")
+    subject_id: int = Field(..., description="ID предмета", examples=[100])
+    subject_name: str = Field(..., description="Название предмета")
+    vendor_code: str = Field(..., description="Артикул продавца")
+    dimensions: Dimensions = Field(..., description="Габариты")
+    characteristics: list[CardCharcs] = Field(..., description="Характеристики")
+    sizes: list[Size] = Field(..., description="Размеры товара")
+    created_at: datetime = Field(..., description="Дата создания")
+    trashed_at: datetime = Field(..., description="Дата перемещения в корзину")
+
+
+class DimensionsCreate(BaseModel):
+    """Габариты для создания карточки (формат WB API)."""
+
+    width: int = Field(..., description="Ширина, см")
+    height: int = Field(..., description="Высота, см")
+    length: int = Field(..., description="Длина, см")
+    weight_brutto: float = Field(..., serialization_alias="weightBrutto", description="Вес брутто, кг")
+
+
+class CardCharcsCreate(BaseModel):
+    """Характеристика для создания карточки."""
+
+    id: int = Field(..., description="ID характеристики")
+    value: Union[int, float, list[str]] = Field(..., description="Значение", examples=["Красный"])
+
+
+class SizeCreate(BaseModel):
+    """Размер для создания карточки."""
+
+    tech_size: str = Field(..., serialization_alias="techSize", description="Технический размер")
+    wb_size: str = Field(..., serialization_alias="wbSize", description="Размер по WB")
+
+
+class WBCardVariantRequest(BaseModel):
+    """Вариант карточки (без vendor_code) для запроса на создание."""
+
+    brand: Optional[str] = Field(None, description="Бренд")
+    title: Optional[str] = Field(None, description="Название")
+    description: Optional[str] = Field(None, description="Описание")
+    wholesale: Optional[Wholesale] = Field(None, description="Оптовые настройки")
+    dimensions: DimensionsCreate = Field(..., description="Габариты")
+    characteristics: Optional[list[CardCharcsCreate]] = Field(None, description="Характеристики")
+    sizes: Optional[list[SizeCreate]] = Field(None, description="Размеры")
+
+
+class WBCardVariant(WBCardVariantRequest):
+    """Вариант карточки с vendor_code (для WB API)."""
+
+    vendor_code: str = Field(..., serialization_alias="vendorCode", description="Артикул продавца")
+
+
+class WBCardCreate(BaseModel):
+    """Модель для создания карточки в WB API."""
+
+    subject_id: int = Field(..., serialization_alias="subjectID", description="ID предмета")
+    variants: list[WBCardVariant] = Field(..., description="Список вариантов")
+
+
+class WBCardCreateRequest(BaseModel):
+    """Запрос на создание карточки (внутренний формат CRM)."""
+
+    subject_id: int = Field(..., description="ID предмета")
+    local_vendor_code: str = Field(..., description="Локальный артикул продавца")
+    variants: list[WBCardVariantRequest] = Field(..., description="Варианты карточки")
+
+
+class DimensionsUpdate(DimensionsCreate):
+    """Габариты для обновления."""
+    pass
+
+
+class CardCharcsUpdate(CardCharcsCreate):
+    """Характеристика для обновления."""
+    pass
+
+
+class SizeUpdate(BaseModel):
+    """Размер для обновления карточки."""
+
+    chrt_id: int = Field(..., serialization_alias="chrtID", description="ID размера")
+    tech_size: str = Field(..., serialization_alias="techSize",description="Технический размер")
+    wb_size: str = Field(..., serialization_alias="wbSize", description="Российский размер товара")
+    price: Optional[int] = Field(None, description="Цена")
+    skus: list[str] = Field(..., description="Баркоды")
+
+
+class WBCardUpdate(BaseModel):
+    """Модель обновления карточки (WB API)."""
+
+    nm_id: int = Field(..., serialization_alias="nmID", description="Артикул WB")
+    vendor_code: str = Field(..., serialization_alias="vendorCode", description="Артикул продавца")
+    brand: str = Field("", description="Бренд")
+    title: str = Field(..., description="Название")
+    description: str = Field(..., description="Описание")
+    dimensions: DimensionsUpdate = Field(..., description="Габариты")
+    characteristics: list[CardCharcsUpdate] = Field(..., description="Характеристики")
+    sizes: list[Union[SizeUpdate, SizeCreate]] = Field(..., description="Размеры")
+
+
+class UpdateWBCardsRequest(BaseModel):
+    """Запрос на обновление карточек."""
+
+    account: str = Field(..., description="Аккаунт")
+    data: list[WBCardUpdate] = Field(..., description="Список карточек для обновления")
+
+
+class UploadWBCardsRequest(BaseModel):
+    """Запрос на пакетное создание карточек."""
+
+    account: str = Field(..., description="Аккаунт")
+    data: list[WBCardCreateRequest] = Field(..., description="Список карточек для создания")
+
+
+class DuplicateWBProductCardRequest(BaseModel):
+    """Запрос на дублирование карточки."""
+
+    nm_id: int = Field(..., description="Артикул WB исходной карточки")
+    account: str = Field(..., description="Аккаунт")
+    close_old_card: bool = Field(False, description="Закрыть ли исходную карточку")
+
+
+class DuplicateWBProductCardResponse(BaseModel):
+    """Ответ на дублирование карточки."""
+
+    account: str = Field(..., description="Аккаунт")
+    source_card: int = Field(..., description="nm_id исходной карточки")
+    new_card: int = Field(..., description="nm_id новой карточки")
+    media_sinc: bool = Field(..., description="Успешна ли синхронизация медиа")
+    price_discount_sinc: bool = Field(..., description="Успешна ли синхронизация цен")
+    fbs_stock_sinc: bool = Field(..., description="Успешна ли синхронизация остатков")
+    details: list[str] = Field(..., description="Детали операции")
+    close_source: bool = Field(..., description="Исходная карточка закрыта")
+
+
+class MoveToTrashRequest(BaseModel):
+    """Запрос на перемещение в корзину."""
+
+    account: str = Field(..., description="Аккаунт")
+    nm_id: int = Field(..., description="Артикул WB")
+
+
+class CardInfoRequest(BaseModel):
+    """Запрос информации о карточке."""
+
+    account: str = Field(..., description="Аккаунт")
+    nm_id: Optional[int] = Field(None, description="Артикул WB")
+    vendor_code: Optional[str] = Field(None, description="Артикул продавца")
+
+
+class UploadWBCardsResponse(BaseModel):
+    """Ответ на создание карточек."""
+
+    account: str = Field(..., description="Аккаунт", examples=["main_ru"])
+    created: list[int] = Field(..., description="Список созданных nm_id")
+    errors: list[str] = Field(..., description="Список ошибок")
+
+
+class UpdateWBCardsResponse(BaseModel):
+    """Ответ на обновление карточек."""
+
+    account: str = Field(..., description="Аккаунт")
+    updated: list[int] = Field(..., description="Список обновлённых nm_id")
+    errors: list[str] = Field(..., description="Список ошибок")
+
 
 class ICNetProfitData(BaseModel):
     """Чистая прибыль по ИУ день"""
