@@ -32,9 +32,10 @@ class SalesManagementService:
             end_date=end_date - datetime.timedelta(days=period.days + 1),
             period=period.days
         )
-        old_period_avg_revenue_rows = await self.repository.get_old_sums_by_category_and_period(
+        old_period_avg_revenue_rows = await self.repository.get_old_sums_revenue_by_category_and_period(
             start_date=start_date - datetime.timedelta(days=period.days + 1),
             end_date=end_date - datetime.timedelta(days=period.days + 1),
+            period=period.days
         )
         valid_sums_ic_rows = [SalesManagementICWithDate(**r) for r in sums_ic_rows]
         valid_old_period_avg_ic_rows = [SalesManagementICBase(**r) for r in old_period_avg_sums_ic_rows]
@@ -107,25 +108,28 @@ class SalesManagementService:
                 up_num=valid_result[k].get("old_period_revenue_avg")
             )
             valid_result[k]["max_profit_per_period"] = max_profit
+        if valid_result.get(None):
+            del valid_result[None]
 
         return valid_result
 
-    async def get_sum_sales_category_by_period_with_managers(
+    async def get_sum_revenue_category_by_period_with_managers(
             self,
             start_date: date,
             end_date: date,
     ):
         """Получить общие цифры продаж по категориям за определенный период, с менеджерами"""
         period = start_date - end_date
-        sums_rows = await self.repository.get_sums_sales_by_category_and_period(
+        sums_rows = await self.repository.get_sums_revenue_by_category_and_period(
             date_start=start_date, date_end=end_date
         )
         manager_rows = await self.repository.get_managers_name_by_category_and_period(
             date_start=start_date, date_end=end_date
         )
-        old_period_avg_sums_rows = await self.repository.get_old_sums_by_category_and_period(
+        old_period_avg_sums_rows = await self.repository.get_old_sums_revenue_by_category_and_period(
             start_date=start_date - datetime.timedelta(days=period.days + 1),
             end_date=end_date - datetime.timedelta(days=period.days + 1),
+            period=period.days
         )
         valid_sums_rows = [SalesManagementBaseSummWithSKU(**r) for r in sums_rows]
         valid_manager_rows = [SalesManagementManagerRow(**r) for r in manager_rows]
@@ -169,20 +173,26 @@ class SalesManagementService:
             for i in valid_result[k]["dates"]:
                 if i['date'] == start_date:
                     today_sales_sum = i['summ']
-                    i['summ'] = f"{i['summ']}₽"
-                    i['sku_percentage'] = f"{i['sku_percentage']}%"
+                    i['summ'] = i['summ']
+                    i['sku_percentage'] = i['sku_percentage']
                     continue
                 if i['date'] == start_date - datetime.timedelta(days=1):
                     yesterday_sales_sum = i['summ']
                 sums_now_period += i['summ']
-                i['summ'] = f"{i['summ']}₽"
-                i['sku_percentage'] = f"{i['sku_percentage']}%"
-            valid_result[k]["sales_today_to_tomorrow"] = f"{0 if today_sales_sum == 0 or yesterday_sales_sum == 0
-            else round(today_sales_sum / yesterday_sales_sum * 100)}%"
-            valid_result[k]["hight_middle_to_old_period"] = f"{0 if sums_now_period == 0 or valid_result[k].get(
-                "old_period_avg") == 0 else round((sums_now_period / period.days) / valid_result[k].get(
-                "old_period_avg") * 100 - 100)}%"
-            valid_result[k]["old_period_avg"] = f"{valid_result[k]["old_period_avg"]}₽"
+                i['summ'] = i['summ']
+                i['sku_percentage'] = i['sku_percentage']
+            valid_result[k]["sales_today_to_tomorrow"] = self._math_percent_create(
+                low_num=today_sales_sum,
+                up_num=yesterday_sales_sum
+            )
+            valid_result[k]["height_middle_to_old_period"] = self._math_average_to_average_growth(
+                sums_now_period=sums_now_period,
+                period=period.days,
+                old_period_avg=valid_result[k].get("old_period_avg"),
+            )
+            valid_result[k]["old_period_avg"] = valid_result[k]["old_period_avg"]
+        if valid_result.get(None):
+            del valid_result[None]
 
         return valid_result
 
@@ -192,7 +202,7 @@ class SalesManagementService:
             good_category: Optional[str] = None,
     ):
         """Сумма продаж по категории за конкретный день"""
-        rows = await self.repository.get_sum_sales_by_date(date, good_category)
+        rows = await self.repository.get_sum_revenue_by_date(date, good_category)
         return [SalesManagementBaseSummWithDate(**r) for r in rows]
 
     def _math_percent_create(
@@ -205,3 +215,17 @@ class SalesManagementService:
         if up_num == 0:
             return 0
         return round(low_num / up_num * 100)
+
+    def _math_average_to_average_growth(
+            self,
+            sums_now_period: int,
+            period: int,
+            old_period_avg: int,
+    ):
+        if sums_now_period == 0:
+            return 0
+        if old_period_avg == 0:
+            return 0
+        if period == 0:
+            period = 1
+        return round((sums_now_period / period) / old_period_avg * 100 - 100)

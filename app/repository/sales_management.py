@@ -60,7 +60,7 @@ class SalesManagementRepository:
             rows = await conn.fetch(query, *params)
         return rows
 
-    async def get_sums_sales_by_category_and_period(
+    async def get_sums_revenue_by_category_and_period(
             self,
             date_start: date,
             date_end: date,
@@ -112,22 +112,22 @@ class SalesManagementRepository:
             rows = await conn.fetch(query, *params)
         return rows
 
-    async def get_old_sums_by_category_and_period(
+    async def get_old_sums_revenue_by_category_and_period(
             self,
             start_date: date,
             end_date: date,
-            # TODO need fix AVG math and naming
+            period: int,
             good_category: Optional[str] = None,
     ) -> Sequence:
         """Получить AVG по прошлому периоду по категориям"""
-        params = [end_date, start_date]
-        query = """SELECT cd.subject_name, (SUM(t.orders_sum_rub) / 7) AS summ
+        params = [end_date, start_date, period]
+        query = """SELECT cd.subject_name, (SUM(t.orders_sum_rub) / $3) AS summ
                    FROM orders_revenues t
                             JOIN card_data cd ON t.article_id = cd.article_id
                    WHERE t."date" BETWEEN $1 and $2
                 """
         if good_category is not None:
-            """AND cd.subject_name LIKE $2"""
+            """AND cd.subject_name LIKE $4"""
             params.append(f"%{good_category}%")
         query += """ GROUP BY cd.subject_name
                               ORDER BY summ DESC """
@@ -135,7 +135,7 @@ class SalesManagementRepository:
             rows = await conn.fetch(query, *params)
         return rows
 
-    async def get_sum_sales_by_date(
+    async def get_sum_revenue_by_date(
             self,
             date: date,
             good_category: Optional[str] = None,
