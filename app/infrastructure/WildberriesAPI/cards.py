@@ -154,7 +154,7 @@ class CardMarketplaceWB:
 
             cursor = response.get("cursor", {})
 
-            if not cursor or cursor.get("total", 0) <= limit:
+            if not cursor or cursor.get("total", 0) < limit:
                 break
 
             payload["settings"]["cursor"][cursor_key] = cursor[cursor_key]

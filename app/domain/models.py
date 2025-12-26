@@ -1290,7 +1290,7 @@ class CardCharcs(BaseModel):
 
     id: int = Field(..., description="ID характеристики в WB")
     name: str = Field(..., description="Название характеристики")
-    value: Union[int, list[str]] = Field(..., description="Значение характеристики")
+    value: Union[int, float, list[str]] = Field(..., description="Значение характеристики")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -1409,7 +1409,7 @@ class CardCharcsCreate(BaseModel):
     """Характеристика для создания карточки."""
 
     id: int = Field(..., description="ID характеристики")
-    value: Union[int, list[str]] = Field(..., description="Значение", examples=["Красный"])
+    value: Union[int, float, list[str]] = Field(..., description="Значение", examples=["Красный"])
 
 
 class SizeCreate(BaseModel):
