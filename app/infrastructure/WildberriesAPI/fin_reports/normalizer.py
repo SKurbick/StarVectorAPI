@@ -61,6 +61,7 @@ FIELD_TYPES = {
     "cashback_amount": "decimal",
     "cashback_discount": "decimal",
     "cashback_commission_change": "decimal",
+    "payment_schedule": "decimal",
 
     # Булевы
     "is_kgvp_v2": "bool",
@@ -94,6 +95,7 @@ FIELD_TYPES = {
     "trbx_id": "str",
     "order_uid": "str",
     "account": "str",
+    "delivery_method": "str",
 }
 
 

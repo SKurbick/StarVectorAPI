@@ -155,6 +155,9 @@ class WBFinReportFetcher:
                     attempt += 1
                     await asyncio.sleep(2 * attempt)
                     continue
+                elif e.status == 204:
+                    logging.error(f"Нет данных для аккаунта {self.account} за период: {date_from} - {date_to}")
+                    break
                 else:
                     logging.error(f"Необработанная ошибка: {e}")
                     break
