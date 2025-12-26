@@ -20,6 +20,7 @@ from .product_note import router as product_note_router
 from .subject_data import router as subject_data_router
 from .product_cards import router as product_cards_router
 from.ic_net_profit import router as ic_net_profit_router
+from .sales_management import router as sales_management_router
 
 
 __all__ = [
@@ -45,4 +46,5 @@ __all__ = [
     'product_note_router',
     'product_cards_router',
     'ic_net_profit_router',
+    'sales_management_router'
 ]
