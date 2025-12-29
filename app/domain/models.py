@@ -1577,3 +1577,13 @@ class SalesManagementManagerRow(BaseModel):
     manager: str
     subject_name: str
     date: date
+
+class SalesManagementICBase(BaseModel):
+    """Схема прибыли по Индивидуальным Условиям по категориям"""
+    subject_name: str | None
+    ic: int
+
+class SalesManagementICWithDate(SalesManagementICBase):
+    """Схема прибыли по ИС по категориям и датам"""
+    date: date
+    revenue: int

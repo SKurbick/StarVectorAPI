@@ -10,7 +10,57 @@ class SalesManagementRepository:
     def __init__(self, pool: Pool) -> None:
         self.pool = pool
 
-    async def get_sums_sales_by_category_and_period(
+    async def get_sums_ic_and_revenue_by_category_and_period(
+            self,
+            start_date: date,
+            end_date: date,
+    ) -> Sequence:
+        """Получить суммы прибыли по индивидуальным условиям по категориям"""
+        params = [end_date, start_date]
+        query = """
+                WITH aggregated_orders_revenues AS (SELECT article_id,
+                                                           SUM(orders_sum_rub) AS total_revenue,
+                    date
+                FROM orders_revenues
+                GROUP BY article_id, date
+                    )
+                SELECT cd.subject_name,
+                       SUM(anpc.sum_net_profit) AS ic,
+                       SUM(aor.total_revenue)   AS revenue,
+                       anpc."date"
+                FROM accurate_npd_purchase_calculation anpc
+                         JOIN card_data cd ON cd.article_id = anpc.article_id
+                         JOIN aggregated_orders_revenues aor
+                              ON anpc.article_id = aor.article_id AND anpc."date" = aor."date"
+                WHERE anpc."date" BETWEEN $1 AND $2
+                GROUP BY cd.subject_name, anpc."date"
+                ORDER BY anpc."date" DESC, ic DESC;
+                """
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, *params)
+        return rows
+
+    async def get_old_sums_ic_by_category_and_period(
+            self,
+            start_date: date,
+            end_date: date,
+            period: int
+    ):
+        """Получить AVG IC за прошлый период"""
+        params = [end_date, start_date, period]
+        query = """
+                SELECT cd.subject_name, ROUND((SUM(anpc.sum_net_profit) / $3), 0) AS ic
+                FROM accurate_npd_purchase_calculation anpc
+                         JOIN card_data AS cd ON cd.article_id = anpc.article_id
+                WHERE anpc."date" BETWEEN $1 AND $2
+                GROUP BY cd.subject_name
+                ORDER BY ic DESC, ic DESC \
+                """
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, *params)
+        return rows
+
+    async def get_sums_revenue_by_category_and_period(
             self,
             date_start: date,
             date_end: date,
@@ -62,21 +112,22 @@ class SalesManagementRepository:
             rows = await conn.fetch(query, *params)
         return rows
 
-    async def get_old_sums_by_category_and_period(
+    async def get_old_sums_revenue_by_category_and_period(
             self,
             start_date: date,
             end_date: date,
+            period: int,
             good_category: Optional[str] = None,
     ) -> Sequence:
         """Получить AVG по прошлому периоду по категориям"""
-        params = [end_date, start_date]
-        query = """SELECT cd.subject_name, (SUM(t.orders_sum_rub) / 7) AS summ
+        params = [end_date, start_date, period]
+        query = """SELECT cd.subject_name, (SUM(t.orders_sum_rub) / $3) AS summ
                    FROM orders_revenues t
                             JOIN card_data cd ON t.article_id = cd.article_id
                    WHERE t."date" BETWEEN $1 and $2
                 """
         if good_category is not None:
-            """AND cd.subject_name LIKE $2"""
+            """AND cd.subject_name LIKE $4"""
             params.append(f"%{good_category}%")
         query += """ GROUP BY cd.subject_name
                               ORDER BY summ DESC """
@@ -84,7 +135,7 @@ class SalesManagementRepository:
             rows = await conn.fetch(query, *params)
         return rows
 
-    async def get_sum_sales_by_date(
+    async def get_sum_revenue_by_date(
             self,
             date: date,
             good_category: Optional[str] = None,
