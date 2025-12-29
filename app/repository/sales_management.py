@@ -10,6 +10,53 @@ class SalesManagementRepository:
     def __init__(self, pool: Pool) -> None:
         self.pool = pool
 
+    async def get_browsing_info_by_category_and_period(
+            self,
+            start_date: date,
+            end_date: date,
+    ) -> Sequence:
+        """Получить просмотры и клики на товары по категориям за период"""
+        params = [end_date, start_date]
+        query = """
+                SELECT cd.subject_name,
+                       sum(t."views")                                 AS views,
+                       round(sum(t.clicks) / sum(t."views") * 100, 2) AS clicks,
+                       round(avg(t.clicks), 0)                        AS clicks_avg,
+                       t."date"
+                FROM advert_stat t
+                         JOIN card_data cd ON t.article_id = cd.article_id
+                WHERE t."date" BETWEEN $1 AND $2
+                GROUP BY cd.subject_name, t."date"
+                ORDER BY cd.subject_name, t."date" DESC; \
+                """
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, *params)
+        return rows
+
+    async def get_old_browsing_info_by_category_and_period(
+            self,
+            start_date: date,
+            end_date: date,
+            period: int
+    ) -> Sequence:
+        """Получить AVG просмотры и клики на товары по категориям за прошлы период"""
+        params = [end_date, start_date, period]
+        query = """
+                select cd.subject_name,
+                       round(sum(t."views") / $3, 0) as views,
+                       case
+                           when sum(t."views") > 0 then round(sum(t.clicks) / sum(t."views") * 100, 2)
+                           else 0 end          as clicks,
+                       round(avg(t.clicks), 0) as clicks_avg
+                from advert_stat as t
+                         join card_data as cd on cd.article_id = t.article_id
+                where t."date" between $1 and $2
+                group by cd.subject_name; \
+                """
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, *params)
+        return rows
+
     async def get_sums_ic_and_revenue_by_category_and_period(
             self,
             start_date: date,

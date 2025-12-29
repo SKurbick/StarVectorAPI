@@ -10,13 +10,60 @@ from app.domain.models import (
     SalesManagementBaseSummWithDate,
     SalesManagementBaseSummWithSKU,
     SalesManagementICWithDate,
-    SalesManagementICBase
+    SalesManagementICBase,
+    SalesManagementBrowsingInfoWithDate,
+    SalesManagementBrowsingInfo
 )
 
 
 class SalesManagementService:
     def __init__(self, repository: SalesManagementRepository):
         self.repository = repository
+
+    async def get_browsing_info_by_category_and_period(
+            self,
+            start_date: date,
+            end_date: date,
+    ):
+        period = start_date - end_date
+        actual_browsing = await self.repository.get_browsing_info_by_category_and_period(
+            start_date=start_date,
+            end_date=end_date
+        )
+        old_browsing = await self.repository.get_old_browsing_info_by_category_and_period(
+            start_date=start_date - datetime.timedelta(days=period.days + 1),
+            end_date=end_date - datetime.timedelta(days=period.days + 1),
+            period=period.days + 1
+        )
+        valid_actual_browsing = [SalesManagementBrowsingInfoWithDate(**r) for r in actual_browsing]
+        valid_old_browsing = [SalesManagementBrowsingInfo(**r) for r in old_browsing]
+        valid_result = {}
+
+        # Добавление в результирующий словарь статистики по датам
+        for i in valid_actual_browsing:
+            if valid_result.get(i.subject_name) is None:
+                valid_result[i.subject_name] = {
+                    "old_views_avg": 0,
+                    "old_clicks_avg": 0,
+                    "old_clicks_avg_percentage": 0,
+                }
+            if valid_result[i.subject_name].get("dates") is None:
+                valid_result[i.subject_name]["dates"] = [
+                    {"date": i.date, "views": i.views, "clicks_percentage": i.clicks, "clicks_avg": i.clicks_avg}]
+            else:
+                valid_result[i.subject_name]["dates"].append(
+                    {"date": i.date, "views": i.views, "clicks_percentage": i.clicks, "clicks_avg": i.clicks_avg})
+
+        # Добавление в результирующий словарь статистики за прошлый период
+        for i in valid_old_browsing:
+            try:
+                valid_result[i.subject_name]["old_views_avg"] = i.views
+                valid_result[i.subject_name]["old_clicks_avg"] = i.clicks_avg
+                valid_result[i.subject_name]["old_clicks_avg_percentage"] = i.clicks
+            except KeyError:
+                continue
+
+        return valid_result
 
     async def get_sums_individual_conditions_by_period_with_category(
             self,

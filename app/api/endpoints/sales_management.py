@@ -64,3 +64,22 @@ async def get_individual_condition_by_period(
         start_date=date_start,
         end_date=date_end)
     return result
+
+
+@router.get("/sales/browsing", description="""    
+    **Получить данные по статистики просмторов\кликов категорий за период**\n
+    date_start: format date, example: 2025-12-25
+    date_end: format date, example: 2025-12-18""")
+async def get_browsing_by_period(
+        date_start: datetime.date,
+        date_end: datetime.date,
+        service: SalesManagementService = Depends(get_sales_management_service)
+):
+    if date_start < date_end:
+        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="reverse date")
+    if date_start == date_end:
+        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="error period")
+    result = await service.get_browsing_info_by_category_and_period(
+        start_date=date_start,
+        end_date=date_end)
+    return result
