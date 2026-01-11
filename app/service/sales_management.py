@@ -1,4 +1,5 @@
 import datetime
+import logging
 from typing import Optional
 
 from app.repository.sales_management import SalesManagementRepository
@@ -11,13 +12,107 @@ from app.domain.models import (
     SalesManagementICWithDate,
     SalesManagementICBase,
     SalesManagementBrowsingInfoWithDate,
-    SalesManagementBrowsingInfo
+    SalesManagementBrowsingInfo,
+    SalesManagementOutlayBase,
+    SalesManagementOutlayWithDate
 )
 
 
 class SalesManagementService:
     def __init__(self, repository: SalesManagementRepository):
         self.repository = repository
+
+    async def get_outlay_info_by_category_and_period(
+            self,
+            start_date: datetime.date,
+            end_date: datetime.date,
+            good_category: Optional[str] = None,
+    ):
+        period = start_date - end_date
+        actual_outlay = await self.repository.get_outlay_by_category_and_period(
+            start_date=start_date,
+            end_date=end_date,
+            good_category=good_category
+        )
+        old_outlay = await self.repository.get_old_outlay_by_category_and_period(
+            start_date=start_date - datetime.timedelta(days=period.days + 1),
+            end_date=end_date - datetime.timedelta(days=period.days + 1),
+            period=period.days + 1,
+            good_category=good_category
+        )
+        old_revenue = await self.repository.get_old_sums_revenue_by_category_and_period(
+            start_date=start_date - datetime.timedelta(days=period.days + 1),
+            end_date=end_date - datetime.timedelta(days=period.days + 1),
+            period=period.days + 1,
+            good_category=good_category
+        )
+        actual_ic_rows = await self.repository.get_sums_ic_and_revenue_by_category_and_period(
+            start_date=start_date,
+            end_date=end_date,
+            good_category=good_category
+        )
+        old_avg_ic_rows = await self.repository.get_old_sums_ic_by_category_and_period(
+            start_date=start_date - datetime.timedelta(days=period.days + 1),
+            end_date=end_date - datetime.timedelta(days=period.days + 1),
+            period=period.days + 1,
+            good_category=good_category
+        )
+        valid_actual_ic_rows = [SalesManagementICWithDate(**r) for r in actual_ic_rows]
+        valid_old_avg_ic_rows = [SalesManagementICBase(**r) for r in old_avg_ic_rows]
+        valid_old_revenue_avg_rows = [SalesManagementBaseSumm(**r) for r in old_revenue]
+        valid_actual_outlay = [SalesManagementOutlayWithDate(**r) for r in actual_outlay]
+        valid_old_avg_outlay = [SalesManagementOutlayBase(**r) for r in old_outlay]
+        valid_result = {}
+
+
+        for i in valid_actual_outlay:
+            if valid_result.get(i.subject_name) is None:
+                valid_result[i.subject_name] = {
+                    "old_period_avg_outlay": 0,
+                    "old_period_avg_revenue": 0,
+                    "old_period_avg_ic": 0,
+                    "old_period_CHP-RC": 0,
+                    "growth_today_to_tomorrow": 0
+                }
+            if valid_result[i.subject_name].get("dates") is None:
+                valid_result[i.subject_name]["dates"] = [
+                    {"date": i.date, "adv_spend": i.adv_spend}]
+            else:
+                valid_result[i.subject_name]["dates"].append(
+                    {"date": i.date, "adv_spend": i.adv_spend})
+
+
+        # for i in valid_actual_ic_rows:
+        #     try:
+        #         for k in valid_result[i.subject_name]["dates"]:
+        #             if k["date"] == i.date:
+        #                 k["ic"] = i.ic
+        #                 k["revenue"] = i.revenue
+        #     except KeyError:
+        #         continue
+
+        # Добавление в результирующий словарь среднего количества продаж за период по категории
+        for i in valid_old_revenue_avg_rows:
+            try:
+                valid_result[i.subject_name]["old_period_avg_revenue"] = i.summ
+            except KeyError:
+                continue
+        logging.info(f"revenue_avg_rows {len(valid_old_revenue_avg_rows)}")
+        # Добавление в результирующий словарь среднего количества затрат за период по категории
+        for i in valid_old_avg_outlay:
+            try:
+                valid_result[i.subject_name]["old_period_avg_outlay"] = i.adv_spend
+            except KeyError:
+                continue
+        logging.info(f"valid_old_avg_outlay {len(valid_old_avg_outlay)}")
+        # Добавление в результирующий словарь среднего количества ИУ за период по категории
+        for i in valid_old_avg_ic_rows:
+            try:
+                valid_result[i.subject_name]["old_period_avg_ic"] = i.ic
+            except KeyError:
+                continue
+        logging.info(f"valid_old_avg_ic_rows {len(valid_old_avg_ic_rows)}")
+        return valid_result
 
     async def get_browsing_info_by_category_and_period(
             self,

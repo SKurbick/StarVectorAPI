@@ -1250,3 +1250,12 @@ class SalesManagementBrowsingInfo(BaseModel):
 class SalesManagementBrowsingInfoWithDate(SalesManagementBrowsingInfo):
     """Схема статистики по категориям товаров с датами"""
     date: date
+
+class SalesManagementOutlayBase(BaseModel):
+    """Схема затрат по категориям товаров"""
+    subject_name: str | None
+    adv_spend: int
+
+class SalesManagementOutlayWithDate(SalesManagementOutlayBase):
+    """Схема затрат по категориям товаров с датой"""
+    date: date
