@@ -14,21 +14,28 @@ class SalesManagementRepository:
             self,
             start_date: date,
             end_date: date,
+            good_category: Optional[str] = None,
     ) -> Sequence:
         """Получить просмотры и клики на товары по категориям за период"""
         params = [end_date, start_date]
         query = """
                 SELECT cd.subject_name,
-                       sum(t."views")                                 AS views,
-                       round(sum(t.clicks) / sum(t."views") * 100, 2) AS clicks,
-                       round(avg(t.clicks), 0)                        AS clicks_avg,
+                       sum(t."views")          AS views,
+                       CASE
+                           WHEN sum(t."views") > 0
+                               THEN round(sum(t.clicks) / sum(t."views") * 100, 2)
+                           ELSE 0 END          AS clicks,
+                       round(avg(t.clicks), 0) AS clicks_avg,
                        t."date"
                 FROM advert_stat t
                          JOIN card_data cd ON t.article_id = cd.article_id
                 WHERE t."date" BETWEEN $1 AND $2
-                GROUP BY cd.subject_name, t."date"
-                ORDER BY cd.subject_name, t."date" DESC; \
                 """
+        if good_category is not None:
+            query += """ AND cd.subject_name LIKE $3 """
+            params.append(f"%{good_category}%")
+        query += """ GROUP BY cd.subject_name, t."date"
+                ORDER BY cd.subject_name, t."date" DESC; """
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(query, *params)
         return rows
@@ -37,7 +44,8 @@ class SalesManagementRepository:
             self,
             start_date: date,
             end_date: date,
-            period: int
+            period: int,
+            good_category: Optional[str] = None,
     ) -> Sequence:
         """Получить AVG просмотры и клики на товары по категориям за прошлы период"""
         params = [end_date, start_date, period]
@@ -46,13 +54,16 @@ class SalesManagementRepository:
                        round(sum(t."views") / $3, 0) as views,
                        case
                            when sum(t."views") > 0 then round(sum(t.clicks) / sum(t."views") * 100, 2)
-                           else 0 end          as clicks,
-                       round(avg(t.clicks), 0) as clicks_avg
+                           else 0 end                as clicks,
+                       round(avg(t.clicks), 0)       as clicks_avg
                 from advert_stat as t
                          join card_data as cd on cd.article_id = t.article_id
                 where t."date" between $1 and $2
-                group by cd.subject_name; \
                 """
+        if good_category is not None:
+            query += """ AND cd.subject_name LIKE $4 """
+            params.append(f"%{good_category}%")
+        query += """ group by cd.subject_name;"""
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(query, *params)
         return rows
@@ -61,6 +72,7 @@ class SalesManagementRepository:
             self,
             start_date: date,
             end_date: date,
+            good_category: Optional[str] = None,
     ) -> Sequence:
         """Получить суммы прибыли по индивидуальным условиям по категориям"""
         params = [end_date, start_date]
@@ -80,9 +92,12 @@ class SalesManagementRepository:
                          JOIN aggregated_orders_revenues aor
                               ON anpc.article_id = aor.article_id AND anpc."date" = aor."date"
                 WHERE anpc."date" BETWEEN $1 AND $2
-                GROUP BY cd.subject_name, anpc."date"
-                ORDER BY anpc."date" DESC, ic DESC;
                 """
+        if good_category is not None:
+            query += """ AND cd.subject_name LIKE $3 """
+            params.append(f"%{good_category}%")
+        query += """ GROUP BY cd.subject_name, anpc."date"
+                ORDER BY anpc."date" DESC, ic DESC;"""
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(query, *params)
         return rows
@@ -91,7 +106,8 @@ class SalesManagementRepository:
             self,
             start_date: date,
             end_date: date,
-            period: int
+            period: int,
+            good_category: Optional[str] = None,
     ):
         """Получить AVG IC за прошлый период"""
         params = [end_date, start_date, period]
@@ -100,9 +116,12 @@ class SalesManagementRepository:
                 FROM accurate_npd_purchase_calculation anpc
                          JOIN card_data AS cd ON cd.article_id = anpc.article_id
                 WHERE anpc."date" BETWEEN $1 AND $2
-                GROUP BY cd.subject_name
-                ORDER BY ic DESC, ic DESC \
                 """
+        if good_category is not None:
+            query += """ AND cd.subject_name LIKE $4 """
+            params.append(f"%{good_category}%")
+        query += """ GROUP BY cd.subject_name
+                ORDER BY ic DESC """
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(query, *params)
         return rows
@@ -130,7 +149,7 @@ class SalesManagementRepository:
                             JOIN card_data cd ON t.article_id = cd.article_id
                    WHERE t."date" BETWEEN $1 AND $2"""
         if good_category is not None:
-            query += """ AND cd.subject_name LIKE $5 """
+            query += """ AND cd.subject_name LIKE $3 """
             params.append(f"%{good_category}%")
         query += """ GROUP BY cd.subject_name, t."date"
                     ORDER BY t."date" ASC, summ DESC """
@@ -149,10 +168,9 @@ class SalesManagementRepository:
         query = """SELECT pami.manager, cd.subject_name, pami."date"
                    FROM card_data cd
                             JOIN promo_and_managers_info pami ON pami.nm_id = cd.article_id
-                   WHERE DATE BETWEEN $1
-                     AND $2"""
+                   WHERE DATE BETWEEN $1 AND $2"""
         if good_category is not None:
-            query += f" AND cd.subject_name LIKE $2 "
+            query += f" AND cd.subject_name LIKE $3 "
             params.append(f"%{good_category}%")
         query += f""" GROUP BY pami.manager, cd.subject_name, pami."date" """
         async with self.pool.acquire() as conn:
@@ -174,7 +192,7 @@ class SalesManagementRepository:
                    WHERE t."date" BETWEEN $1 and $2
                 """
         if good_category is not None:
-            """AND cd.subject_name LIKE $4"""
+            query += """ AND cd.subject_name LIKE $4"""
             params.append(f"%{good_category}%")
         query += """ GROUP BY cd.subject_name
                               ORDER BY summ DESC """

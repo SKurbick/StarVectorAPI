@@ -1,5 +1,4 @@
 import datetime
-from datetime import date
 from typing import Optional
 
 from app.repository.sales_management import SalesManagementRepository
@@ -22,18 +21,21 @@ class SalesManagementService:
 
     async def get_browsing_info_by_category_and_period(
             self,
-            start_date: date,
-            end_date: date,
+            start_date: datetime.date,
+            end_date: datetime.date,
+            good_category: Optional[str] = None,
     ):
         period = start_date - end_date
         actual_browsing = await self.repository.get_browsing_info_by_category_and_period(
             start_date=start_date,
-            end_date=end_date
+            end_date=end_date,
+            good_category=good_category
         )
         old_browsing = await self.repository.get_old_browsing_info_by_category_and_period(
             start_date=start_date - datetime.timedelta(days=period.days + 1),
             end_date=end_date - datetime.timedelta(days=period.days + 1),
-            period=period.days + 1
+            period=period.days + 1,
+            good_category=good_category
         )
         valid_actual_browsing = [SalesManagementBrowsingInfoWithDate(**r) for r in actual_browsing]
         valid_old_browsing = [SalesManagementBrowsingInfo(**r) for r in old_browsing]
@@ -67,22 +69,28 @@ class SalesManagementService:
 
     async def get_sums_individual_conditions_by_period_with_category(
             self,
-            start_date: date,
-            end_date: date,
+            start_date: datetime.date,
+            end_date: datetime.date,
+            good_category: Optional[str] = None,
     ):
         """Получить данные по индивидуальным условиям с категориями за определенный период"""
         period = start_date - end_date
         sums_ic_rows = await self.repository.get_sums_ic_and_revenue_by_category_and_period(
-            start_date=start_date, end_date=end_date)
+            start_date=start_date,
+            end_date=end_date,
+            good_category=good_category
+        )
         old_period_avg_sums_ic_rows = await self.repository.get_old_sums_ic_by_category_and_period(
             start_date=start_date - datetime.timedelta(days=period.days + 1),
             end_date=end_date - datetime.timedelta(days=period.days + 1),
-            period=period.days + 1
+            period=period.days + 1,
+            good_category=good_category
         )
         old_period_avg_revenue_rows = await self.repository.get_old_sums_revenue_by_category_and_period(
             start_date=start_date - datetime.timedelta(days=period.days + 1),
             end_date=end_date - datetime.timedelta(days=period.days + 1),
-            period=period.days + 1
+            period=period.days + 1,
+            good_category=good_category
         )
         valid_sums_ic_rows = [SalesManagementICWithDate(**r) for r in sums_ic_rows]
         valid_old_period_avg_ic_rows = [SalesManagementICBase(**r) for r in old_period_avg_sums_ic_rows]
@@ -160,21 +168,27 @@ class SalesManagementService:
 
     async def get_sum_revenue_category_by_period_with_managers(
             self,
-            start_date: date,
-            end_date: date,
+            start_date: datetime.date,
+            end_date: datetime.date,
+            good_category: Optional[str] = None,
     ):
         """Получить общие цифры продаж по категориям за определенный период, с менеджерами"""
         period = start_date - end_date
         sums_rows = await self.repository.get_sums_revenue_by_category_and_period(
-            date_start=start_date, date_end=end_date
+            date_start=start_date,
+            date_end=end_date,
+            good_category=good_category
         )
         manager_rows = await self.repository.get_managers_name_by_category_and_period(
-            date_start=start_date, date_end=end_date
+            date_start=start_date,
+            date_end=end_date,
+            good_category=good_category
         )
         old_period_avg_sums_rows = await self.repository.get_old_sums_revenue_by_category_and_period(
             start_date=start_date - datetime.timedelta(days=period.days + 1),
             end_date=end_date - datetime.timedelta(days=period.days + 1),
-            period=period.days + 1
+            period=period.days + 1,
+            good_category=good_category
         )
         valid_sums_rows = [SalesManagementBaseSummWithSKU(**r) for r in sums_rows]
         valid_manager_rows = [SalesManagementManagerRow(**r) for r in manager_rows]
@@ -235,7 +249,7 @@ class SalesManagementService:
                 old_period_avg=valid_result[k].get("old_period_avg"),
             )
             valid_result[k]["old_period_avg"] = valid_result[k]["old_period_avg"]
-            valid_result[k]["sku_period_avg"] = round(avg_sku_period / period.days + 1)
+            valid_result[k]["sku_period_avg"] = round(avg_sku_period / (period.days + 1))
         if valid_result.get(None):
             del valid_result[None]
 
@@ -243,7 +257,7 @@ class SalesManagementService:
 
     async def get_sum_sales_category_by_date(
             self,
-            date: date,
+            date: datetime.date,
             good_category: Optional[str] = None,
     ):
         """Сумма продаж по категории за конкретный день"""
