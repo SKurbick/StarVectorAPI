@@ -1,5 +1,5 @@
-from typing import Optional
 import datetime
+from typing import Optional
 from http import HTTPStatus
 
 from fastapi import APIRouter, HTTPException
@@ -29,19 +29,20 @@ async def get_revenue_by_date(
     **Получить выручку по категориям за период**\n
     date_start: format date, example: 2025-12-25
     date_end: format date, example: 2025-12-18
+    good_category: Optinal row, example 'Казаны' 
 """)
 async def get_revenue_by_period(
         date_start: datetime.date,
         date_end: datetime.date,
+        good_category: Optional[str] = None,
         service: SalesManagementService = Depends(get_sales_management_service)
 ):
     if date_start < date_end:
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="reverse date")
-    if date_start == date_end:
-        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="error period")
     result = await service.get_sum_revenue_category_by_period_with_managers(
         start_date=date_start,
         end_date=date_end,
+        good_category=good_category
     )
     return result
 
@@ -50,17 +51,62 @@ async def get_revenue_by_period(
     **Получить данные по ИУ за период**\n
     date_start: format date, example: 2025-12-25
     date_end: format date, example: 2025-12-18
+    good_category: Optinal row, example 'Казаны' 
 """)
 async def get_individual_condition_by_period(
         date_start: datetime.date,
         date_end: datetime.date,
+        good_category: Optional[str] = None,
         service: SalesManagementService = Depends(get_sales_management_service)
 ):
     if date_start < date_end:
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="reverse date")
-    if date_start == date_end:
-        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="error period")
     result = await service.get_sums_individual_conditions_by_period_with_category(
         start_date=date_start,
-        end_date=date_end)
+        end_date=date_end,
+        good_category=good_category
+    )
+    return result
+
+
+@router.get("/sales/browsing", description="""    
+    **Получить данные по статистики просмторов\кликов категорий за период**\n
+    date_start: format date, example: 2025-12-25
+    date_end: format date, example: 2025-12-18
+    good_category: Optinal row, example 'Казаны' 
+""")
+async def get_browsing_by_period(
+        date_start: datetime.date,
+        date_end: datetime.date,
+        good_category: Optional[str] = None,
+        service: SalesManagementService = Depends(get_sales_management_service)
+):
+    if date_start < date_end:
+        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="reverse date")
+    result = await service.get_browsing_info_by_category_and_period(
+        start_date=date_start,
+        end_date=date_end,
+        good_category=good_category
+    )
+    return result
+
+@router.get("/sales/outlay", description="""
+    **Получить данные по раходам категорий за период**\n
+    date_start: format date, example: 2025-12-25
+    date_end: format date, example: 2025-12-18
+    good_category: Optinal row, example 'Казаны' 
+""")
+async def get_outlay_by_period(
+        date_start: datetime.date,
+        date_end: datetime.date,
+        good_category: Optional[str] = None,
+        service: SalesManagementService = Depends(get_sales_management_service)
+):
+    if date_start < date_end:
+        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="reverse date")
+    result = await service.get_outlay_info_by_category_and_period(
+        start_date=date_start,
+        end_date=date_end,
+        good_category=good_category
+    )
     return result

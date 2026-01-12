@@ -1587,3 +1587,23 @@ class SalesManagementICWithDate(SalesManagementICBase):
     """Схема прибыли по ИС по категориям и датам"""
     date: date
     revenue: int
+
+class SalesManagementBrowsingInfo(BaseModel):
+    """Схема статистики по категориям товаров"""
+    subject_name: str | None
+    views: int
+    clicks: float | int
+    clicks_avg: int
+
+class SalesManagementBrowsingInfoWithDate(SalesManagementBrowsingInfo):
+    """Схема статистики по категориям товаров с датами"""
+    date: date
+
+class SalesManagementOutlayBase(BaseModel):
+    """Схема затрат по категориям товаров"""
+    subject_name: str | None
+    adv_spend: int
+
+class SalesManagementOutlayWithDate(SalesManagementOutlayBase):
+    """Схема затрат по категориям товаров с датой"""
+    date: date
