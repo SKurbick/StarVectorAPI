@@ -113,7 +113,8 @@ class SalesManagementService:
             try:
                 valid_result[k]["DRR_tomorrow"] = self._math_percent_create(
                     dict_helper[k][datetime.datetime.now().date() - datetime.timedelta(days=1)]["adv_spend"],
-                    dict_helper[k][datetime.datetime.now().date() - datetime.timedelta(days=1)]["revenue"]
+                    dict_helper[k][datetime.datetime.now().date() - datetime.timedelta(days=1)]["revenue"],
+                    n_digits=1
                 )
             except KeyError:
                 valid_result[k]["DRR_tomorrow"] = 0
@@ -399,12 +400,14 @@ class SalesManagementService:
             self,
             low_num: int,
             up_num: int,
+            n_digits: int | None = None,
     ) -> int:
+        """Формула для расчета процентного соотношения"""
         if low_num == 0:
             return 0
         if up_num == 0:
             return 0
-        return round(low_num / up_num * 100)
+        return round(low_num / up_num * 100, ndigits=n_digits)
 
     def _math_average_to_average_growth(
             self,
