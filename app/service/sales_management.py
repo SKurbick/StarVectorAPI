@@ -64,32 +64,59 @@ class SalesManagementService:
         valid_old_avg_outlay = [SalesManagementOutlayBase(**r) for r in old_outlay]
         valid_result = {}
 
+        # хэш-мапа для обхода On2
+        dict_helper = {}
+
+        for i in valid_actual_ic_rows:
+            if dict_helper.get(i.subject_name) is None:
+                dict_helper[i.subject_name] = {i.date: {"ic": i.ic, "revenue": i.revenue, "adv_spend": 0}}
+            else:
+                dict_helper[i.subject_name] = dict_helper[i.subject_name] | {i.date: {"ic": i.ic, "revenue": i.revenue, "adv_spend": 0}}
 
         for i in valid_actual_outlay:
-            if valid_result.get(i.subject_name) is None:
-                valid_result[i.subject_name] = {
+            dict_helper[i.subject_name][i.date]["adv_spend"] = i.adv_spend
+        ##
+
+        # Добавление соединенных значений затрат, прибыли и ИУ в результирующий словарь + мат расчеты
+        for k, v in dict_helper.items():
+            if valid_result.get(k) is None:
+                valid_result[k] = {
                     "old_period_avg_outlay": 0,
                     "old_period_avg_revenue": 0,
                     "old_period_avg_ic": 0,
                     "old_period_CHP-RC": 0,
-                    "growth_today_to_tomorrow": 0
+                    "DRR_tomorrow": 0,
+                    "growth_CHP-RC_to_tomorrow": 0,
+                    "old_period_CHP-RC_percentage": 0
                 }
-            if valid_result[i.subject_name].get("dates") is None:
-                valid_result[i.subject_name]["dates"] = [
-                    {"date": i.date, "adv_spend": i.adv_spend}]
-            else:
-                valid_result[i.subject_name]["dates"].append(
-                    {"date": i.date, "adv_spend": i.adv_spend})
-
-
-        # for i in valid_actual_ic_rows:
-        #     try:
-        #         for k in valid_result[i.subject_name]["dates"]:
-        #             if k["date"] == i.date:
-        #                 k["ic"] = i.ic
-        #                 k["revenue"] = i.revenue
-        #     except KeyError:
-        #         continue
+            for c, i in v.items():
+                if valid_result[k].get("dates") is None:
+                    valid_result[k]["dates"] = [
+                        {
+                            "date": c,
+                            "revenue": i["revenue"],
+                            "ic": i["ic"],
+                            "adv_spend": i["adv_spend"],
+                            "CHP-RC": i["ic"]-i["adv_spend"],
+                            "CHP-RC_percentage": self._math_percent_create(i["ic"]-i["adv_spend"], i["revenue"])
+                        }]
+                else:
+                    valid_result[k]["dates"].append(
+                        {
+                            "date": c,
+                            "revenue": i["revenue"],
+                            "ic": i["ic"],
+                            "adv_spend": i["adv_spend"],
+                            "CHP-RC": i["ic"]-i["adv_spend"],
+                            "CHP-RC_percentage": self._math_percent_create(i["ic"]-i["adv_spend"], i["revenue"])
+                        })
+            try:
+                valid_result[k]["DRR_tomorrow"] = self._math_percent_create(
+                    dict_helper[k][datetime.datetime.now().date() - datetime.timedelta(days=1)]["adv_spend"],
+                    dict_helper[k][datetime.datetime.now().date() - datetime.timedelta(days=1)]["revenue"]
+                )
+            except KeyError:
+                valid_result[k]["DRR_tomorrow"] = 0
 
         # Добавление в результирующий словарь среднего количества продаж за период по категории
         for i in valid_old_revenue_avg_rows:
@@ -97,21 +124,30 @@ class SalesManagementService:
                 valid_result[i.subject_name]["old_period_avg_revenue"] = i.summ
             except KeyError:
                 continue
-        logging.info(f"revenue_avg_rows {len(valid_old_revenue_avg_rows)}")
+
         # Добавление в результирующий словарь среднего количества затрат за период по категории
         for i in valid_old_avg_outlay:
             try:
                 valid_result[i.subject_name]["old_period_avg_outlay"] = i.adv_spend
             except KeyError:
                 continue
-        logging.info(f"valid_old_avg_outlay {len(valid_old_avg_outlay)}")
-        # Добавление в результирующий словарь среднего количества ИУ за период по категории
+
+        # Добавление в результирующий словарь среднего количества ИУ за период по категории + мат расчеты
         for i in valid_old_avg_ic_rows:
             try:
+                chp_rc = i.ic - valid_result[i.subject_name]["old_period_avg_outlay"]
                 valid_result[i.subject_name]["old_period_avg_ic"] = i.ic
+                valid_result[i.subject_name]["old_period_CHP-RC"] = chp_rc
+                valid_result[i.subject_name]["old_period_CHP-RC_percentage"] = self._math_percent_create(chp_rc, valid_result[i.subject_name]["old_period_avg_revenue"])
+                valid_result[i.subject_name]["growth_CHP-RC_to_tomorrow"] = self._math_percent_create(
+                    dict_helper[i.subject_name][datetime.datetime.now().date() - datetime.timedelta(days=1)]["ic"]
+                    -
+                    dict_helper[i.subject_name][datetime.datetime.now().date() - datetime.timedelta(days=1)]["adv_spend"],
+                    chp_rc)
             except KeyError:
                 continue
-        logging.info(f"valid_old_avg_ic_rows {len(valid_old_avg_ic_rows)}")
+
+
         return valid_result
 
     async def get_browsing_info_by_category_and_period(
