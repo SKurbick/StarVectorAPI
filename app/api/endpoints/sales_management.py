@@ -90,6 +90,7 @@ async def get_browsing_by_period(
     )
     return result
 
+
 @router.get("/sales/outlay", description="""
     **Получить данные по раходам категорий за период**\n
     date_start: format date, example: 2025-12-25
@@ -111,6 +112,7 @@ async def get_outlay_by_period(
     )
     return result
 
+
 @router.get("/sales/penalty", description="""
     **Получить данные по штрафам категорий за период**\n
     date_start: format date, example: 2025-12-25
@@ -129,5 +131,23 @@ async def get_penalty_by_period(
         start_date=date_start,
         end_date=date_end,
         good_category=good_category
+    )
+    return result
+
+
+@router.get("/sales/managers", description="""
+    **Получить выручку и прибыль по каждому менеджеру за период**\n
+    date_start: format date, example: 2025-12-25
+    date_end: format date, example: 2025-12-18
+""")
+async def get_managers_statistic_by_period(
+        date_start: datetime.date,
+        date_end: datetime.date,
+        service: SalesManagementService = Depends(get_sales_management_service)):
+    if date_start < date_end:
+        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="reverse date")
+    result = await service.get_revenue_and_ic_by_manager_and_period(
+        start_date=date_start,
+        end_date=date_end,
     )
     return result

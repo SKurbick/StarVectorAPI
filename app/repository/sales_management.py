@@ -10,6 +10,27 @@ class SalesManagementRepository:
     def __init__(self, pool: Pool) -> None:
         self.pool = pool
 
+    async def get_manager_with_category_without_date(
+            self,
+            start_date: date,
+            end_date: date,
+    ) -> Sequence:
+        """Получить менеджеров по категориям без дат"""
+        params = [end_date, start_date]
+        query = """
+                SELECT pami.manager, cd.subject_name
+                FROM card_data cd
+                         JOIN promo_and_managers_info pami ON pami.nm_id = cd.article_id
+                WHERE DATE BETWEEN $1
+                  AND $2
+                GROUP BY pami.manager, cd.subject_name
+                ORDER BY cd.subject_name;
+                """
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, *params)
+        return rows
+
+
     async def get_penalty_by_category_and_period(
             self,
             start_date: date,
