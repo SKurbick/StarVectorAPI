@@ -513,6 +513,7 @@ class WildberriesCardsService:
                 card.dimensions.weight_brutto,
                 card.subject_name.capitalize(),
                 datetime.today(),
+                card.sizes[0].chrt_id
             )
 
             data_to_update.append(card_data)
