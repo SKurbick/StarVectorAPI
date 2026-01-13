@@ -1607,3 +1607,12 @@ class SalesManagementOutlayBase(BaseModel):
 class SalesManagementOutlayWithDate(SalesManagementOutlayBase):
     """Схема затрат по категориям товаров с датой"""
     date: date
+
+class SalesManagementPenaltyBase(BaseModel):
+    """Схема штрафов по категориям"""
+    subject_name: str | None
+    penalty: int
+
+class SalesManagementPenaltyWithDate(SalesManagementPenaltyBase):
+    """Схема штрафов по категориям с датой"""
+    date: date
