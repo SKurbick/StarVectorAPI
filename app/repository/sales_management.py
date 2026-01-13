@@ -10,6 +10,28 @@ class SalesManagementRepository:
     def __init__(self, pool: Pool) -> None:
         self.pool = pool
 
+    async def get_penalty_by_category_and_period(
+            self,
+            start_date: date,
+            end_date: date,
+            good_category: Optional[str] = None,
+    ) -> Sequence:
+        """Получить штрафы по категориям за период"""
+        params = [end_date, start_date]
+        query = """
+                SELECT dfrf.subject_name, round(sum(dfrf.penalty), 0) AS penalty, dfrf.date_from AS date
+                FROM daily_fin_reports_full dfrf
+                WHERE dfrf.date_from BETWEEN $1
+                  AND $2
+                """
+        if good_category is not None:
+            query += """ AND dfrf.subject_name LIKE $3 """
+            params.append(f"%{good_category}%")
+        query += """ GROUP BY dfrf.subject_name, dfrf.date_from; """
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, *params)
+        return rows
+
     async def get_outlay_by_category_and_period(
             self,
             start_date: date,

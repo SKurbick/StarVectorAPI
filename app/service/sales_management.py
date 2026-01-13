@@ -14,7 +14,8 @@ from app.domain.models import (
     SalesManagementBrowsingInfoWithDate,
     SalesManagementBrowsingInfo,
     SalesManagementOutlayBase,
-    SalesManagementOutlayWithDate
+    SalesManagementOutlayWithDate,
+    SalesManagementPenaltyWithDate
 )
 
 
@@ -22,12 +23,44 @@ class SalesManagementService:
     def __init__(self, repository: SalesManagementRepository):
         self.repository = repository
 
+    async def get_penalty_info_by_category_and_period(
+            self,
+            start_date: datetime.date,
+            end_date: datetime.date,
+            good_category: Optional[str]
+    ):
+        """Получить данные по штраф по категориям за определенный период"""
+        actual_penalty = await self.repository.get_penalty_by_category_and_period(
+            start_date=start_date,
+            end_date=end_date,
+            good_category=good_category
+        )
+        valid_penalty = [SalesManagementPenaltyWithDate(**r) for r in actual_penalty]
+
+        valid_result = {}
+
+        for i in valid_penalty:
+            if i.subject_name is None:
+                continue
+            if valid_result.get(i.subject_name) is None:
+                valid_result[i.subject_name] = {}
+            if valid_result[i.subject_name].get("dates") is None:
+                valid_result[i.subject_name]["dates"] = [
+                    {"date": i.date, "penalty": i.penalty}]
+            else:
+                valid_result[i.subject_name]["dates"].append(
+                    {"date": i.date, "penalty": i.penalty})
+
+        return valid_result
+
+
     async def get_outlay_info_by_category_and_period(
             self,
             start_date: datetime.date,
             end_date: datetime.date,
             good_category: Optional[str] = None,
     ):
+        """Получить данные по затратам по категориям за определенный период"""
         period = start_date - end_date
         actual_outlay = await self.repository.get_outlay_by_category_and_period(
             start_date=start_date,
@@ -157,6 +190,7 @@ class SalesManagementService:
             end_date: datetime.date,
             good_category: Optional[str] = None,
     ):
+        """Получить данные по кликам и просмотрам товаров по категориям за определенный период"""
         period = start_date - end_date
         actual_browsing = await self.repository.get_browsing_info_by_category_and_period(
             start_date=start_date,
