@@ -1572,10 +1572,13 @@ class SalesManagementBaseSummWithSKU(SalesManagementBaseSummWithDate):
     """Схема продаж по категориям с датами и SKU"""
     sku_percentage: int
 
-class SalesManagementManagerRow(BaseModel):
-    """Схема менеджеров по категориям с датами"""
+class SalesManagementManagerBase(BaseModel):
+    """Схема менеджеров с категориями"""
     manager: str
     subject_name: str
+
+class SalesManagementManagerRow(SalesManagementManagerBase):
+    """Схема менеджеров по категориям с датами"""
     date: date
 
 class SalesManagementICBase(BaseModel):

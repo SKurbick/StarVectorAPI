@@ -6,6 +6,7 @@ from app.repository.sales_management import SalesManagementRepository
 
 from app.domain.models import (
     SalesManagementBaseSumm,
+    SalesManagementManagerBase,
     SalesManagementManagerRow,
     SalesManagementBaseSummWithDate,
     SalesManagementBaseSummWithSKU,
@@ -22,6 +23,170 @@ from app.domain.models import (
 class SalesManagementService:
     def __init__(self, repository: SalesManagementRepository):
         self.repository = repository
+
+    async def get_revenue_and_ic_by_manager_and_period(
+            self,
+            start_date: datetime.date,
+            end_date: datetime.date,
+    ):
+        """Получить совокупные данные по прибыли и выручке по каждому менеджеру"""
+        period = start_date - end_date
+        actual_managers = await self.repository.get_manager_with_category_without_date(
+            start_date=start_date,
+            end_date=end_date
+        )
+        actual_revenue_and_ic = await self.repository.get_sums_ic_and_revenue_by_category_and_period(
+            start_date=start_date,
+            end_date=end_date,
+        )
+        old_avg_ic_rows = await self.repository.get_old_sums_ic_by_category_and_period(
+            start_date=start_date - datetime.timedelta(days=period.days + 1),
+            end_date=end_date - datetime.timedelta(days=period.days + 1),
+            period=period.days + 1,
+        )
+        old_avg_revenue = await self.repository.get_old_sums_revenue_by_category_and_period(
+            start_date=start_date - datetime.timedelta(days=period.days + 1),
+            end_date=end_date - datetime.timedelta(days=period.days + 1),
+            period=period.days + 1,
+        )
+
+        valid_manager = [SalesManagementManagerBase(**r) for r in actual_managers]
+        valid_old_avg_revenue = [SalesManagementBaseSumm(**r) for r in old_avg_revenue]
+        valid_old_avg_ic = [SalesManagementICBase(**r) for r in old_avg_ic_rows]
+        valid_actual_revenue_and_ic = [SalesManagementICWithDate(**r) for r in actual_revenue_and_ic]
+
+        valid_result = {}
+        # Мапа для подсчета конечных сумм по менеджерам с разбивками по дням
+        totals = {
+            "old_revenue_avg_total": 0,
+            "old_ic_avg_total": 0,
+            "ic_today_to_tomorrow_percentage": 0,
+            "revenue_today_to_tomorrow_percentage": 0,
+            "ic_revenue_percentage": 0,
+            "t_dates": {},
+            "dates": []
+        }
+        # Мапа для менеджеров
+        dict_managers = {}
+        # Мапа для категорий
+        dict_helper = {}
+
+        # Добавление в вспомогательную мапу менеджером и их категории
+        for i in valid_manager:
+            if dict_managers.get(i.manager) is None:
+                dict_managers[i.manager] = [i.subject_name]
+            else:
+                dict_managers[i.manager].append(i.subject_name)
+
+        # Добавление в вспомогательную мапу категории с разбивкой по дням ИУ и Выручкой
+        for i in valid_actual_revenue_and_ic:
+            if dict_helper.get(i.subject_name) is None:
+                dict_helper[i.subject_name] = {i.date: {"ic": i.ic, "revenue": i.revenue}}
+            else:
+                dict_helper[i.subject_name] = dict_helper[i.subject_name] | {i.date: {"ic": i.ic, "revenue": i.revenue}}
+
+        # Добавление в вспомогательную мапу AVG выручки
+        for i in valid_old_avg_revenue:
+            try:
+                dict_helper[i.subject_name] = dict_helper[i.subject_name] | {"old_revenue_avg": i.summ}
+            except KeyError:
+                continue
+
+        # Добавление в вспомогательную мапу AVG по ИУ
+        for i in valid_old_avg_ic:
+            try:
+                dict_helper[i.subject_name] = dict_helper[i.subject_name] | {"old_ic_avg": i.ic}
+            except KeyError:
+                continue
+
+        # Формирование конечного результата с математическими операциями
+        for i in dict_managers:
+            revenue_today = 0
+            revenue_tomorrow = 0
+            ic_today = 0
+            ic_tomorrow = 0
+            dates_dict = {}
+            valid_result[i] = {
+                "old_revenue_avg": 0,
+                "old_ic_avg": 0,
+                "revenue_today_to_tomorrow_percentage": 0,
+                "ic_today_to_tomorrow_percentage": 0,
+                "dates": []
+            }
+            for key in dict_managers[i]:
+                try:
+                    for k, v in dict_helper[key].items():
+                        if type(k) is datetime.date:
+                            if k == datetime.datetime.now().date():
+                                revenue_today += dict_helper[key][k]["revenue"]
+                                ic_today += dict_helper[key][k]["ic"]
+                            if k == datetime.datetime.now().date() - datetime.timedelta(days=1):
+                                revenue_tomorrow += dict_helper[key][k]["revenue"]
+                                ic_tomorrow += dict_helper[key][k]["ic"]
+                            if dates_dict.get(k) is None:
+                                dates_dict[k] = {"revenue": dict_helper[key][k]["revenue"], "ic": dict_helper[key][k]["ic"]}
+                            else:
+                                dates_dict[k]["revenue"] += dict_helper[key][k]["revenue"]
+                                dates_dict[k]["ic"] += dict_helper[key][k]["ic"]
+                        if k == "old_revenue_avg":
+                            valid_result[i]["old_revenue_avg"] += v
+                        if k == "old_ic_avg":
+                            valid_result[i]["old_ic_avg"] += v
+                    valid_result[i]["revenue_today_to_tomorrow_percentage"] = self._math_percent_create(revenue_today, revenue_tomorrow)
+                    valid_result[i]["ic_today_to_tomorrow_percentage"] = self._math_percent_create(ic_today, ic_tomorrow)
+                except KeyError:
+                    continue
+            for d in dates_dict:
+                valid_result[i]["dates"].append({"date": d, "ic": dates_dict[d]["ic"], "revenue": dates_dict[d]["revenue"]})
+                if totals["t_dates"].get(d) is None:
+                    totals["t_dates"][d] = {"revenue": dates_dict[d]["revenue"], "ic": dates_dict[d]["ic"]}
+                else:
+                    totals["t_dates"][d]["revenue"] += dates_dict[d]["revenue"]
+                    totals["t_dates"][d]["ic"] += dates_dict[d]["ic"]
+
+        # Добавление сумм от каждого менеджера
+        for k in valid_result.keys():
+            totals["old_revenue_avg_total"] += valid_result[k]["old_revenue_avg"]
+            totals["old_ic_avg_total"] += valid_result[k]["old_ic_avg"]
+
+        # Разбивка сумм по выручке и ИУ по дням от каждого менеджера
+        for i in totals['t_dates']:
+            try:
+                totals["dates"].append({
+                    "date": i,
+                    "ic": totals['t_dates'][i]["ic"],
+                    "revenue": totals['t_dates'][i]["revenue"],
+                    "ic_revenue_percentage": self._math_percent_create(
+                        totals['t_dates'][i]["ic"],
+                        totals['t_dates'][i]["revenue"]
+                    )
+                })
+            except IndexError:
+                continue
+
+        try:
+            totals["ic_today_to_tomorrow_percentage"] = self._math_percent_create(
+                totals["t_dates"][start_date]["ic"],
+                totals["t_dates"][start_date - datetime.timedelta(days=1)]["ic"]
+            )
+        except KeyError:
+            pass
+
+        try:
+            totals["revenue_today_to_tomorrow_percentage"] = self._math_percent_create(
+                totals["t_dates"][start_date]["revenue"],
+                totals["t_dates"][start_date - datetime.timedelta(days=1)]["revenue"]
+            )
+        except KeyError:
+            pass
+
+        totals["ic_revenue_percentage"] = self._math_percent_create(
+            totals["old_ic_avg_total"], totals["old_revenue_avg_total"]
+        )
+
+        totals.pop("t_dates")
+
+        return valid_result | totals
 
     async def get_penalty_info_by_category_and_period(
             self,
