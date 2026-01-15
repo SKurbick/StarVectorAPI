@@ -46,7 +46,7 @@ async def duplicate_wb_card(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.exception(f"Непредвиденная ошибка в /wb/duplicate: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error: {e}")
 
 
 @router.post("/wb/upload", description="Создать карточки товаров в личных кабинетах WB.")
