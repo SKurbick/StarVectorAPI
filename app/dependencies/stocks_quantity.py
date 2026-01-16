@@ -71,10 +71,7 @@ async def validate_edit_quantity_data(
     closed_with_nonzero_by_account = defaultdict(list)
 
     for account, account_data in edit_data.items():
-        acc_nm_ids = barcodes_nm_ids.get(acc)
-
-        if not acc_nm_ids:
-            continue
+        acc_nm_ids = barcodes_nm_ids.get(acc, {})
 
         for item in account_data.stocks:
             barcode = item.sku

@@ -920,6 +920,93 @@ class ResponseMessageDetails(ResponseMessage):
     details: Optional[Any] = None
 
 
+class BarcodesStocksEditResponse(BaseModel):
+    data: list[str] = Field(..., description="Список баркодов.")
+    message: str = Field(..., description="Описание баркодов.")
+
+
+class StocksEditAccountResult(BaseModel):
+    warehouses: dict[int, dict] = Field(..., description="Информация по запросу на редактирование по складам.")
+    barcodes_with_invalid_chrt_id: Optional[list[str]] = Field(None, description="Баркоды с некорректными id размера.")
+    barcodes_without_chrt_id: Optional[list[str]] = Field(None, description="Баркоды, для которых нет id размера в базе данных.")
+
+
+class StocksEditResult(BaseModel):
+    accounts: Optional[dict[str, StocksEditAccountResult]] = Field(None, description="Результаты запроса на обновление остатков по аккаунтам.")
+    errors: Optional[list[str]] = Field(None, description="Список ошибок во время выполнения обновления остатков.")
+
+
+class StocksEditDetails(BaseModel):
+    result: Optional[StocksEditResult] = Field(None, description="Результаты запроса на обновление остатков.")
+    not_found: Optional[BarcodesStocksEditResponse] = Field(None, description="Список баркодов, которых нет в базе данных.")
+    closed_with_nonzero: Optional[BarcodesStocksEditResponse] = Field(None, description="Список баркодов, которые не доступны для редактирования остатков.")
+
+
+class StocksEditResponse(ResponseMessage):
+    """Модель для ответа на запрос редактирования виртуальных остатков."""
+
+    details: Optional[StocksEditDetails] = None
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "status": 200,
+                    "message": "Запрос обработан",
+                    "details": {
+                        "result": {
+                            "accounts": {
+                                "АККАУНТ": {
+                                    "warehouses": {
+                                        "111111": {
+                                            "success": False,
+                                            "errors": [
+                                                "[АККАНТ] Склад 111111: ошибка 400 - {'code': 'IncorrectRequestBody', 'message': 'Incorrect required body'}"
+                                            ]
+                                        }
+                                    },
+                                    "barcodes_with_invalid_chrt_id": ["18181818"],
+                                    "barcodes_without_chrt_id": ["07070707"]
+                                },
+                                "АККАУНТ_2": {
+                                    "warehouses": {
+                                        "222222": {
+                                            "success": True,
+                                            "errors": None
+                                        }
+                                    },
+                                    "barcodes_with_invalid_chrt_id": None,
+                                    "barcodes_without_chrt_id": None
+                                }
+                            },
+                            "errors": []
+                        },
+                        "not_found": {
+                            "data": {
+                                "АККАУНТ": [
+                                "0101010101"
+                                ]
+                            },
+                            "message": "Нет данных по переданным баркодам."
+                        },
+                        "closed_with_nonzero": {
+                            "data": {
+                                "АККАУНТ_2": [
+                                "0202020202"
+                                ]
+                            },
+                            "message": (
+                                "Некоторые карточки закрыты. Чтобы изменить остатки (кроме 0), "
+                                "сначала откройте их. Для обнуления - установите amount=0."
+                            )
+                        },
+                    }
+                }
+            ]
+        }
+    )
+
+
 class AccountCardData(BaseModel):
     nm_ids: list[int] = Field(..., example=[111222333, 444555666], description="Артикулы карточек")
 

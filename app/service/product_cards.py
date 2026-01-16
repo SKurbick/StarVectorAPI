@@ -257,6 +257,7 @@ class WildberriesCardsService:
                 ))
 
         if cards_to_upload:
+            print(cards_to_upload)
             await wb_client.create_cards(cards_to_upload)
 
             for card in cards_to_upload:
