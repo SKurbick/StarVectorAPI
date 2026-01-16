@@ -1627,3 +1627,13 @@ class SalesManagementShares(BaseModel):
     promotion_items: int
     total_items: int
     percentage: float
+
+class SalesManagementSharesGood(BaseModel):
+    """Схема товара учавствующего в акции"""
+    nm_id: int
+    local_vendor_code: str
+    account: str
+    subject_name: str
+    plan_price: int
+    real_price: int
+    promo_name: str

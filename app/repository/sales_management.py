@@ -10,6 +10,29 @@ class SalesManagementRepository:
     def __init__(self, pool: Pool) -> None:
         self.pool = pool
 
+    async def get_shares_goods(self, is_promotion: bool) -> Sequence:
+        """Получить товары в акциях или без"""
+        query = """
+                SELECT p.nm_id,
+                       a.local_vendor_code,
+                       a.account,
+                       cd.subject_name,
+                       p.plan_price,
+                       (cd.price - (cd.price * cd.discount / 100)) AS real_price,
+                       p.promo_name
+                FROM promotions p
+                         JOIN card_data cd ON cd.article_id = p.nm_id
+                         JOIN article a ON p.nm_id = a.nm_id
+                """
+        if is_promotion:
+            query += """ WHERE p.plan_price > (cd.price - (cd.price * cd.discount / 100)); """
+        else:
+            query += """ WHERE p.plan_price < (cd.price - (cd.price * cd.discount / 100)); """
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query)
+        return rows
+
+
     async def get_shares_total_items_by_accounts(self) -> Sequence:
         """Получить количество товаров и товаров с акциями по аккаунтам"""
         query = """

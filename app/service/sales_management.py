@@ -17,13 +17,20 @@ from app.domain.models import (
     SalesManagementOutlayBase,
     SalesManagementOutlayWithDate,
     SalesManagementPenaltyWithDate,
-    SalesManagementShares
+    SalesManagementShares,
+    SalesManagementSharesGood
 )
 
 
 class SalesManagementService:
     def __init__(self, repository: SalesManagementRepository):
         self.repository = repository
+
+    async def get_shares_goods_with_bool(self, is_promotion: bool):
+        """Получить товары учавствующие\неучавствующие в акциях"""
+        rows = await self.repository.get_shares_goods(is_promotion=is_promotion)
+        result = [SalesManagementSharesGood(**r) for r in rows]
+        return result
 
     async def get_shares_total_items_by_accounts(self):
         """Получить количество товаров и товаров с акциями по аккаунтам с валидацией"""
