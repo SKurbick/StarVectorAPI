@@ -1,16 +1,22 @@
 import datetime
-from datetime import date
+import logging
 from typing import Optional
 
 from app.repository.sales_management import SalesManagementRepository
 
 from app.domain.models import (
     SalesManagementBaseSumm,
+    SalesManagementManagerBase,
     SalesManagementManagerRow,
     SalesManagementBaseSummWithDate,
     SalesManagementBaseSummWithSKU,
     SalesManagementICWithDate,
-    SalesManagementICBase
+    SalesManagementICBase,
+    SalesManagementBrowsingInfoWithDate,
+    SalesManagementBrowsingInfo,
+    SalesManagementOutlayBase,
+    SalesManagementOutlayWithDate,
+    SalesManagementPenaltyWithDate
 )
 
 
@@ -18,24 +24,404 @@ class SalesManagementService:
     def __init__(self, repository: SalesManagementRepository):
         self.repository = repository
 
+    async def get_revenue_and_ic_by_manager_and_period(
+            self,
+            start_date: datetime.date,
+            end_date: datetime.date,
+    ):
+        """Получить совокупные данные по прибыли и выручке по каждому менеджеру"""
+        period = start_date - end_date
+        actual_managers = await self.repository.get_manager_with_category_without_date(
+            start_date=start_date,
+            end_date=end_date
+        )
+        actual_revenue_and_ic = await self.repository.get_sums_ic_and_revenue_by_category_and_period(
+            start_date=start_date,
+            end_date=end_date,
+        )
+        old_avg_ic_rows = await self.repository.get_old_sums_ic_by_category_and_period(
+            start_date=start_date - datetime.timedelta(days=period.days + 1),
+            end_date=end_date - datetime.timedelta(days=period.days + 1),
+            period=period.days + 1,
+        )
+        old_avg_revenue = await self.repository.get_old_sums_revenue_by_category_and_period(
+            start_date=start_date - datetime.timedelta(days=period.days + 1),
+            end_date=end_date - datetime.timedelta(days=period.days + 1),
+            period=period.days + 1,
+        )
+
+        valid_manager = [SalesManagementManagerBase(**r) for r in actual_managers]
+        valid_old_avg_revenue = [SalesManagementBaseSumm(**r) for r in old_avg_revenue]
+        valid_old_avg_ic = [SalesManagementICBase(**r) for r in old_avg_ic_rows]
+        valid_actual_revenue_and_ic = [SalesManagementICWithDate(**r) for r in actual_revenue_and_ic]
+
+        valid_result = {}
+        # Мапа для подсчета конечных сумм по менеджерам с разбивками по дням
+        totals = {
+            "old_revenue_avg_total": 0,
+            "old_ic_avg_total": 0,
+            "ic_today_to_tomorrow_percentage": 0,
+            "revenue_today_to_tomorrow_percentage": 0,
+            "ic_revenue_percentage": 0,
+            "t_dates": {},
+            "dates": []
+        }
+        # Мапа для менеджеров
+        dict_managers = {}
+        # Мапа для категорий
+        dict_helper = {}
+
+        # Добавление в вспомогательную мапу менеджером и их категории
+        for i in valid_manager:
+            if dict_managers.get(i.manager) is None:
+                dict_managers[i.manager] = [i.subject_name]
+            else:
+                dict_managers[i.manager].append(i.subject_name)
+
+        # Добавление в вспомогательную мапу категории с разбивкой по дням ИУ и Выручкой
+        for i in valid_actual_revenue_and_ic:
+            if dict_helper.get(i.subject_name) is None:
+                dict_helper[i.subject_name] = {i.date: {"ic": i.ic, "revenue": i.revenue}}
+            else:
+                dict_helper[i.subject_name] = dict_helper[i.subject_name] | {i.date: {"ic": i.ic, "revenue": i.revenue}}
+
+        # Добавление в вспомогательную мапу AVG выручки
+        for i in valid_old_avg_revenue:
+            try:
+                dict_helper[i.subject_name] = dict_helper[i.subject_name] | {"old_revenue_avg": i.summ}
+            except KeyError:
+                continue
+
+        # Добавление в вспомогательную мапу AVG по ИУ
+        for i in valid_old_avg_ic:
+            try:
+                dict_helper[i.subject_name] = dict_helper[i.subject_name] | {"old_ic_avg": i.ic}
+            except KeyError:
+                continue
+
+        # Формирование конечного результата с математическими операциями
+        for i in dict_managers:
+            revenue_today = 0
+            revenue_tomorrow = 0
+            ic_today = 0
+            ic_tomorrow = 0
+            dates_dict = {}
+            valid_result[i] = {
+                "old_revenue_avg": 0,
+                "old_ic_avg": 0,
+                "revenue_today_to_tomorrow_percentage": 0,
+                "ic_today_to_tomorrow_percentage": 0,
+                "dates": []
+            }
+            for key in dict_managers[i]:
+                try:
+                    for k, v in dict_helper[key].items():
+                        if type(k) is datetime.date:
+                            if k == datetime.datetime.now().date():
+                                revenue_today += dict_helper[key][k]["revenue"]
+                                ic_today += dict_helper[key][k]["ic"]
+                            if k == datetime.datetime.now().date() - datetime.timedelta(days=1):
+                                revenue_tomorrow += dict_helper[key][k]["revenue"]
+                                ic_tomorrow += dict_helper[key][k]["ic"]
+                            if dates_dict.get(k) is None:
+                                dates_dict[k] = {"revenue": dict_helper[key][k]["revenue"], "ic": dict_helper[key][k]["ic"]}
+                            else:
+                                dates_dict[k]["revenue"] += dict_helper[key][k]["revenue"]
+                                dates_dict[k]["ic"] += dict_helper[key][k]["ic"]
+                        if k == "old_revenue_avg":
+                            valid_result[i]["old_revenue_avg"] += v
+                        if k == "old_ic_avg":
+                            valid_result[i]["old_ic_avg"] += v
+                    valid_result[i]["revenue_today_to_tomorrow_percentage"] = self._math_percent_create(revenue_today, revenue_tomorrow)
+                    valid_result[i]["ic_today_to_tomorrow_percentage"] = self._math_percent_create(ic_today, ic_tomorrow)
+                except KeyError:
+                    continue
+            for d in dates_dict:
+                valid_result[i]["dates"].append({"date": d, "ic": dates_dict[d]["ic"], "revenue": dates_dict[d]["revenue"]})
+                if totals["t_dates"].get(d) is None:
+                    totals["t_dates"][d] = {"revenue": dates_dict[d]["revenue"], "ic": dates_dict[d]["ic"]}
+                else:
+                    totals["t_dates"][d]["revenue"] += dates_dict[d]["revenue"]
+                    totals["t_dates"][d]["ic"] += dates_dict[d]["ic"]
+
+        # Добавление сумм от каждого менеджера
+        for k in valid_result.keys():
+            totals["old_revenue_avg_total"] += valid_result[k]["old_revenue_avg"]
+            totals["old_ic_avg_total"] += valid_result[k]["old_ic_avg"]
+
+        # Разбивка сумм по выручке и ИУ по дням от каждого менеджера
+        for i in totals['t_dates']:
+            try:
+                totals["dates"].append({
+                    "date": i,
+                    "ic": totals['t_dates'][i]["ic"],
+                    "revenue": totals['t_dates'][i]["revenue"],
+                    "ic_revenue_percentage": self._math_percent_create(
+                        totals['t_dates'][i]["ic"],
+                        totals['t_dates'][i]["revenue"]
+                    )
+                })
+            except IndexError:
+                continue
+
+        try:
+            totals["ic_today_to_tomorrow_percentage"] = self._math_percent_create(
+                totals["t_dates"][start_date]["ic"],
+                totals["t_dates"][start_date - datetime.timedelta(days=1)]["ic"]
+            )
+        except KeyError:
+            pass
+
+        try:
+            totals["revenue_today_to_tomorrow_percentage"] = self._math_percent_create(
+                totals["t_dates"][start_date]["revenue"],
+                totals["t_dates"][start_date - datetime.timedelta(days=1)]["revenue"]
+            )
+        except KeyError:
+            pass
+
+        totals["ic_revenue_percentage"] = self._math_percent_create(
+            totals["old_ic_avg_total"], totals["old_revenue_avg_total"]
+        )
+
+        totals.pop("t_dates")
+
+        return valid_result | totals
+
+    async def get_penalty_info_by_category_and_period(
+            self,
+            start_date: datetime.date,
+            end_date: datetime.date,
+            good_category: Optional[str]
+    ):
+        """Получить данные по штраф по категориям за определенный период"""
+        actual_penalty = await self.repository.get_penalty_by_category_and_period(
+            start_date=start_date,
+            end_date=end_date,
+            good_category=good_category
+        )
+        valid_penalty = [SalesManagementPenaltyWithDate(**r) for r in actual_penalty]
+
+        valid_result = {}
+
+        for i in valid_penalty:
+            if i.subject_name is None:
+                continue
+            if valid_result.get(i.subject_name) is None:
+                valid_result[i.subject_name] = {}
+            if valid_result[i.subject_name].get("dates") is None:
+                valid_result[i.subject_name]["dates"] = [
+                    {"date": i.date, "penalty": i.penalty}]
+            else:
+                valid_result[i.subject_name]["dates"].append(
+                    {"date": i.date, "penalty": i.penalty})
+
+        return valid_result
+
+
+    async def get_outlay_info_by_category_and_period(
+            self,
+            start_date: datetime.date,
+            end_date: datetime.date,
+            good_category: Optional[str] = None,
+    ):
+        """Получить данные по затратам по категориям за определенный период"""
+        period = start_date - end_date
+        actual_outlay = await self.repository.get_outlay_by_category_and_period(
+            start_date=start_date,
+            end_date=end_date,
+            good_category=good_category
+        )
+        old_outlay = await self.repository.get_old_outlay_by_category_and_period(
+            start_date=start_date - datetime.timedelta(days=period.days + 1),
+            end_date=end_date - datetime.timedelta(days=period.days + 1),
+            period=period.days + 1,
+            good_category=good_category
+        )
+        old_revenue = await self.repository.get_old_sums_revenue_by_category_and_period(
+            start_date=start_date - datetime.timedelta(days=period.days + 1),
+            end_date=end_date - datetime.timedelta(days=period.days + 1),
+            period=period.days + 1,
+            good_category=good_category
+        )
+        actual_ic_rows = await self.repository.get_sums_ic_and_revenue_by_category_and_period(
+            start_date=start_date,
+            end_date=end_date,
+            good_category=good_category
+        )
+        old_avg_ic_rows = await self.repository.get_old_sums_ic_by_category_and_period(
+            start_date=start_date - datetime.timedelta(days=period.days + 1),
+            end_date=end_date - datetime.timedelta(days=period.days + 1),
+            period=period.days + 1,
+            good_category=good_category
+        )
+        valid_actual_ic_rows = [SalesManagementICWithDate(**r) for r in actual_ic_rows]
+        valid_old_avg_ic_rows = [SalesManagementICBase(**r) for r in old_avg_ic_rows]
+        valid_old_revenue_avg_rows = [SalesManagementBaseSumm(**r) for r in old_revenue]
+        valid_actual_outlay = [SalesManagementOutlayWithDate(**r) for r in actual_outlay]
+        valid_old_avg_outlay = [SalesManagementOutlayBase(**r) for r in old_outlay]
+        valid_result = {}
+
+        # хэш-мапа для обхода On2
+        dict_helper = {}
+
+        for i in valid_actual_ic_rows:
+            if dict_helper.get(i.subject_name) is None:
+                dict_helper[i.subject_name] = {i.date: {"ic": i.ic, "revenue": i.revenue, "adv_spend": 0}}
+            else:
+                dict_helper[i.subject_name] = dict_helper[i.subject_name] | {i.date: {"ic": i.ic, "revenue": i.revenue, "adv_spend": 0}}
+
+        for i in valid_actual_outlay:
+            dict_helper[i.subject_name][i.date]["adv_spend"] = i.adv_spend
+        ##
+
+        # Добавление соединенных значений затрат, прибыли и ИУ в результирующий словарь + мат расчеты
+        for k, v in dict_helper.items():
+            if valid_result.get(k) is None:
+                valid_result[k] = {
+                    "old_period_avg_outlay": 0,
+                    "old_period_avg_revenue": 0,
+                    "old_period_avg_ic": 0,
+                    "old_period_CHP-RC": 0,
+                    "DRR_tomorrow": 0,
+                    "growth_CHP-RC_to_tomorrow": 0,
+                    "old_period_CHP-RC_percentage": 0
+                }
+            for c, i in v.items():
+                if valid_result[k].get("dates") is None:
+                    valid_result[k]["dates"] = [
+                        {
+                            "date": c,
+                            "revenue": i["revenue"],
+                            "ic": i["ic"],
+                            "adv_spend": i["adv_spend"],
+                            "CHP-RC": i["ic"]-i["adv_spend"],
+                            "CHP-RC_percentage": self._math_percent_create(i["ic"]-i["adv_spend"], i["revenue"])
+                        }]
+                else:
+                    valid_result[k]["dates"].append(
+                        {
+                            "date": c,
+                            "revenue": i["revenue"],
+                            "ic": i["ic"],
+                            "adv_spend": i["adv_spend"],
+                            "CHP-RC": i["ic"]-i["adv_spend"],
+                            "CHP-RC_percentage": self._math_percent_create(i["ic"]-i["adv_spend"], i["revenue"])
+                        })
+            try:
+                valid_result[k]["DRR_tomorrow"] = self._math_percent_create(
+                    dict_helper[k][datetime.datetime.now().date() - datetime.timedelta(days=1)]["adv_spend"],
+                    dict_helper[k][datetime.datetime.now().date() - datetime.timedelta(days=1)]["revenue"],
+                    n_digits=1
+                )
+            except KeyError:
+                valid_result[k]["DRR_tomorrow"] = 0
+
+        # Добавление в результирующий словарь среднего количества продаж за период по категории
+        for i in valid_old_revenue_avg_rows:
+            try:
+                valid_result[i.subject_name]["old_period_avg_revenue"] = i.summ
+            except KeyError:
+                continue
+
+        # Добавление в результирующий словарь среднего количества затрат за период по категории
+        for i in valid_old_avg_outlay:
+            try:
+                valid_result[i.subject_name]["old_period_avg_outlay"] = i.adv_spend
+            except KeyError:
+                continue
+
+        # Добавление в результирующий словарь среднего количества ИУ за период по категории + мат расчеты
+        for i in valid_old_avg_ic_rows:
+            try:
+                chp_rc = i.ic - valid_result[i.subject_name]["old_period_avg_outlay"]
+                valid_result[i.subject_name]["old_period_avg_ic"] = i.ic
+                valid_result[i.subject_name]["old_period_CHP-RC"] = chp_rc
+                valid_result[i.subject_name]["old_period_CHP-RC_percentage"] = self._math_percent_create(chp_rc, valid_result[i.subject_name]["old_period_avg_revenue"])
+                valid_result[i.subject_name]["growth_CHP-RC_to_tomorrow"] = self._math_percent_create(
+                    dict_helper[i.subject_name][datetime.datetime.now().date() - datetime.timedelta(days=1)]["ic"]
+                    -
+                    dict_helper[i.subject_name][datetime.datetime.now().date() - datetime.timedelta(days=1)]["adv_spend"],
+                    chp_rc)
+            except KeyError:
+                continue
+
+
+        return valid_result
+
+    async def get_browsing_info_by_category_and_period(
+            self,
+            start_date: datetime.date,
+            end_date: datetime.date,
+            good_category: Optional[str] = None,
+    ):
+        """Получить данные по кликам и просмотрам товаров по категориям за определенный период"""
+        period = start_date - end_date
+        actual_browsing = await self.repository.get_browsing_info_by_category_and_period(
+            start_date=start_date,
+            end_date=end_date,
+            good_category=good_category
+        )
+        old_browsing = await self.repository.get_old_browsing_info_by_category_and_period(
+            start_date=start_date - datetime.timedelta(days=period.days + 1),
+            end_date=end_date - datetime.timedelta(days=period.days + 1),
+            period=period.days + 1,
+            good_category=good_category
+        )
+        valid_actual_browsing = [SalesManagementBrowsingInfoWithDate(**r) for r in actual_browsing]
+        valid_old_browsing = [SalesManagementBrowsingInfo(**r) for r in old_browsing]
+        valid_result = {}
+
+        # Добавление в результирующий словарь статистики по датам
+        for i in valid_actual_browsing:
+            if valid_result.get(i.subject_name) is None:
+                valid_result[i.subject_name] = {
+                    "old_views_avg": 0,
+                    "old_clicks_avg": 0,
+                    "old_clicks_avg_percentage": 0,
+                }
+            if valid_result[i.subject_name].get("dates") is None:
+                valid_result[i.subject_name]["dates"] = [
+                    {"date": i.date, "views": i.views, "clicks_percentage": i.clicks, "clicks_avg": i.clicks_avg}]
+            else:
+                valid_result[i.subject_name]["dates"].append(
+                    {"date": i.date, "views": i.views, "clicks_percentage": i.clicks, "clicks_avg": i.clicks_avg})
+
+        # Добавление в результирующий словарь статистики за прошлый период
+        for i in valid_old_browsing:
+            try:
+                valid_result[i.subject_name]["old_views_avg"] = i.views
+                valid_result[i.subject_name]["old_clicks_avg"] = i.clicks_avg
+                valid_result[i.subject_name]["old_clicks_avg_percentage"] = i.clicks
+            except KeyError:
+                continue
+
+        return valid_result
+
     async def get_sums_individual_conditions_by_period_with_category(
             self,
-            start_date: date,
-            end_date: date,
+            start_date: datetime.date,
+            end_date: datetime.date,
+            good_category: Optional[str] = None,
     ):
         """Получить данные по индивидуальным условиям с категориями за определенный период"""
         period = start_date - end_date
         sums_ic_rows = await self.repository.get_sums_ic_and_revenue_by_category_and_period(
-            start_date=start_date, end_date=end_date)
+            start_date=start_date,
+            end_date=end_date,
+            good_category=good_category
+        )
         old_period_avg_sums_ic_rows = await self.repository.get_old_sums_ic_by_category_and_period(
             start_date=start_date - datetime.timedelta(days=period.days + 1),
             end_date=end_date - datetime.timedelta(days=period.days + 1),
-            period=period.days + 1
+            period=period.days + 1,
+            good_category=good_category
         )
         old_period_avg_revenue_rows = await self.repository.get_old_sums_revenue_by_category_and_period(
             start_date=start_date - datetime.timedelta(days=period.days + 1),
             end_date=end_date - datetime.timedelta(days=period.days + 1),
-            period=period.days + 1
+            period=period.days + 1,
+            good_category=good_category
         )
         valid_sums_ic_rows = [SalesManagementICWithDate(**r) for r in sums_ic_rows]
         valid_old_period_avg_ic_rows = [SalesManagementICBase(**r) for r in old_period_avg_sums_ic_rows]
@@ -113,21 +499,27 @@ class SalesManagementService:
 
     async def get_sum_revenue_category_by_period_with_managers(
             self,
-            start_date: date,
-            end_date: date,
+            start_date: datetime.date,
+            end_date: datetime.date,
+            good_category: Optional[str] = None,
     ):
         """Получить общие цифры продаж по категориям за определенный период, с менеджерами"""
         period = start_date - end_date
         sums_rows = await self.repository.get_sums_revenue_by_category_and_period(
-            date_start=start_date, date_end=end_date
+            date_start=start_date,
+            date_end=end_date,
+            good_category=good_category
         )
         manager_rows = await self.repository.get_managers_name_by_category_and_period(
-            date_start=start_date, date_end=end_date
+            date_start=start_date,
+            date_end=end_date,
+            good_category=good_category
         )
         old_period_avg_sums_rows = await self.repository.get_old_sums_revenue_by_category_and_period(
             start_date=start_date - datetime.timedelta(days=period.days + 1),
             end_date=end_date - datetime.timedelta(days=period.days + 1),
-            period=period.days + 1
+            period=period.days + 1,
+            good_category=good_category
         )
         valid_sums_rows = [SalesManagementBaseSummWithSKU(**r) for r in sums_rows]
         valid_manager_rows = [SalesManagementManagerRow(**r) for r in manager_rows]
@@ -188,7 +580,7 @@ class SalesManagementService:
                 old_period_avg=valid_result[k].get("old_period_avg"),
             )
             valid_result[k]["old_period_avg"] = valid_result[k]["old_period_avg"]
-            valid_result[k]["sku_period_avg"] = round(avg_sku_period / period.days + 1)
+            valid_result[k]["sku_period_avg"] = round(avg_sku_period / (period.days + 1))
         if valid_result.get(None):
             del valid_result[None]
 
@@ -196,7 +588,7 @@ class SalesManagementService:
 
     async def get_sum_sales_category_by_date(
             self,
-            date: date,
+            date: datetime.date,
             good_category: Optional[str] = None,
     ):
         """Сумма продаж по категории за конкретный день"""
@@ -207,12 +599,14 @@ class SalesManagementService:
             self,
             low_num: int,
             up_num: int,
+            n_digits: int | None = None,
     ) -> int:
+        """Формула для расчета процентного соотношения"""
         if low_num == 0:
             return 0
         if up_num == 0:
             return 0
-        return round(low_num / up_num * 100)
+        return round(low_num / up_num * 100, ndigits=n_digits)
 
     def _math_average_to_average_growth(
             self,

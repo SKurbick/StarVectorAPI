@@ -35,6 +35,10 @@ from app.use_cases.card_use_cases.close_card_use_case import CloseCardUseCase
 logger = logging.getLogger(__name__)
 
 
+class NotCreatedCardError(Exception):
+    """Карточка товара не была создана."""
+
+
 class WildberriesCardsService:
     """Сервис для работы с карточками на WB."""
     def __init__(
@@ -78,23 +82,34 @@ class WildberriesCardsService:
             wb_card=old_card_wb,
             local_vendor_code=old_card_db["local_vendor_code"]
         )
+        try:
+            # Создание на WB и валидация
+            upload_result = await self.create_cards_from_request(
+                wb_client=wb_client,
+                creation_requests=[creation_payload]
+            )
 
-        # Создание на WB и валидация
-        upload_result = await self.create_cards_from_request(
-            wb_client=wb_client,
-            creation_requests=[creation_payload]
-        )
+            new_card_wb: Optional[WbCard] = None
 
-        new_card_wb: Optional[WbCard] = None
+            if upload_result:
+                created = upload_result.created
 
-        if upload_result:
-            created = upload_result.created
+                for new_nm_id in created:
+                    new_card_wb = await self.get_card_info(wb_client=wb_client, nm_id=new_nm_id)
 
-            if created:
-                new_card_wb = await self.get_card_info(wb_client=wb_client, nm_id=created[0])
+                    if not new_card_wb:
+                        await self._delete_article(new_nm_id, wb_client.account)
+                        raise NotCreatedCardError
 
-        if not new_card_wb:
-            raise RuntimeError(f"Не удалось создать дубликат карточки {nm_id} в учетной записи {wb_client.account}.")
+            if not new_card_wb:
+                raise NotCreatedCardError
+
+        except NotCreatedCardError:
+            raise NotCreatedCardError(f"Не удалось создать дубликат карточки {nm_id} в учетной записи {wb_client.account}. Попробуйте позже.")
+
+        added_media = False
+        price_discount_sync = False
+        fbs_stock_sinc = False
 
         # Синхронизация медиа
         media_links = []
@@ -117,6 +132,8 @@ class WildberriesCardsService:
 
             if not added_media:
                 logging.warning(f"Не удалось проверить добавление медиа для {new_card_wb.nm_id} в учетной записи {wb_client.account}.")
+        else:
+            added_media = True
 
         # Синхронизация цен
         logger.info("Получаем старые цены")
@@ -384,7 +401,8 @@ class WildberriesCardsService:
             if updated_at > (now - timedelta(minutes=1)):
                 return card
 
-            await asyncio.sleep((i + 1) * 5)
+            if i < max_retries - 1:
+                await asyncio.sleep((i + 1) * 5)
 
         return None
 
@@ -402,7 +420,8 @@ class WildberriesCardsService:
             if card:
                 return card
 
-            await asyncio.sleep((i + 1) * 10)
+            if i < max_retries - 1:
+                await asyncio.sleep((i + 1) * 10)
 
         return None
 
@@ -596,3 +615,14 @@ class WildberriesCardsService:
             raise Exception(
                 detail=f"Ошибка во время закрытия карточки {nm_id}: {e}"
             )
+
+    async def _delete_article(self, nm_id: int, account: str):
+        """Удалить карточку из БД."""
+        logger.info(f"Удаляем карточку {nm_id} аккаунта {account} из БД.")
+        try:
+            await self.article_repo.delete_article(nm_id, account)
+            logger.info(f"Карточка {nm_id} аккаунта {account} удалена из БД.")
+        except Exception as e:
+            message = f"Ошибка во время удаления карточки {nm_id} из БД: {e}"
+            logger.exception(message)
+            raise

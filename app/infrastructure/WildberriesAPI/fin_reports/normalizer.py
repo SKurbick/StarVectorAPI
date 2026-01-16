@@ -30,6 +30,7 @@ FIELD_TYPES = {
     "assembly_id": "int",
     "report_type": "int",
     "wibes_wb_discount_percent": "int",
+    "seller_promo_id": "int",
 
     # Decimal
     "dlv_prc": "decimal",
@@ -62,6 +63,7 @@ FIELD_TYPES = {
     "cashback_discount": "decimal",
     "cashback_commission_change": "decimal",
     "payment_schedule": "decimal",
+    "seller_promo_discount": "decimal",
 
     # Булевы
     "is_kgvp_v2": "bool",

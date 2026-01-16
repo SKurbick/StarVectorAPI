@@ -320,3 +320,19 @@ class ArticleRepository:
                     *params,
                     nm_id,
                 )
+
+    async def delete_article(
+        self,
+        nm_id: int,
+        account: str,
+    ):
+        query =  """
+            DELETE FROM article
+            WHERE
+                nm_id = $1,
+                account = $2
+        """
+
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute(query, nm_id, account.upper())

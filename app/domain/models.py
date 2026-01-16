@@ -1572,10 +1572,13 @@ class SalesManagementBaseSummWithSKU(SalesManagementBaseSummWithDate):
     """Схема продаж по категориям с датами и SKU"""
     sku_percentage: int
 
-class SalesManagementManagerRow(BaseModel):
-    """Схема менеджеров по категориям с датами"""
+class SalesManagementManagerBase(BaseModel):
+    """Схема менеджеров с категориями"""
     manager: str
     subject_name: str
+
+class SalesManagementManagerRow(SalesManagementManagerBase):
+    """Схема менеджеров по категориям с датами"""
     date: date
 
 class SalesManagementICBase(BaseModel):
@@ -1587,3 +1590,32 @@ class SalesManagementICWithDate(SalesManagementICBase):
     """Схема прибыли по ИС по категориям и датам"""
     date: date
     revenue: int
+
+class SalesManagementBrowsingInfo(BaseModel):
+    """Схема статистики по категориям товаров"""
+    subject_name: str | None
+    views: int
+    clicks: float | int
+    clicks_avg: int
+
+class SalesManagementBrowsingInfoWithDate(SalesManagementBrowsingInfo):
+    """Схема статистики по категориям товаров с датами"""
+    date: date
+
+class SalesManagementOutlayBase(BaseModel):
+    """Схема затрат по категориям товаров"""
+    subject_name: str | None
+    adv_spend: int
+
+class SalesManagementOutlayWithDate(SalesManagementOutlayBase):
+    """Схема затрат по категориям товаров с датой"""
+    date: date
+
+class SalesManagementPenaltyBase(BaseModel):
+    """Схема штрафов по категориям"""
+    subject_name: str | None
+    penalty: int
+
+class SalesManagementPenaltyWithDate(SalesManagementPenaltyBase):
+    """Схема штрафов по категориям с датой"""
+    date: date
