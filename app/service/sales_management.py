@@ -16,13 +16,20 @@ from app.domain.models import (
     SalesManagementBrowsingInfo,
     SalesManagementOutlayBase,
     SalesManagementOutlayWithDate,
-    SalesManagementPenaltyWithDate
+    SalesManagementPenaltyWithDate,
+    SalesManagementShares
 )
 
 
 class SalesManagementService:
     def __init__(self, repository: SalesManagementRepository):
         self.repository = repository
+
+    async def get_shares_total_items_by_accounts(self):
+        """Получить количество товаров и товаров с акциями по аккаунтам с валидацией"""
+        rows = await self.repository.get_shares_total_items_by_accounts()
+        result = [SalesManagementShares(**r) for r in rows]
+        return result
 
     async def get_revenue_and_ic_by_manager_and_period(
             self,

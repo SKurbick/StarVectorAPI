@@ -1619,3 +1619,11 @@ class SalesManagementPenaltyBase(BaseModel):
 class SalesManagementPenaltyWithDate(SalesManagementPenaltyBase):
     """Схема штрафов по категориям с датой"""
     date: date
+
+class SalesManagementShares(BaseModel):
+    """Схема по соотношению товаров к товарам с акциями с группировкой по аккаунту"""
+    account: str
+    promo_name: str | None
+    promotion_items: int
+    total_items: int
+    percentage: float
