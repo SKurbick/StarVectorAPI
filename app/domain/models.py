@@ -1637,3 +1637,9 @@ class SalesManagementSharesGood(BaseModel):
     plan_price: int
     real_price: int
     promo_name: str
+
+class ItemizationOfExpenses(BaseModel):
+    """Финансовые отчёты. Детализация расходов"""
+    period: str | date
+    category: str
+    total_value: float
