@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.params import Depends
 
 from app.dependencies.sales_management import get_sales_management_service
-from app.domain.models import SalesManagementBaseSummWithDate
+from app.domain.models import SalesManagementBaseSummWithDate, SalesManagementShares, SalesManagementSharesGood
 from app.service.sales_management import SalesManagementService
 
 router = APIRouter(prefix="/sales-management", tags=["Управление продажами"])
@@ -150,4 +150,24 @@ async def get_managers_statistic_by_period(
         start_date=date_start,
         end_date=date_end,
     )
+    return result
+
+
+@router.get("/sales/promotions/static", response_model=list[SalesManagementShares], description="""
+**Получить информацию по акциям у аккаунтов с процентным соотношением total\shares**\n
+""")
+async def get_promotions_statistic(
+        service: SalesManagementService = Depends(get_sales_management_service)
+):
+    result = await service.get_shares_total_items_by_accounts()
+    return result
+
+
+@router.get("/sales/promotions/goods", response_model=list[SalesManagementSharesGood], description="""
+**Получить товары участвующие\неучавствующие в акциях**\n""")
+async def get_promotions_goods(
+        is_promotion: bool,
+        service: SalesManagementService = Depends(get_sales_management_service)
+):
+    result = await service.get_shares_goods_with_bool(is_promotion)
     return result
