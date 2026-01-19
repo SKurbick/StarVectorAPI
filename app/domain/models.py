@@ -1643,3 +1643,42 @@ class ItemizationOfExpenses(BaseModel):
     period: str | date
     category: str
     total_value: float
+
+class MainFinancialReport(BaseModel):
+    """Основной финансовый отчёт"""
+    wb_commission: float | None
+    wb_commission_pct: float | None
+    to_be_transferred: float | None
+    logistics: float | None
+    total_to_be_paid: float | None
+    revenue: float | None
+    discounted_retail_price: float | None
+    fines: float | None
+    storage: float | None
+    deductions: float | None
+    paid_acceptance: float | None
+    loan_transfers: float | None
+    to_the_client_upon_cancellation: float | None
+    from_the_client_upon_cancellation: float | None
+    from_the_client_upon_return: float | None
+    to_the_client_upon_sale: float | None
+    purchase_price_of_sales: float | None
+    purchase_price_of_returns: float | None
+    purchase_price: float | None
+    pre_cost_share: float | None
+    pre_cost_share_pct: float | None
+    deductions_pct: float | None
+    logistics_pct: float | None
+    loan_transfers_pct: float | None
+    net_profit: float | None
+    net_profit_pct: float | None
+    office_expenses: float | None
+    recruitment: float | None
+    office_rent: float | None
+    communication_services: float | None
+    car_park: float | None
+    building_operation: float | None
+    utility_bills: float | None
+    settlements_with_the_supplier_for_materials: float | None
+    cargo: str | None
+
