@@ -63,3 +63,9 @@ class ExcelParserEnum(Enum):
     srid = 13
     loss_owner = 28
     comment = 29
+
+
+class FinancialReportingEnum(str, Enum):
+    """Временные периоды для формирования отчётности."""
+    month = "month"
+    week = "week"
