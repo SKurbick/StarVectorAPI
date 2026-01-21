@@ -34,7 +34,7 @@ class CardDataRepository:
             where_conditions.append(
                 f"(a.account = ${len(params) + 1} AND cd.barcode = ANY(${len(params) + 2}))"
             )
-            params.extend((acc, skus))
+            params.extend((acc.upper(), skus))
 
         if not where_conditions:
             return {}
@@ -66,18 +66,35 @@ class CardDataRepository:
         query = """
         INSERT INTO card_data (
             article_id, barcode, height, length, width,
-            weight_brutto, subject_name, last_update_time
+            weight_brutto, subject_name, last_update_time, chrt_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         ON CONFLICT (article_id) DO UPDATE 
         SET height = EXCLUDED.height,
             length = EXCLUDED.length,
             width = EXCLUDED.width,
             weight_brutto = EXCLUDED.weight_brutto,                
             subject_name = EXCLUDED.subject_name,
-            last_update_time = EXCLUDED.last_update_time
+            last_update_time = EXCLUDED.last_update_time,
+            chrt_id = EXCLUDED.chrt_id
         """
 
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 await conn.executemany(query, data)
+
+    async def get_chrt_ids_by_article_ids(self, article_ids: list[int]) -> dict[int, int]:
+        """
+        Возвращает словарь с nm_id карточек и chrt_id.
+        """
+        if not article_ids:
+            return {}
+    
+        query = """
+        SELECT article_id, chrt_id
+        FROM card_data
+        WHERE article_id = ANY($1)
+        """
+
+        rows = await self.pool.fetch(query, article_ids)
+        return {row["article_id"]: row["chrt_id"] for row in rows}

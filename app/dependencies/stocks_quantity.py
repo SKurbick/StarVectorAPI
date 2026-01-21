@@ -29,8 +29,11 @@ def get_stocks_quantity_repository(pool: Pool = Depends(get_pool)) -> StocksQuan
     return StocksQuantityRepository(pool)
 
 
-def get_stocks_quantity_service(repository: StocksQuantityRepository = Depends(get_stocks_quantity_repository)) -> StocksQuantityService:
-    return StocksQuantityService(repository)
+def get_stocks_quantity_service(
+        repository: StocksQuantityRepository = Depends(get_stocks_quantity_repository),
+        card_data_service: CardDataService = Depends(get_card_data_service),
+    ) -> StocksQuantityService:
+    return StocksQuantityService(repository, card_data_service)
 
 
 async def validate_edit_quantity_data(
@@ -68,10 +71,7 @@ async def validate_edit_quantity_data(
     closed_with_nonzero_by_account = defaultdict(list)
 
     for account, account_data in edit_data.items():
-        acc_nm_ids = barcodes_nm_ids.get(acc)
-
-        if not acc_nm_ids:
-            continue
+        acc_nm_ids = barcodes_nm_ids.get(acc, {})
 
         for item in account_data.stocks:
             barcode = item.sku

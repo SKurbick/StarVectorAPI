@@ -64,17 +64,17 @@ class LeftoversMarketplace:
             'Content-Type': 'application/json'
         }
 
-    async def get_amount_from_warehouses(self, warehouse_id, barcodes, step=1000):
+    async def get_amount_from_warehouses(self, warehouse_id, chrt_ids, step=1000):
         """
         Получить остатки по баркодам на одном складе.
         """
-        result  = await self.get_amount_from_all_warehouses([warehouse_id], barcodes, step)
+        result  = await self.get_amount_from_all_warehouses([warehouse_id], chrt_ids, step)
         return result
 
     async def get_amount_from_all_warehouses(
         self,
         warehouse_ids: list[int],
-        barcodes: list[str],
+        chrt_ids: list[int],
         step: int = 1000
     ) -> dict[str, list[dict[str, any]]]:
         """
@@ -85,15 +85,15 @@ class LeftoversMarketplace:
         async with aiohttp.ClientSession() as session:
             for warehouse_id in warehouse_ids:
                 url = self.url.format(warehouse_id)
-                max_retries = 3  # на случай, если несколько баркодов невалидны или допустимые ошибки от wb
+                max_retries = 3  # на случай, если несколько chrt_id невалидны или допустимые ошибки от wb
 
                 try:
                     for _ in range(max_retries):
                         all_ok = True
 
-                        for start in range(0, len(barcodes), step):
-                            barcodes_part = barcodes[start: start + step]
-                            json_data = {"skus": barcodes_part}
+                        for start in range(0, len(chrt_ids), step):
+                            chrt_ids_part = chrt_ids[start: start + step]
+                            json_data = {"chrtIds": chrt_ids_part}
 
                             async with session.post(url=url, headers=self.headers, json=json_data) as response:
                                 if response.status in (429, 500):
@@ -115,11 +115,11 @@ class LeftoversMarketplace:
 
         return {self.account: all_stocks}
 
-    async def edit_amount_from_warehouses(self, warehouse_id, edit_barcodes_list, step=1000):
+    async def edit_amount_from_warehouses(self, warehouse_id, edit_chrt_ids_list, step=1000):
         """
         Отправить обновление остатков на один склад продавца.
         """
-        result = await self.edit_amount_on_warehouses([warehouse_id], edit_barcodes_list, step)
+        result = await self.edit_amount_on_warehouses([warehouse_id], edit_chrt_ids_list, step)
         return result.get(warehouse_id, False)
 
     async def send_stock_update(self, session: aiohttp.ClientSession, url: str, stocks: list[dict]) -> tuple[int, dict]:
@@ -136,18 +136,20 @@ class LeftoversMarketplace:
 
             return status, body
 
-    async def edit_amount_on_warehouses(self, warehouse_ids: list[int], edit_barcodes_list: list[dict], step: int = 1000) -> dict[int, bool]:
+    async def edit_amount_on_warehouses(self, warehouse_ids: list[int], edit_chrt_ids_list: list[dict], step: int = 1000) -> dict[str, any]:
         """
         Отправить обновление остатков на несколько складов.
         """
-        results = {}
+        wh_results = {}
 
         async with aiohttp.ClientSession() as session:
             for warehouse_id in warehouse_ids:
                 url = self.url.format(warehouse_id)
-                stocks = edit_barcodes_list.copy()
+                stocks = edit_chrt_ids_list.copy()
                 success = False
-                max_retries = 3  # на случай, если несколько баркодов невалидны или допустимые ошибки от wb
+                max_retries = 3  # на случай, если несколько chrt_id невалидны или допустимые ошибки от wb
+                invalid_chrt_ids = set()
+                errors = set()
 
                 for _ in range(max_retries):
                     if not stocks:
@@ -166,28 +168,39 @@ class LeftoversMarketplace:
                             all_ok = False
                             break
                         elif status > 399 and isinstance(body, list):
-                            invalid_skus = set()
-
                             for error in body:
                                 if "data" in error:
                                     for item in error["data"]:
-                                        invalid_skus.add(item.get("sku"))
+                                        invalid_chrt_ids.add(item.get("chrtId"))
 
-                            if invalid_skus:
-                                stocks = [s for s in stocks if s["sku"] not in invalid_skus]
+                            if invalid_chrt_ids:
+                                stocks = [s for s in stocks if s["chrtId"] not in invalid_chrt_ids]
                                 all_ok = False
                                 break  # выходим из батч-цикла, чтобы повторить со всеми валидными
                         else:
-                            print(f"[{self.account}] Склад {warehouse_id}: ошибка {status} - {body}")
+                            message = f"[{self.account}] Склад {warehouse_id}: ошибка {status} - {body}"
+                            print(message)
+                            errors.add(message)
                             all_ok = False
                             break
 
                     if all_ok:
                         break
 
-                results[warehouse_id] = success
+                wh_results[warehouse_id] = {
+                    "success": success,
+                    "invalid": invalid_chrt_ids,
+                    "errors": errors
+                }
 
-        return results
+        # chrt_id, которых нет ни на одном складе
+        all_invalid_chrt_ids = set.intersection(*[res["errors"] for _, res in wh_results.items()])
+
+        return {
+            "account": self.account,
+            "warehouses": {wh_id: {"success": res["success"], "errors": res["errors"] or None} for wh_id, res in wh_results.items()},
+            "invalid_chrt_ids": all_invalid_chrt_ids
+        }
 
 
 class WarehouseMarketplaceWB:

@@ -257,6 +257,7 @@ class WildberriesCardsService:
                 ))
 
         if cards_to_upload:
+            print(cards_to_upload)
             await wb_client.create_cards(cards_to_upload)
 
             for card in cards_to_upload:
@@ -532,6 +533,7 @@ class WildberriesCardsService:
                 card.dimensions.weight_brutto,
                 card.subject_name.capitalize(),
                 datetime.today(),
+                card.sizes[0].chrt_id
             )
 
             data_to_update.append(card_data)
