@@ -31,6 +31,7 @@ FIELD_TYPES = {
     "report_type": "int",
     "wibes_wb_discount_percent": "int",
     "seller_promo_id": "int",
+    "loyalty_id": "int",
 
     # Decimal
     "dlv_prc": "decimal",
@@ -64,6 +65,8 @@ FIELD_TYPES = {
     "cashback_commission_change": "decimal",
     "payment_schedule": "decimal",
     "seller_promo_discount": "decimal",
+    "loyalty_discount": "decimal",
+    "sale_price_promocode_discount_prc": "decimal",
 
     # Булевы
     "is_kgvp_v2": "bool",
@@ -98,6 +101,7 @@ FIELD_TYPES = {
     "order_uid": "str",
     "account": "str",
     "delivery_method": "str",
+    "uuid_promocode": "str",
 }
 
 
