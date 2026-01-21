@@ -37,11 +37,12 @@ class SalesManagementRepository:
         """Получить количество товаров и товаров с акциями по аккаунтам"""
         query = """
                 WITH account_aggregator AS (SELECT a.account,
-                                                   COUNT(DISTINCT a.nm_id) AS total_items
+                                                   COUNT(DISTINCT p.nm_id) AS total_items
                                             FROM article a
+                                                     JOIN promotions p ON p.nm_id = a.nm_id
+                                            where NOW() BETWEEN p.created_at AND p.promo_end
                                             GROUP BY a.account)
                 SELECT a.account,
-                       p.promo_name,
                        COUNT(DISTINCT p.nm_id)                                    AS promotion_items,
                        aa.total_items,
                        ROUND(COUNT(DISTINCT p.nm_id) * 100.0 / aa.total_items, 2) AS percentage
@@ -50,8 +51,9 @@ class SalesManagementRepository:
                          JOIN card_data cd ON cd.article_id = p.nm_id
                          JOIN account_aggregator aa ON aa.account = a.account
                 WHERE p.plan_price > (cd.price * (1 - cd.discount / 100.0))
-                GROUP by p.promo_name, a.account, aa.total_items
-                ORDER BY p.promo_name, a.account DESC;
+                  AND NOW() BETWEEN p.promo_start AND p.promo_end
+                GROUP by a.account, aa.total_items
+                ORDER by a.account DESC;
                 """
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(query)

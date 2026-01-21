@@ -1710,7 +1710,7 @@ class SalesManagementPenaltyWithDate(SalesManagementPenaltyBase):
 class SalesManagementShares(BaseModel):
     """Схема по соотношению товаров к товарам с акциями с группировкой по аккаунту"""
     account: str
-    promo_name: str | None
+    # promo_name: str | None
     promotion_items: int
     total_items: int
     percentage: float
