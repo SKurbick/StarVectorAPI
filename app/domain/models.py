@@ -1724,3 +1724,22 @@ class SalesManagementSharesGood(BaseModel):
     plan_price: int
     real_price: int
     promo_name: str
+
+class UserPermissions(BaseModel):
+    """Схема пермишинов пользователя"""
+    edit_users: bool
+    reception_of_goods: bool
+    moving_goods_between_warehouses: bool
+    movement_of_goods_between_warehouse_zones: bool
+    creating_a_delivery: bool
+    converting_sz_to_hanging: bool
+    transfer_of_delivery_to_delivery: bool
+    creation_of_a_reserve_fbo: bool
+    sending_a_reserve_fbo: bool
+    changing_product_characteristics: bool
+    changing_the_product_name: bool
+    adding_a_new_product: bool
+    return_acceptance: bool
+    ability_to_upload_excel_file_to_fines: bool
+    viewing: bool
+    download_excel_files: bool
