@@ -1585,26 +1585,40 @@ class UploadWBCardsRequest(BaseModel):
     account: str = Field(..., description="Аккаунт")
     data: list[WBCardCreateRequest] = Field(..., description="Список карточек для создания")
 
-
 class DuplicateWBProductCardRequest(BaseModel):
-    """Запрос на дублирование карточки."""
+    """Запрос на создание дубликата карточки в том же аккаунте."""
 
     nm_id: int = Field(..., description="Артикул WB исходной карточки")
     account: str = Field(..., description="Аккаунт")
     close_old_card: bool = Field(False, description="Закрыть ли исходную карточку")
 
 
-class DuplicateWBProductCardResponse(BaseModel):
-    """Ответ на дублирование карточки."""
+class DuplicateCardToAccountsRequest(BaseModel):
+    """Запрос на создание дубликата карточки на других аккаунтах."""
 
-    account: str = Field(..., description="Аккаунт")
-    source_card: int = Field(..., description="nm_id исходной карточки")
-    new_card: int = Field(..., description="nm_id новой карточки")
-    media_sinc: bool = Field(..., description="Успешна ли синхронизация медиа")
-    price_discount_sinc: bool = Field(..., description="Успешна ли синхронизация цен")
-    fbs_stock_sinc: bool = Field(..., description="Успешна ли синхронизация остатков")
-    details: list[str] = Field(..., description="Детали операции")
+    nm_id: int = Field(..., description="Артикул WB исходной карточки")
+    account: str = Field(..., description="Аккаунт с исходной карточкой")
+    target_accounts: list[str] = Field(None, description="Список аккаунтов для заведения новой карточки")
+
+class AccountProductCard(BaseModel):
+    account: str
+    nm_id: int
+    vendor_code: str
+
+class DuplicateWBProductCardResponse(BaseModel):
+    """Ответ на создание дубликата карточки в том же аккаунте."""
+
+    source_card: AccountProductCard = Field(..., description="Исходная карточка товара")
+    new_card: AccountProductCard = Field(..., description="Новая карточка товара")
     close_source: bool = Field(..., description="Исходная карточка закрыта")
+
+
+class DuplicateCardToAccountsResponse(BaseModel):
+    """Ответ на создание дубликата карточки на других аккаунтах."""
+
+    source_card: AccountProductCard = Field(..., description="Исходная карточка товара")
+    new_cards: list[AccountProductCard] = Field(..., description="Список созданных карточек.")
+    success: Literal["true", "false", "partial"] = Field(..., description="Прошло ли дублирование на все аккаунты успешно")
 
 
 class MoveToTrashRequest(BaseModel):
@@ -1724,3 +1738,12 @@ class SalesManagementSharesGood(BaseModel):
     plan_price: int
     real_price: int
     promo_name: str
+
+
+class SellerAccount(BaseModel):
+    """Модель аккаунта продавца."""
+
+    id: int = Field(..., description="id аккаунта")
+    account_name: str = Field(..., description="Название аккаунта")
+    is_active: bool = Field(..., description="Рабочий аккаунт")
+    inn: int = Field(..., description="ИНН аккаунта")

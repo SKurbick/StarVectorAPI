@@ -8,6 +8,7 @@ from asyncpg import Pool
 
 from app.domain.enums import CardStatusEnum
 from app.domain.models import (
+    AccountProductCard,
     WbCard,
     WBCardCreateRequest,
     DimensionsCreate,
@@ -20,6 +21,7 @@ from app.domain.models import (
     PriceDiscountResponseModel,
     UpdateStocksQuantityResponseModel,
     DuplicateWBProductCardResponse,
+    DuplicateCardToAccountsResponse,
     UpdateWBCardsResponse,
     UploadWBCardsResponse,
 )
@@ -60,32 +62,97 @@ class WildberriesCardsService:
     async def duplicate_card(
         self,
         wb_client: WBCardsClient,
-        nm_id: int,
+        source_nm_id: int,
+        close_old: bool = False
+    ) -> DuplicateWBProductCardResponse:
+        """
+        Создать дубликат карточки.
+        Если close_old=True, то карточка-источник будет закрыта.
+        """
+        original_card = await wb_client.get_card(nm_id=source_nm_id)
+        return await self._duplicate(
+            source_wb_card=original_card,
+            source_wb_client=wb_client,
+            target_wb_client=wb_client,
+            close_old=close_old
+        )
+
+    async def duplicate_card_to_accounts(
+        self,
+        source_wb_client: WBCardsClient,
+        target_wb_clients: list[WBCardsClient],
+        source_nm_id: int,
+    ) -> DuplicateCardToAccountsResponse:
+        """Создать дубликаты карточки на других аккаунтах."""
+        original_card = await source_wb_client.get_card(nm_id=source_nm_id)
+        tasks = [
+            self._duplicate(
+                source_wb_card=original_card,
+                source_wb_client=source_wb_client,
+                target_wb_client=target_client,
+                close_old=False
+            )
+            for target_client in target_wb_clients
+        ]
+
+        results = await asyncio.gather(*tasks)
+        valid_results: DuplicateWBProductCardResponse = []
+
+        for res in results:
+            if isinstance(res, Exception):
+                logger.exception(f"Создание дубликата карточки nm_id={source_nm_id} на другой аккаунт завершилось ошибкой: {res}")
+                continue
+
+            valid_results.append(res)
+
+        if not len(valid_results) != len(target_wb_clients) and valid_results:
+            success_execute = "partial"
+        elif not valid_results:
+            success_execute = "false"
+        else:
+            success_execute = "true"
+
+        return DuplicateCardToAccountsResponse(
+            source_card=AccountProductCard(
+                account=source_wb_client.account,
+                nm_id=original_card.nm_id,
+                vendor_code=original_card.vendor_code,
+            ),
+            new_cards=[
+                item.new_card
+                for item in valid_results
+            ],
+            success=success_execute,
+        )
+
+    async def _duplicate(
+        self,
+        source_wb_card: WbCard,
+        source_wb_client: WBCardsClient,
+        target_wb_client: WBCardsClient,
         close_old: bool = False
     ) -> dict[str, any]:
         """Создать дубликат карточки. Если close_old, то карточка-источник будет закрыта."""
-        logger.info(f"Начинаем создание дубликата карточки {nm_id} в аккаунте {wb_client.account}...")
+        logger.info(f"Начинаем создание дубликата карточки [{source_wb_client.account}|{source_wb_card.nm_id}] в аккаунте: {target_wb_client.account}...")
 
         # Валидация и получение исходных данных
-        old_card_db = await self.article_repo.get_article_by_nm_id_and_account(nm_id, wb_client.account)
+        old_card_db = await self.article_repo.get_article_by_nm_id_and_account(source_wb_card.nm_id, source_wb_client.account)
 
         if not old_card_db:
-            raise ValueError(f"Карта с nm_id={nm_id} не найдена в учетной записи {wb_client.account}")
+            raise ValueError(f"Карта с nm_id={source_wb_card.nm_id} не найдена в учетной записи {source_wb_client.account}")
 
-        old_card_wb = await wb_client.get_card(nm_id=nm_id)
-
-        if old_card_db["vendor_code"] != old_card_wb.vendor_code:
+        if old_card_db["vendor_code"] != source_wb_card.vendor_code:
             raise ValueError("Несоответствие vendor_code между базой данных и WB.")
 
         # Подготовка данных для новой карточки
         creation_payload = self._build_creation_payload(
-            wb_card=old_card_wb,
+            wb_card=source_wb_card,
             local_vendor_code=old_card_db["local_vendor_code"]
         )
         try:
             # Создание на WB и валидация
             upload_result = await self.create_cards_from_request(
-                wb_client=wb_client,
+                wb_client=target_wb_client,
                 creation_requests=[creation_payload]
             )
 
@@ -93,19 +160,23 @@ class WildberriesCardsService:
 
             if upload_result:
                 created = upload_result.created
+                errors = upload_result.errors
 
                 for new_nm_id in created:
-                    new_card_wb = await self.get_card_info(wb_client=wb_client, nm_id=new_nm_id)
+                    new_card_wb = await self.get_card_info(wb_client=target_wb_client, nm_id=new_nm_id)
 
                     if not new_card_wb:
-                        await self._delete_article(new_nm_id, wb_client.account)
+                        await self._delete_article(new_nm_id, target_wb_client.account)
                         raise NotCreatedCardError
 
             if not new_card_wb:
                 raise NotCreatedCardError
 
         except NotCreatedCardError:
-            raise NotCreatedCardError(f"Не удалось создать дубликат карточки {nm_id} в учетной записи {wb_client.account}. Попробуйте позже.")
+            raise NotCreatedCardError(
+                f"Не удалось создать дубликат карточки [{source_wb_client.account}|{source_wb_card.nm_id}]" 
+                f"в учетной записи {target_wb_client.account}. {". ".join(upload_result.errors)}"
+            )
 
         added_media = False
         price_discount_sync = False
@@ -114,32 +185,32 @@ class WildberriesCardsService:
         # Синхронизация медиа
         media_links = []
 
-        if old_card_wb.photos:
+        if source_wb_card.photos:
             media_links = [
                 photo["big"]
-                for photo in old_card_wb.photos or []
+                for photo in source_wb_card.photos or []
             ]
 
-        if old_card_wb.video:
-            media_links.append(old_card_wb.video)
+        if source_wb_card.video:
+            media_links.append(source_wb_card.video)
 
         if media_links:
             added_media = await self._add_media_from_links(
                 nm_id=new_card_wb.nm_id,
                 links=media_links,
-                wb_client=wb_client,
+                wb_client=target_wb_client,
             )
 
             if not added_media:
-                logging.warning(f"Не удалось проверить добавление медиа для {new_card_wb.nm_id} в учетной записи {wb_client.account}.")
+                logging.warning(f"Не удалось проверить добавление медиа для {new_card_wb.nm_id} в учетной записи {target_wb_client.account}.")
         else:
             added_media = True
 
         # Синхронизация цен
         logger.info("Получаем старые цены")
         old_card_price_discount = await self._get_card_price_discount(
-            nm_id=old_card_wb.nm_id,
-            wb_client=wb_client,
+            nm_id=source_wb_card.nm_id,
+            wb_client=source_wb_client,
         )
 
         logger.info("Записываем новые цены")
@@ -147,7 +218,7 @@ class WildberriesCardsService:
         if old_card_price_discount:
             price_data = {
                 "update_data": {
-                    wb_client.account.upper(): {
+                    target_wb_client.account.upper(): {
                         "data": [{
                             "nmID": new_card_wb.nm_id,
                             "price": old_card_price_discount["price"],
@@ -158,31 +229,31 @@ class WildberriesCardsService:
             }
 
             to_price_update = PriceDiscountResponseModel.model_validate(price_data)
-    
+
             try:
                 await self.price_discount_service.update(to_price_update)
             except AttributeError as e:
                 # возможно цена была установлена ранее
-                new_card_price_discount = await self._get_card_price_discount(new_card_wb.nm_id, wb_client)
+                new_card_price_discount = await self._get_card_price_discount(new_card_wb.nm_id, target_wb_client)
 
                 if new_card_price_discount["price"] == old_card_price_discount["price"] \
                     and new_card_price_discount["discount"] == old_card_price_discount["discount"]:
                     logger.warning(f"Цены для новой карточки {new_card_wb.nm_id} уже установлены.")
                 else:
                     raise Exception(e)
-            
-        new_card_price_discount = await self._get_card_price_discount(new_card_wb.nm_id, wb_client)
+
+        new_card_price_discount = await self._get_card_price_discount(new_card_wb.nm_id, target_wb_client)
 
         price_discount_sync = (
             new_card_price_discount["price"] == old_card_price_discount["price"]
             and new_card_price_discount["discount"] == old_card_price_discount["discount"]
         )
         # Синхронизация остатков
-        fbs_qty = await self._get_fbs_stocks(old_card_wb.nm_id)
+        fbs_qty = await self._get_fbs_stocks(source_wb_card.nm_id)
 
         await self.stock_quantity_service.edit_stocks_quantity(
             {
-                wb_client.account: UpdateStocksQuantityResponseModel(
+                target_wb_client.account: UpdateStocksQuantityResponseModel(
                     stocks=[
                         {
                             "sku": new_card_wb.sizes[0].skus[-1],
@@ -196,28 +267,31 @@ class WildberriesCardsService:
 
         # Закрытие старой карточки
         if close_old:
-            await self._close_card(old_card_wb.nm_id, wb_client)
+            await self._close_card(source_wb_card.nm_id, source_wb_client)
 
         details = []
 
         if not added_media:
             details.append("Запрос на добавление фото отправлен успешно. Проверьте наличие фото позже.")
-        
+
         if not price_discount_sync:
             details.append("Запрос на обновление цен и скидок отправлен успешно. Проверьте позже.")
-        
+
         if not fbs_stock_sinc:
             details.append("Запрос на обновление остатков отправлен успешно. Проверьте позже.")
 
         return DuplicateWBProductCardResponse(
-            account=wb_client.account,
-            source_card=old_card_wb.nm_id,
-            new_card=new_card_wb.nm_id,
-            media_sinc=added_media,
-            price_discount_sinc=price_discount_sync,
-            fbs_stock_sinc=fbs_stock_sinc,
-            close_source=close_old,
-            details=details,
+            source_card=AccountProductCard(
+                account=source_wb_client.account,
+                nm_id=source_wb_card.nm_id,
+                vendor_code=source_wb_card.vendor_code,
+            ),
+            new_card=AccountProductCard(
+                account=target_wb_client.account,
+                nm_id=new_card_wb.nm_id,
+                vendor_code=new_card_wb.vendor_code,
+            ),
+            close_source=close_old
         )
 
     async def create_cards_from_request(
@@ -257,19 +331,19 @@ class WildberriesCardsService:
                 ))
 
         if cards_to_upload:
-            print(cards_to_upload)
             await wb_client.create_cards(cards_to_upload)
 
             for card in cards_to_upload:
                 for variant in card.variants:
-                    created_card = await self._wait_for_card_creation(
+                    created_card_result = await self._wait_for_card_creation(
                         wb_client=wb_client, vendor_code=variant.vendor_code
                     )
+                    created_card = created_card_result["card"]
 
                     if created_card:
                         created_cards.append(created_card)
                     else:
-                        error_msg = f"Ошибка при создании карточки {variant.vendor_code}"
+                        error_msg = f"Ошибка при создании карточки {variant.vendor_code}: {created_card_result["error"]}"
                         logger.error(error_msg)
                         errors.append(error_msg)
 
@@ -411,20 +485,32 @@ class WildberriesCardsService:
         self,
         wb_client: WBCardsClient,
         vendor_code: str,
-        max_retries=4
     ) -> Optional[WbCard]:
         """Проверить, создалась ли карточка."""
-        for i in range(max_retries):
-            logger.info(f"Проверка наличия карточки {vendor_code}. Попытка {i+1}")
+        result = {
+            "vendor_code": vendor_code,
+            "card": None,
+            "error": None
+        }
+
+        while True:
+            logger.info(f"Проверка наличия карточки {vendor_code}.")
             card = await wb_client.get_card(vendor_code=vendor_code)
 
             if card:
-                return card
+                logger.info(f"Созданная карточка {vendor_code} найдена.")
+                result["card"] = card
+                return result
 
-            if i < max_retries - 1:
-                await asyncio.sleep((i + 1) * 10)
+            await asyncio.sleep(0.7)
+            error = await wb_client.check_uncreated_card(vendor_code)
 
-        return None
+            if error:
+                logger.info(f"При создании карточки {vendor_code} получена ошибка: {error}.")
+                result["error"] = error
+                return result
+
+            await asyncio.sleep(3)
 
     async def _generate_next_vendor_code(self, local_code: str, account: str, count: int = 1) -> list[str]:
         """Сгенерировать новые vendor_code на основе local_vendor_code."""

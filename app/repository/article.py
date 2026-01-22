@@ -332,7 +332,7 @@ class ArticleRepository:
                 nm_id = $1,
                 account = $2
         """
-
+        print(query)
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 await conn.execute(query, nm_id, account.upper())

@@ -332,6 +332,12 @@ class WBCardsClient:
 
         return None
 
+    async def check_uncreated_card(self, vendor_code: str):
+        """Найти, есть ли ошибки при создании карточки товара."""
+        client = await self._get_client()
+        check_result = await client.check_uncreated_cards({vendor_code})
+        return check_result.get(vendor_code)        
+
     async def add_media_from_links(self, nm_id, links) -> None:
         """
         Добавить фото/видео к карточке товара по ссылкам.

@@ -21,6 +21,7 @@ from .stock_movement import get_stock_movement_service
 from .database import get_pool
 from .subject_data import get_subject_data_service
 from .product_cards import get_wb_cards_service
+from .seller_account import get_seller_account_service
 
 
 __all__ = [
@@ -58,4 +59,5 @@ __all__ = [
     "get_stock_movement_service",
     "get_subject_data_service",
     "get_wb_cards_service",
+    "get_seller_account_service",
 ]
