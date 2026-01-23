@@ -14,6 +14,6 @@ async def get_all_competitor_prices(
         user: UserPermissions = Depends(get_info_from_token),
         service: CompetitorPriceService = Depends(get_competitor_price_service),
 ) -> list[CompetitorPriceResponse]:
-    if not user.viewing:
+    if not user.crm_viewing_unit_economics:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     return await service.get_all_competitor_prices()

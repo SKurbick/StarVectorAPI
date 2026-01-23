@@ -14,6 +14,6 @@ async def open_cards(
     user: UserPermissions = Depends(get_info_from_token),
     service: OpenCardService = Depends(get_open_card_service),
 ):
-    if not user.viewing:
+    if not user.crm_change_price_and_discounts:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     return await service.open_cards(data)

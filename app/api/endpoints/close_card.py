@@ -21,7 +21,7 @@ async def close_preview(
         user: UserPermissions = Depends(get_info_from_token),
         service: CloseCardService = Depends(get_close_card_service),
 ) -> ClosePreviewResponse:
-    if not user.viewing:
+    if not user.crm_change_price_and_discounts:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     return await service.close_cards_preview(data)
 
@@ -32,6 +32,6 @@ async def close_cards(
         user: UserPermissions = Depends(get_info_from_token),
         service: CloseCardService = Depends(get_close_card_service),
 ) -> CloseOperationResponse:
-    if not user.viewing:
+    if not user.crm_change_price_and_discounts:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     return await service.close_cards(data)

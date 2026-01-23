@@ -1743,3 +1743,14 @@ class UserPermissions(BaseModel):
     ability_to_upload_excel_file_to_fines: bool
     viewing: bool
     download_excel_files: bool
+    crm_viewing_settings: bool
+    crm_viewing_warehouse: bool
+    crm_viewing_task_of_store: bool
+    crm_viewing_orders: bool
+    crm_viewing_products: bool
+    crm_viewing_promotions: bool
+    crm_viewing_unit_economics: bool
+    crm_viewing_crm_analytic: bool
+    crm_change_price_and_discounts: bool
+    crm_possibility_to_store_leftovers: bool
+    crm_ability_to_add_and_remove_products_from_promotions: bool

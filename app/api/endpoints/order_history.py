@@ -20,6 +20,6 @@ async def get_orders_history(
     user: UserPermissions = Depends(get_info_from_token),
     service: OrderHistoryService = Depends(get_order_history_service)
 ) -> list[OrderHistoryResponseModel]:
-    if not user.viewing:
+    if not user.crm_viewing_unit_economics:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     return await service.get_orders_history(product_id, start, end)
