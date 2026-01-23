@@ -71,7 +71,7 @@ class SalesManagementRepository:
                 FROM card_data cd
                          JOIN promo_and_managers_info pami ON pami.nm_id = cd.article_id
                 WHERE DATE BETWEEN $1
-                  AND $2
+                  AND $2 AND cd.subject_name IS NOT NULL 
                 GROUP BY pami.manager, cd.subject_name
                 ORDER BY cd.subject_name;
                 """
