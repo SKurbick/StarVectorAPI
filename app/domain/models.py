@@ -1506,8 +1506,8 @@ class SizeCreate(BaseModel):
     wb_size: str = Field(..., serialization_alias="wbSize", description="Размер по WB")
 
 
-class WBCardVariantRequest(BaseModel):
-    """Вариант карточки (без vendor_code) для запроса на создание."""
+class WBCardVariantBase(BaseModel):
+    """Базовая модель варианта карточки товара для создания на Wildberries."""
 
     brand: Optional[str] = Field(None, description="Бренд")
     title: Optional[str] = Field(None, description="Название")
@@ -1518,8 +1518,14 @@ class WBCardVariantRequest(BaseModel):
     sizes: Optional[list[SizeCreate]] = Field(None, description="Размеры")
 
 
-class WBCardVariant(WBCardVariantRequest):
-    """Вариант карточки с vendor_code (для WB API)."""
+class WBCardVariantLocal(WBCardVariantBase):
+    """Вариант карточки товара с локальным артикулом продавца."""
+
+    local_vendor_code: str = Field(..., description="Локальный артикул продавца")
+
+
+class WBCardVariant(WBCardVariantBase):
+    """Вариант карточки товара с vendor_code (для WB API)."""
 
     vendor_code: str = Field(..., serialization_alias="vendorCode", description="Артикул продавца")
 
@@ -1535,8 +1541,7 @@ class WBCardCreateRequest(BaseModel):
     """Запрос на создание карточки (внутренний формат CRM)."""
 
     subject_id: int = Field(..., description="ID предмета")
-    local_vendor_code: str = Field(..., description="Локальный артикул продавца")
-    variants: list[WBCardVariantRequest] = Field(..., description="Варианты карточки")
+    variants: list[WBCardVariantLocal] = Field(..., description="Варианты карточки")
 
 
 class DimensionsUpdate(DimensionsCreate):
@@ -1619,6 +1624,7 @@ class DuplicateCardToAccountsResponse(BaseModel):
     source_card: AccountProductCard = Field(..., description="Исходная карточка товара")
     new_cards: list[AccountProductCard] = Field(..., description="Список созданных карточек.")
     success: Literal["true", "false", "partial"] = Field(..., description="Прошло ли дублирование на все аккаунты успешно")
+    errors: list[str] = Field(..., description="Ошибки во время создания дубликатов карточек.")
 
 
 class MoveToTrashRequest(BaseModel):

@@ -38,7 +38,7 @@ async def duplicate_wb_card(
         async with ClientSession() as session:
             source_wb_client = WBCardsClient(account=data.account, session=session)
             result = await service.duplicate_card(
-                source_wb_client=source_wb_client,
+                wb_client=source_wb_client,
                 source_nm_id=data.nm_id,
                 close_old=data.close_old_card
             )
@@ -82,7 +82,7 @@ async def duplicate_wb_card_to_accounts(
         logger.warning(f"Ошибка клиента при дублировании: {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-        logger.exception(f"Непредвиденная ошибка в /wb/duplicate: {e}")
+        logger.exception(f"Непредвиденная ошибка в /wb/duplicate-to-accounts: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error: {e}")
 
 
@@ -147,7 +147,7 @@ async def update_wb_cards(
                 wb_client = WBCardsClient(account=account, session=session)
 
                 tasks.append(asyncio.create_task(
-                    service.update_cards_from_request(wb_client=wb_client, update_requests=cards)
+                    service.update_cards_from_request(wb_client=wb_client, update_cards=cards)
                 ))
 
             results = await asyncio.gather(*tasks, return_exceptions=True)
