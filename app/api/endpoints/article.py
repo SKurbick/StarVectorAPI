@@ -15,7 +15,7 @@ async def get_article_details(
         user: UserPermissions = Depends(get_info_from_token),
         service: ArticleService = Depends(get_article_service)
 ):
-    if not user.viewing:
+    if not user.crm_viewing_unit_economics:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     user_details = await service.get_article_details()
     if not user_details:

@@ -18,7 +18,7 @@ async def update_price_discount(
         user: UserPermissions = Depends(get_info_from_token),
         service: PriceDiscountService = Depends(get_price_discount_service)
 ):
-    if not user.viewing:
+    if not user.crm_ability_to_add_and_remove_products_from_promotions:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     print(data.model_dump())
     return {

@@ -13,6 +13,6 @@ async def get_ic_net_profit(
         user: UserPermissions = Depends(get_info_from_token),
         service: ICNetProfitService = Depends(get_ic_net_profit_service)
 ) -> list[ICNetProfitResponseModel]:
-    if not user.viewing:
+    if not user.crm_viewing_unit_economics:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     return await service.get_net_profit()

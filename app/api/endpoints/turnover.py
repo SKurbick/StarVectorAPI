@@ -35,7 +35,7 @@ async def stocks_quantity(
         service: TurnoverService = Depends(get_turnover_service),
 
 ):
-    if not user.viewing:
+    if not user.crm_viewing_unit_economics:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     result = await service.turnover_by_federal_district()
     if not result:

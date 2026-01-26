@@ -29,7 +29,7 @@ async def get_revenue_by_date(
         user: UserPermissions = Depends(get_info_from_token),
         service: SalesManagementService = Depends(get_sales_management_service)
 ):
-    if not user.viewing:
+    if not user.crm_viewing_crm_analytic:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     return await service.get_sum_sales_category_by_date(date, good_category)
 
@@ -47,7 +47,7 @@ async def get_revenue_by_period(
         user: UserPermissions = Depends(get_info_from_token),
         service: SalesManagementService = Depends(get_sales_management_service)
 ):
-    if not user.viewing:
+    if not user.crm_viewing_crm_analytic:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     if date_start < date_end:
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="reverse date")
@@ -72,7 +72,7 @@ async def get_individual_condition_by_period(
         user: UserPermissions = Depends(get_info_from_token),
         service: SalesManagementService = Depends(get_sales_management_service)
 ):
-    if not user.viewing:
+    if not user.crm_viewing_crm_analytic:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     if date_start < date_end:
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="reverse date")
@@ -97,7 +97,7 @@ async def get_browsing_by_period(
         user: UserPermissions = Depends(get_info_from_token),
         service: SalesManagementService = Depends(get_sales_management_service)
 ):
-    if not user.viewing:
+    if not user.crm_viewing_crm_analytic:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     if date_start < date_end:
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="reverse date")
@@ -122,7 +122,7 @@ async def get_outlay_by_period(
         user: UserPermissions = Depends(get_info_from_token),
         service: SalesManagementService = Depends(get_sales_management_service)
 ):
-    if not user.viewing:
+    if not user.crm_viewing_crm_analytic:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     if date_start < date_end:
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="reverse date")
@@ -147,7 +147,7 @@ async def get_penalty_by_period(
         user: UserPermissions = Depends(get_info_from_token),
         service: SalesManagementService = Depends(get_sales_management_service)
 ):
-    if not user.viewing:
+    if not user.crm_viewing_crm_analytic:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     if date_start < date_end:
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="reverse date")
@@ -170,7 +170,7 @@ async def get_managers_statistic_by_period(
         user: UserPermissions = Depends(get_info_from_token),
         service: SalesManagementService = Depends(get_sales_management_service)
 ):
-    if not user.viewing:
+    if not user.crm_viewing_crm_analytic:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     if date_start < date_end:
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="reverse date")
@@ -188,7 +188,7 @@ async def get_promotions_statistic(
         user: UserPermissions = Depends(get_info_from_token),
         service: SalesManagementService = Depends(get_sales_management_service)
 ):
-    if not user.viewing:
+    if not user.crm_viewing_unit_economics:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     result = await service.get_shares_total_items_by_accounts()
     return result
@@ -201,7 +201,7 @@ async def get_promotions_goods(
         user: UserPermissions = Depends(get_info_from_token),
         service: SalesManagementService = Depends(get_sales_management_service)
 ):
-    if not user.viewing:
+    if not user.crm_viewing_crm_analytic:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     result = await service.get_shares_goods_with_bool(is_promotion)
     return result

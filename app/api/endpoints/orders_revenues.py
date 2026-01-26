@@ -19,7 +19,7 @@ async def get_orders_revenues_by_date(
         user: UserPermissions = Depends(get_info_from_token),
         service: OrdersRevenuesService = Depends(get_orders_revenues_service)
 ):
-    if not user.viewing:
+    if not user.crm_viewing_unit_economics:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     return await service.get_data_by_period(period)
 
@@ -30,6 +30,6 @@ async def get_last_week_data(
         user: UserPermissions = Depends(get_info_from_token),
         service: OrdersRevenuesService = Depends(get_orders_revenues_service)
 ) -> WeeklyOrdersResponse:
-    if not user.viewing:
+    if not user.crm_viewing_unit_economics:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     return await service.get_last_week_data(number_of_last_weeks)

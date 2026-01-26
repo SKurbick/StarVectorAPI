@@ -20,7 +20,7 @@ async def stocks_quantity(
         user: UserPermissions = Depends(get_info_from_token),
         service: StocksQuantityService = Depends(get_stocks_quantity_service)
 ):
-    if not user.viewing:
+    if not user.crm_viewing_unit_economics:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     user_details = await service.get_all_data()
     if not user_details:
@@ -38,7 +38,7 @@ async def edit_stocks_quantity(
         validation: EditQuantityValidationResult = Depends(validate_edit_quantity_data),
         service: StocksQuantityService = Depends(get_stocks_quantity_service),
 ):
-    if not user.viewing:
+    if not user.crm_possibility_to_store_leftovers:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     result = None
 
