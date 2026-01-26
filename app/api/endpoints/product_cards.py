@@ -8,6 +8,7 @@ from starlette import status
 from app.dependencies import get_wb_cards_service, get_info_from_token
 from app.domain.models import (
     DuplicateWBProductCardRequest,
+    DuplicateCardToAccountsRequest,
     UpdateWBCardsRequest,
     UploadWBCardsRequest,
     MoveToTrashRequest,
@@ -15,6 +16,7 @@ from app.domain.models import (
     WbCard,
     WbCardTrashed,
     DuplicateWBProductCardResponse,
+    DuplicateCardToAccountsResponse,
     UploadWBCardsResponse,
     UpdateWBCardsResponse,
     UserPermissions,
@@ -39,10 +41,10 @@ async def duplicate_wb_card(
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     try:
         async with ClientSession() as session:
-            wb_client = WBCardsClient(account=data.account, session=session)
+            source_wb_client = WBCardsClient(account=data.account, session=session)
             result = await service.duplicate_card(
-                wb_client=wb_client,
-                nm_id=data.nm_id,
+                wb_client=source_wb_client,
+                source_nm_id=data.nm_id,
                 close_old=data.close_old_card
             )
         return result
@@ -51,6 +53,44 @@ async def duplicate_wb_card(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.exception(f"Непредвиденная ошибка в /wb/duplicate: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error: {e}")
+
+
+@router.post("/wb/duplicate-to-accounts", description="Создание дубликата карточки товара на других аккаунтах WB.")
+async def duplicate_wb_card_to_accounts(
+    data: DuplicateCardToAccountsRequest,
+    user: UserPermissions = Depends(get_info_from_token),
+    service: WildberriesCardsService = Depends(get_wb_cards_service),
+) -> DuplicateCardToAccountsResponse:
+    """Создать дубликат карточки товара на других аккаунтах."""
+    if not user.viewing:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+    try:
+        async with ClientSession() as session:
+            source_wb_client = WBCardsClient(account=data.account, session=session)
+            target_wb_clients = [
+                WBCardsClient(
+                    account=account,
+                    session=session,
+                )
+                for account in set(data.target_accounts)
+                if account.lower() != data.account.lower()
+            ]
+
+            if not target_wb_clients:
+                raise ValueError("Не указаны аккаунты для создания дубликатов.")
+    
+            result = await service.duplicate_card_to_accounts(
+                source_wb_client=source_wb_client,
+                target_wb_clients=target_wb_clients,
+                source_nm_id=data.nm_id,
+            )
+        return result
+    except ValueError as e:
+        logger.warning(f"Ошибка клиента при дублировании: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.exception(f"Непредвиденная ошибка в /wb/duplicate-to-accounts: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error: {e}")
 
 
@@ -121,7 +161,7 @@ async def update_wb_cards(
                 wb_client = WBCardsClient(account=account, session=session)
 
                 tasks.append(asyncio.create_task(
-                    service.update_cards_from_request(wb_client=wb_client, update_requests=cards)
+                    service.update_cards_from_request(wb_client=wb_client, update_cards=cards)
                 ))
 
             results = await asyncio.gather(*tasks, return_exceptions=True)

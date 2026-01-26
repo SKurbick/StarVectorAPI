@@ -1506,8 +1506,8 @@ class SizeCreate(BaseModel):
     wb_size: str = Field(..., serialization_alias="wbSize", description="Размер по WB")
 
 
-class WBCardVariantRequest(BaseModel):
-    """Вариант карточки (без vendor_code) для запроса на создание."""
+class WBCardVariantBase(BaseModel):
+    """Базовая модель варианта карточки товара для создания на Wildberries."""
 
     brand: Optional[str] = Field(None, description="Бренд")
     title: Optional[str] = Field(None, description="Название")
@@ -1518,8 +1518,14 @@ class WBCardVariantRequest(BaseModel):
     sizes: Optional[list[SizeCreate]] = Field(None, description="Размеры")
 
 
-class WBCardVariant(WBCardVariantRequest):
-    """Вариант карточки с vendor_code (для WB API)."""
+class WBCardVariantLocal(WBCardVariantBase):
+    """Вариант карточки товара с локальным артикулом продавца."""
+
+    local_vendor_code: str = Field(..., description="Локальный артикул продавца")
+
+
+class WBCardVariant(WBCardVariantBase):
+    """Вариант карточки товара с vendor_code (для WB API)."""
 
     vendor_code: str = Field(..., serialization_alias="vendorCode", description="Артикул продавца")
 
@@ -1535,8 +1541,7 @@ class WBCardCreateRequest(BaseModel):
     """Запрос на создание карточки (внутренний формат CRM)."""
 
     subject_id: int = Field(..., description="ID предмета")
-    local_vendor_code: str = Field(..., description="Локальный артикул продавца")
-    variants: list[WBCardVariantRequest] = Field(..., description="Варианты карточки")
+    variants: list[WBCardVariantLocal] = Field(..., description="Варианты карточки")
 
 
 class DimensionsUpdate(DimensionsCreate):
@@ -1585,26 +1590,41 @@ class UploadWBCardsRequest(BaseModel):
     account: str = Field(..., description="Аккаунт")
     data: list[WBCardCreateRequest] = Field(..., description="Список карточек для создания")
 
-
 class DuplicateWBProductCardRequest(BaseModel):
-    """Запрос на дублирование карточки."""
+    """Запрос на создание дубликата карточки в том же аккаунте."""
 
     nm_id: int = Field(..., description="Артикул WB исходной карточки")
     account: str = Field(..., description="Аккаунт")
     close_old_card: bool = Field(False, description="Закрыть ли исходную карточку")
 
 
-class DuplicateWBProductCardResponse(BaseModel):
-    """Ответ на дублирование карточки."""
+class DuplicateCardToAccountsRequest(BaseModel):
+    """Запрос на создание дубликата карточки на других аккаунтах."""
 
-    account: str = Field(..., description="Аккаунт")
-    source_card: int = Field(..., description="nm_id исходной карточки")
-    new_card: int = Field(..., description="nm_id новой карточки")
-    media_sinc: bool = Field(..., description="Успешна ли синхронизация медиа")
-    price_discount_sinc: bool = Field(..., description="Успешна ли синхронизация цен")
-    fbs_stock_sinc: bool = Field(..., description="Успешна ли синхронизация остатков")
-    details: list[str] = Field(..., description="Детали операции")
+    nm_id: int = Field(..., description="Артикул WB исходной карточки")
+    account: str = Field(..., description="Аккаунт с исходной карточкой")
+    target_accounts: list[str] = Field(None, description="Список аккаунтов для заведения новой карточки")
+
+class AccountProductCard(BaseModel):
+    account: str
+    nm_id: int
+    vendor_code: str
+
+class DuplicateWBProductCardResponse(BaseModel):
+    """Ответ на создание дубликата карточки в том же аккаунте."""
+
+    source_card: AccountProductCard = Field(..., description="Исходная карточка товара")
+    new_card: AccountProductCard = Field(..., description="Новая карточка товара")
     close_source: bool = Field(..., description="Исходная карточка закрыта")
+
+
+class DuplicateCardToAccountsResponse(BaseModel):
+    """Ответ на создание дубликата карточки на других аккаунтах."""
+
+    source_card: AccountProductCard = Field(..., description="Исходная карточка товара")
+    new_cards: list[AccountProductCard] = Field(..., description="Список созданных карточек.")
+    success: Literal["true", "false", "partial"] = Field(..., description="Прошло ли дублирование на все аккаунты успешно")
+    errors: list[str] = Field(..., description="Ошибки во время создания дубликатов карточек.")
 
 
 class MoveToTrashRequest(BaseModel):
@@ -1725,6 +1745,7 @@ class SalesManagementSharesGood(BaseModel):
     real_price: int
     promo_name: str
 
+
 class UserPermissions(BaseModel):
     """Схема пермишинов пользователя"""
     edit_users: bool
@@ -1754,3 +1775,12 @@ class UserPermissions(BaseModel):
     crm_change_price_and_discounts: bool
     crm_possibility_to_store_leftovers: bool
     crm_ability_to_add_and_remove_products_from_promotions: bool
+
+
+class SellerAccount(BaseModel):
+    """Модель аккаунта продавца."""
+
+    id: int = Field(..., description="id аккаунта")
+    account_name: str = Field(..., description="Название аккаунта")
+    is_active: bool = Field(..., description="Рабочий аккаунт")
+    inn: int = Field(..., description="ИНН аккаунта")
