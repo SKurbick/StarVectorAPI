@@ -1,10 +1,16 @@
 from typing import Optional
 from datetime import date
 
-from fastapi import APIRouter, Depends, status, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException
+from starlette import status
 
-from app.dependencies import get_fin_reports_service, get_dates_period_filter, verify_scheduler_api_key
-from app.domain.models import WeeklyFinReportsAggregated, PeriodRequestModel
+from app.dependencies import (
+    get_fin_reports_service,
+    get_dates_period_filter,
+    verify_scheduler_api_key,
+    get_info_from_token
+)
+from app.domain.models import WeeklyFinReportsAggregated, PeriodRequestModel, UserPermissions
 from app.service.fin_reports import FinReportsService
 
 
@@ -18,8 +24,11 @@ router = APIRouter(prefix="/fin_reports", tags=["Финансовые отчет
 async def get_weekly_fin_reports_agg(
     period: PeriodRequestModel = Depends(get_dates_period_filter),
     number_of_last_weeks: Optional[int] = Query(None, gt=0, example=1, description=reports_by_week_description),
+    user: UserPermissions = Depends(get_info_from_token),
     service: FinReportsService = Depends(get_fin_reports_service),
 ) -> list[WeeklyFinReportsAggregated]:
+    if not user.crm_viewing_unit_economics:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     return await service.get_fin_reports_aggregated(period, number_of_last_weeks)
 
 
@@ -27,12 +36,15 @@ async def get_weekly_fin_reports_agg(
 async def fetch_daily_fin_reports(
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
+    # user: UserPermissions = Depends(get_info_from_token),
     service: FinReportsService = Depends(get_fin_reports_service),
     _: None = Depends(verify_scheduler_api_key)
 ):
+    # if not user.viewing:
+    #     raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     if date_from:
         date_from = date_from.isoformat()
-    
+
     if date_to:
         date_to = date_to.isoformat()
 
@@ -49,9 +61,12 @@ async def fetch_daily_fin_reports(
 @router.post("/jobs/update_daily_fin_reports_agg", status_code=200, include_in_schema=True)
 async def update_daily_fin_reports_agg(
     number_of_last_days: int = Query(1, description="1 - за предыдущий день. 2, 3 и далее - количество последних дней"),
+    # user: UserPermissions = Depends(get_info_from_token),
     service: FinReportsService = Depends(get_fin_reports_service),
     _: None = Depends(verify_scheduler_api_key)
 ):
+    # if not user.viewing:
+    #     raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     try:
         result = await service.update_daily_fin_reports_agg(number_of_last_days)
         return {"message": "Daily financial reports_agg updated successfully", "detail": result}
@@ -65,9 +80,12 @@ async def update_daily_fin_reports_agg(
 @router.post("/jobs/update_daily_fin_reports_deductions", status_code=200, include_in_schema=True)
 async def update_daily_fin_reports_deductions(
     number_of_last_days: int = Query(1, description="1 - за предыдущий день. 2, 3 и далее - количество последних дней"),
+    # user: UserPermissions = Depends(get_info_from_token),
     service: FinReportsService = Depends(get_fin_reports_service),
     _: None = Depends(verify_scheduler_api_key)
 ):
+    # if not user.viewing:
+    #     raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     try:
         result = await service.update_daily_fin_reports_deduction(number_of_last_days)
         return {"message": "Daily financial reports deductions updated successfully", "detail": result}

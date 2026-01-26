@@ -1,0 +1,34 @@
+version: "3.8"
+services:
+#  db:
+#    # env_file:
+#    #   - ../../.env
+#    container_name: "db_test"
+#    image: postgres:17.0-alpine3.20
+#    restart: always
+#    environment:
+#      - POSTGRES_USER=${POSTGRES_USER}
+#      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+#      - POSTGRES_DB=${POSTGRES_DB}
+#    ports:
+#      - "${POSTGRES_PORT}:${POSTGRES_PORT}"
+#    #    volumes:
+#    #      - ../backup02-10.sql:/docker-entrypoint-initdb.d/dummy_dump.sql
+#    networks:
+#        - custom
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT}:6379"
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - custom
+networks:
+  custom:
+    driver: bridge

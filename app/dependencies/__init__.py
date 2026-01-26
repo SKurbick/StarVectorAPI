@@ -21,6 +21,8 @@ from .stock_movement import get_stock_movement_service
 from .database import get_pool
 from .subject_data import get_subject_data_service
 from .product_cards import get_wb_cards_service
+from .sales_management import get_sales_management_service
+from .jwt_dep import get_info_from_token
 from .seller_account import get_seller_account_service
 
 
@@ -59,5 +61,7 @@ __all__ = [
     "get_stock_movement_service",
     "get_subject_data_service",
     "get_wb_cards_service",
+    "get_sales_management_service",
+    "get_info_from_token",
     "get_seller_account_service",
 ]
