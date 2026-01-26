@@ -59,9 +59,12 @@ async def duplicate_wb_card(
 @router.post("/wb/duplicate-to-accounts", description="Создание дубликата карточки товара на других аккаунтах WB.")
 async def duplicate_wb_card_to_accounts(
     data: DuplicateCardToAccountsRequest,
+    user: UserPermissions = Depends(get_info_from_token),
     service: WildberriesCardsService = Depends(get_wb_cards_service),
 ) -> DuplicateCardToAccountsResponse:
     """Создать дубликат карточки товара на других аккаунтах."""
+    if not user.viewing:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     try:
         async with ClientSession() as session:
             source_wb_client = WBCardsClient(account=data.account, session=session)
