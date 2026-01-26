@@ -73,6 +73,8 @@ class WildberriesCardsService:
         Если close_old=True, то карточка-источник будет закрыта.
         """
         original_card = await wb_client.get_card(nm_id=source_nm_id)
+        if not original_card:
+            raise ValueError(f"Карточка товара [{wb_client.account}:{source_nm_id}] не найдена")
         return await self._duplicate(
             source_wb_card=original_card,
             source_wb_client=wb_client,
@@ -88,6 +90,9 @@ class WildberriesCardsService:
     ) -> DuplicateCardToAccountsResponse:
         """Создать дубликаты карточки на других аккаунтах."""
         original_card = await source_wb_client.get_card(nm_id=source_nm_id)
+        if not original_card:
+            raise ValueError(f"Карточка товара [{source_wb_client.account}:{source_nm_id}] не найдена")
+
         tasks = [
             self._duplicate(
                 source_wb_card=original_card,
