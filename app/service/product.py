@@ -15,3 +15,7 @@ class ProductService:
     ) -> list[SubjectDataWithProductsResponse]:
         """Получить товары, сгруппированные по предметам."""
         return await self.repository.get_products_grouped_by_subjects(limit, offset)
+
+    async def get_poduct_cards(self, product_id: str):
+        """Получить карточки товара."""
+        return await self.repository.get_product_cards(product_id)

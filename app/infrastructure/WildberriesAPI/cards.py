@@ -212,7 +212,7 @@ class CardMarketplaceWB:
         """Генератор ошибок создания карточек."""
         payload = {
             "cursor": {"limit": 100},
-            "order": {"ascending": True},
+            "order": {"ascending": False},
         }
 
         has_more = True
@@ -229,7 +229,10 @@ class CardMarketplaceWB:
             items = data.get("items", [])
 
             for item in items:
-                yield item.get("errors", {})
+                yield {
+                    "uuid": item["batchUUID"],
+                    "errors": item.get("errors", {})
+                }
 
             if has_more:
                 payload["cursor"]["updatedAt"] = cursor["updatedAt"]
@@ -241,9 +244,15 @@ class CardMarketplaceWB:
         found_errors = {}
 
         async for item_errors in self.iter_uncreated_cards():
-            for vc, error_info in item_errors.items():
+            batch_uuid = item_errors["uuid"]
+            errors = item_errors["errors"]
+
+            for vc, error_info in errors.items():
                 if vc in vendor_codes:
-                    found_errors[vc] = error_info
+                    found_errors.setdefault(vc, []).append({
+                        "uuid": batch_uuid,
+                        "errors": error_info
+                    })
 
         return found_errors
 
@@ -336,7 +345,7 @@ class WBCardsClient:
         """Найти, есть ли ошибки при создании карточки товара."""
         client = await self._get_client()
         check_result = await client.check_uncreated_cards({vendor_code})
-        return check_result.get(vendor_code)        
+        return check_result.get(vendor_code)
 
     async def add_media_from_links(self, nm_id, links) -> None:
         """

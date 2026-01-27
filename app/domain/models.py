@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, RootModel
 
-from app.domain.enums import LossOwnerEnum
+from app.domain.enums import LossOwnerEnum, CardStatusEnum
 
 
 # Общий словарь с конфигурациями полей
@@ -330,6 +330,14 @@ class SkuAmountResponseModel(BaseModel):
 
 class UpdateStocksQuantityResponseModel(BaseModel):
     stocks: List[SkuAmountResponseModel]
+
+
+class StocksFBSQuantityInDB(BaseModel):
+    """Остатки ФБС карточки товара."""
+
+    article_id: int
+    barcode: str
+    quantity: int
 
 
 # Модель для данных внутри каждого федерального округа
@@ -1784,3 +1792,17 @@ class SellerAccount(BaseModel):
     account_name: str = Field(..., description="Название аккаунта")
     is_active: bool = Field(..., description="Рабочий аккаунт")
     inn: int = Field(..., description="ИНН аккаунта")
+
+
+class ProductCard(BaseModel):
+    """Модель карточки товара."""
+
+    nm_id: int = Field(..., description="Артикул wildberries")
+    account: str = Field(..., description="Аккаунт")
+    vendor_code: str = Field(..., description="Артикул продавца")
+    local_vendor_code: str = Field(..., description="Локальный артикул товара")
+    created_at: datetime = Field(..., description="Дата создания карточки")
+    status: CardStatusEnum = Field(..., description="Статус карточки")
+    barcode: Optional[str] = Field(None, description="Баркод")
+    subject_id: Optional[int] = Field(None, description="id предмета")
+    photo_link: Optional[str] = Field(None, description="Ссылка на фото")

@@ -27,6 +27,7 @@ from app.domain.models import (
     DuplicateCardToAccountsResponse,
     UpdateWBCardsResponse,
     UploadWBCardsResponse,
+    StocksFBSQuantityInDB,
 )
 from app.infrastructure.WildberriesAPI.cards import WBCardsClient
 from app.repository.article import ArticleRepository
@@ -184,10 +185,10 @@ class WildberriesCardsService:
                         else:
                             break
 
-                if not new_card_wb:
-                    logger.warning(f"Не удалось получить новую карточку после создания в аккаунте {target_wb_client.account} ")
-                    await self._delete_article(new_nm_id, target_wb_client.account)
-                    raise NotCreatedCardError
+                    if not new_card_wb:
+                        await self._delete_article(new_nm_id, target_wb_client.account)
+                        logger.warning(f"Не удалось получить новую карточку после создания в аккаунте {target_wb_client.account} ")
+                        raise NotCreatedCardError
 
             if not new_card_wb:
                 raise NotCreatedCardError
@@ -346,12 +347,26 @@ class WildberriesCardsService:
                 ))
 
         if cards_to_upload:
+            all_new_vendor_codes = set()
+            for card in cards_to_upload:
+                for variant in card.variants:
+                    all_new_vendor_codes.add(variant.vendor_code)
+            
+            api_client = await wb_client._get_client()
+            found_errors = await api_client.check_uncreated_cards(all_new_vendor_codes)
             await wb_client.create_cards(cards_to_upload)
 
             for card in cards_to_upload:
                 for variant in card.variants:
+                    all_vc_errors = found_errors.get(variant.vendor_code)
+                    last_error_batch_id = None
+                    if all_vc_errors:
+                        last_error_batch_id = all_vc_errors[0]["uuid"]
+
                     created_card_result = await self._wait_for_card_creation(
-                        wb_client=wb_client, vendor_code=variant.vendor_code
+                        wb_client=wb_client,
+                        vendor_code=variant.vendor_code,
+                        last_error_batch_id=last_error_batch_id,
                     )
                     created_card = created_card_result["card"]
 
@@ -605,6 +620,7 @@ class WildberriesCardsService:
         self,
         wb_client: WBCardsClient,
         vendor_code: str,
+        last_error_batch_id: Optional[str] = None
     ) -> dict[str, any]:
         """Проверить, создалась ли карточка."""
         result = {
@@ -624,22 +640,46 @@ class WildberriesCardsService:
 
             logger.info(f"Созданная карточка [{wb_client.account}:{vendor_code}] не найдена.")
 
-            await asyncio.sleep(2)
-            error = await wb_client.check_uncreated_card(vendor_code)
+            await asyncio.sleep(3)
+            errors_message = await self._check_uncrated_card(
+                wb_client=wb_client,
+                vendor_code=vendor_code,
+                last_error_batch_id=last_error_batch_id
+            )
 
-            if error:
-                logger.info(f"При создании карточки [{wb_client.account}:{vendor_code}] получена ошибка: {error}.")
-                result["error"] = "\n".join(error)
+            if errors_message:
+                logger.info(f"При создании карточки [{wb_client.account}:{vendor_code}] получена ошибка: {errors_message}.")
+                result["error"] = errors_message
                 return result
 
             logger.info(f"При создании карточки [{wb_client.account}:{vendor_code}] ошибок не найдено.")
             await asyncio.sleep(3)
-        
+
         error_message = f"Закончились попытки проверить создание карточки [{wb_client.account}:{vendor_code}]"
         logger.warning(error_message)
         result["error"] = error_message
 
         return result
+
+    async def _check_uncrated_card(
+        self,
+        wb_client: WBCardsClient,
+        vendor_code: str,
+        last_error_batch_id: Optional[str] = None
+    )-> Optional[dict[str, str]]:
+        """Найти последние ошибки при создании/обновлении карточки товара."""
+        error_data = await wb_client.check_uncreated_card(vendor_code)
+
+        if error_data:
+            last_errors = error_data[0]
+            if last_error_batch_id and last_error_batch_id != last_errors["uuid"] or last_error_batch_id is None:
+                logger.info(f"Для карточки [{wb_client.account}:{vendor_code}] найдены ошибки: {last_errors["errors"]}.")
+                return {
+                    "batch_id": last_errors["uuid"],
+                    "error": "\n".join(last_errors["errors"])
+                }
+
+        logger.info(f"Для карточки [{wb_client.account}:{vendor_code}] ошибок не найдено.")
 
     async def _generate_target_vendor_code(
         self,
@@ -786,12 +826,12 @@ class WildberriesCardsService:
         """Получить остатки ФБС для карточки товара."""
         logger.info(f"Получаем остатки ФБС для карточки товара {nm_id}")
         all_stock_qty = await self.stock_quantity_service.get_all_data()
-        old_stock_qty = list(filter(lambda x: x.article_id == nm_id, all_stock_qty))
+        stock_qty_data = list(filter(lambda x: x.article_id == nm_id, all_stock_qty))
 
         result = 0
 
-        if old_stock_qty:
-            result = old_stock_qty[0].data.get("ФБС", 0)
+        if stock_qty_data:
+            result = stock_qty_data[0].data.get("ФБС", 0)
 
         return result
 
@@ -851,7 +891,7 @@ class WildberriesCardsService:
             else:
                 raise Exception(e)
 
-        while True:
+        for _ in range(50):
             new_price_discount = await self._get_card_price_discount(wb_card.nm_id, wb_client)
             price_discount_sync = (
                 new_price_discount["price"] == price_discount_data["price"]
@@ -867,28 +907,40 @@ class WildberriesCardsService:
 
     async def _update_fbs_stocks(
         self,
-        qty_data: int,
+        amount: int,
         wb_client: WBCardsClient,
         wb_card: WbCard
     ):
+        target_sku = wb_card.sizes[0].skus[-1]
         update_data = {
             wb_client.account: UpdateStocksQuantityResponseModel(
                 stocks=[
                     {
-                        "sku": wb_card.sizes[0].skus[-1],
-                        "amount": qty_data
+                        "sku": target_sku,
+                        "amount": amount
                     }
                 ]
             )
         }
+
         await self.stock_quantity_service.edit_stocks_quantity(update_data)
 
-        while True:
-            fbs_stock_sinc = qty_data == await self._get_fbs_stocks(wb_card.nm_id)
+        for _ in range(30):
+            get_stocks_result = await self.stock_quantity_service.get_current_stocks_for_account(
+                account=wb_client.account, skus=[target_sku]
+            )
 
-            if fbs_stock_sinc:
-                logger.info(f"Для карточки [{wb_client.account}:{wb_card.nm_id}] остатки обновлены")
-                return
-            else:
-                logger.info(f"Для карточки [{wb_client.account}:{wb_card.nm_id}] остатки не обновлены")
-                await asyncio.sleep(3)
+            for _, get_data in get_stocks_result.items():
+                current_amount = get_data["stocks"].get(target_sku)
+
+                if amount == current_amount:
+                    await self.stock_quantity_service.update_stocks_in_db([StocksFBSQuantityInDB(
+                        article_id=wb_card.nm_id,
+                        barcode=target_sku,
+                        quantity=current_amount,
+                    )])
+                    logger.info(f"Для карточки [{wb_client.account}:{wb_card.nm_id}] остатки обновлены")
+                    return
+                
+            logger.info(f"Для карточки [{wb_client.account}:{wb_card.nm_id}] остатки не обновлены")
+            await asyncio.sleep(3)
