@@ -213,11 +213,10 @@ async def get_promotions_goods(
 и плановой (при участии в акции), если имеется подходящая акция для участия.**\n
 """)
 async def get_best_marginality(
-        article_id: int,
         user: UserPermissions = Depends(get_info_from_token),
         service: SalesManagementService = Depends(get_sales_management_service)
 ):
     if not user.crm_viewing_crm_analytic:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
-    result = await service.get_best_marginality_by_good_id(article_id)
+    result = await service.get_best_marginality_by_good_id()
     return result

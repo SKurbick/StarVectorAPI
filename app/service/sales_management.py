@@ -27,13 +27,13 @@ class SalesManagementService:
     def __init__(self, repository: SalesManagementRepository):
         self.repository = repository
 
-    async def get_best_marginality_by_good_id(self, article_id: int):
+    async def get_best_marginality_by_good_id(self):
         """
         Получить товар по ид с расчетом текущей маржинальности
         и плановой маржинальности по акции, если существует акция в которой
         по дополнительным условиям он может учавствовать
         """
-        rows = await self.repository.get_marginality_actual_and_with_promo_price(article_id)
+        rows = await self.repository.get_marginality_actual_and_with_promo_price()
         return [SalesManagementSharesGoodWithMargin(**r) for r in rows]
 
 

@@ -10,14 +10,13 @@ class SalesManagementRepository:
     def __init__(self, pool: Pool) -> None:
         self.pool = pool
 
-    async def get_marginality_actual_and_with_promo_price(self, article_id: int) -> Sequence:
+    async def get_marginality_actual_and_with_promo_price(self) -> Sequence:
         """
         Получить акции удовлетворащию требованию для участия,
         с расчетом текущей маржинальности товара и плановой маржинальности при участии в акции
 
         Возвращает массив с обьектами либо же пустой массив
         """
-        params = [article_id]
         query = """
             WITH margin AS (
             SELECT ((cd.price - (cd.price * cd.discount / 100))-((cd.price - (cd.price * cd.discount / 100)) * (0.06+0.26))-cp.purchase_price) AS price,
@@ -26,9 +25,7 @@ class SalesManagementRepository:
             FROM card_data cd
             JOIN article a ON a.nm_id = cd.article_id
             JOIN cost_price cp ON a.local_vendor_code = cp.local_vendor_code
-            WHERE cd.article_id = $1
             AND cp.date = current_date
-            LIMIT 1
             ) SELECT p.nm_id,
                 a.local_vendor_code,
                 a.account,
@@ -42,11 +39,10 @@ class SalesManagementRepository:
             JOIN article a ON p.nm_id = a.nm_id 
             JOIN margin m ON p.nm_id = m.article_id 
             WHERE p.plan_price > (cd.price - (cd.price * cd.discount / 100)) 
-            AND current_date BETWEEN p.promo_start AND p.promo_end 
-            AND cd.article_id = $1 ;
+            AND current_date BETWEEN p.promo_start AND p.promo_end;
         """
         async with self.pool.acquire() as conn:
-            rows = await conn.fetch(query, *params)
+            rows = await conn.fetch(query)
         return rows
 
     async def get_shares_goods(self, is_promotion: bool) -> Sequence:
@@ -64,9 +60,13 @@ class SalesManagementRepository:
                          JOIN article a ON p.nm_id = a.nm_id
                 """
         if is_promotion:
-            query += """ WHERE p.plan_price > (cd.price - (cd.price * cd.discount / 100)); """
+            query += """ WHERE p.plan_price > (cd.price - (cd.price * cd.discount / 100))
+                AND current_date BETWEEN p.promo_start AND p.promo_end ORDER BY cd.article_id DESC;
+                 """
         else:
-            query += """ WHERE p.plan_price < (cd.price - (cd.price * cd.discount / 100)); """
+            query += """ WHERE p.plan_price < (cd.price - (cd.price * cd.discount / 100))
+                AND current_date BETWEEN p.promo_start AND p.promo_end ORDER BY cd.article_id DESC;
+                 """
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(query)
         return rows
