@@ -2,7 +2,7 @@ import datetime
 from typing import Optional
 from http import HTTPStatus
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from fastapi.params import Depends
 from starlette import status
 
@@ -12,7 +12,7 @@ from app.domain.models import (
     SalesManagementBaseSummWithDate,
     SalesManagementShares,
     SalesManagementSharesGood,
-    UserPermissions
+    UserPermissions, SalesManagementSharesGoodWithMargin
 )
 
 router = APIRouter(prefix="/sales-management", tags=["Управление продажами"])
@@ -204,4 +204,20 @@ async def get_promotions_goods(
     if not user.crm_viewing_crm_analytic:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     result = await service.get_shares_goods_with_bool(is_promotion)
+    return result
+
+
+@router.get("/sales/promotions/best-marginality", response_model=list[SalesManagementSharesGoodWithMargin],
+            description="""
+**Получить товар с информацией по маржинальности текущей 
+и плановой (при участии в акции), если имеется подходящая акция для участия.**\n
+""")
+async def get_best_marginality(
+        article_id: int,
+        user: UserPermissions = Depends(get_info_from_token),
+        service: SalesManagementService = Depends(get_sales_management_service)
+):
+    if not user.crm_viewing_crm_analytic:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+    result = await service.get_best_marginality_by_good_id(article_id)
     return result

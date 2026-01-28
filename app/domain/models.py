@@ -1798,6 +1798,12 @@ class SellerAccount(BaseModel):
     inn: int = Field(..., description="ИНН аккаунта")
 
 
+class SalesManagementSharesGoodWithMargin(SalesManagementSharesGood):
+    """Схема товара учавствующего в акции с реальной маржинальностью и плановой маржинальностью"""
+    plan_margin: float
+    real_margin: float
+
+
 class ProductCard(BaseModel):
     """Модель карточки товара."""
 

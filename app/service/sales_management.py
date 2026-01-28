@@ -18,13 +18,24 @@ from app.domain.models import (
     SalesManagementOutlayWithDate,
     SalesManagementPenaltyWithDate,
     SalesManagementShares,
-    SalesManagementSharesGood
+    SalesManagementSharesGood,
+    SalesManagementSharesGoodWithMargin
 )
 
 
 class SalesManagementService:
     def __init__(self, repository: SalesManagementRepository):
         self.repository = repository
+
+    async def get_best_marginality_by_good_id(self, article_id: int):
+        """
+        Получить товар по ид с расчетом текущей маржинальности
+        и плановой маржинальности по акции, если существует акция в которой
+        по дополнительным условиям он может учавствовать
+        """
+        rows = await self.repository.get_marginality_actual_and_with_promo_price(article_id)
+        return [SalesManagementSharesGoodWithMargin(**r) for r in rows]
+
 
     async def get_shares_goods_with_bool(self, is_promotion: bool):
         """Получить товары учавствующие\неучавствующие в акциях"""
