@@ -1,6 +1,8 @@
 import asyncio
+from collections import defaultdict
 import logging
 import json
+import time
 from typing import AsyncGenerator, Optional
 
 import aiohttp
@@ -40,7 +42,7 @@ class WBCardsNotFoundError(WBCardsAPIError):
 class CardMarketplaceWB:
     """API WB для работы с карточками товаров."""
 
-    WB_BASE_URL = "https://content-api.wildberries.ru"
+    WB_CONTENT_BASE_URL = "https://content-api.wildberries.ru"
 
     WB_CARDS_UPLOAD = "/content/v2/cards/upload"
     WB_CARDS_UPDATE = "/content/v2/cards/update"
@@ -50,15 +52,39 @@ class CardMarketplaceWB:
     WB_CARDS_ERROR_LIST = "/content/v2/cards/error/list"
     WB_MEDIA_SAVE = "/content/v3/media/save"
 
+    # Базовый лимит для категории Content
+    CONTENT_BASE_INTERVAL = 0.6
+
+    # Переопределения для эндпоинтов
+    ENDPOINT_OVERRIDES = {
+        WB_CARDS_UPLOAD: 6.0,
+        WB_CARDS_UPDATE: 6.0,
+        WB_CARDS_ERROR_LIST: 6.0,
+    }
+
+    # Запас для избежания предела лимитов
+    SAFETY_MARGIN = 1.2
+
     def __init__(
         self,
         account_name: str,
         api_token: str,
         session: aiohttp.ClientSession,
+        base_interval: float = CONTENT_BASE_INTERVAL,
+        endpoint_overrides: Optional[dict[str, float]] = ENDPOINT_OVERRIDES,
+        safety_margin: float = SAFETY_MARGIN,
     ):
         self.account_name = account_name
         self.api_token = api_token
         self.session = session
+        self._safety_margin = safety_margin
+        self._base_interval = base_interval
+        self._endpoint_overrides = endpoint_overrides
+
+        # Блокировщики запросов
+        self._locks = defaultdict(asyncio.Lock)
+        # Время последних запросов к энпоинтам
+        self._last_request_times = defaultdict(float)
 
     async def _make_request(
         self,
@@ -67,14 +93,37 @@ class CardMarketplaceWB:
         payload: Optional[dict[str, any]] = None,
         max_retries: int = 3
     ) -> dict[str, any]:
-        url = f"{self.WB_BASE_URL}{endpoint}"
+        url = f"{self.WB_CONTENT_BASE_URL}{endpoint}"
         headers = {
             "Authorization": self.api_token,
             "Content-Type": "application/json"
         }
 
+        # Формируем данные для контроля лимитов
+        if endpoint not in self.ENDPOINT_OVERRIDES:
+            lock = self._locks[self.WB_CONTENT_BASE_URL]
+            raw_interval = self._base_interval
+            time_key = self.WB_CONTENT_BASE_URL
+        else:
+            lock = self._locks[endpoint]
+            raw_interval = self._endpoint_overrides.get(endpoint, self._base_interval)
+            time_key = endpoint
+
+        interval = raw_interval * self._safety_margin
+
         for attempt in range(1, max_retries + 1):
             try:
+                async with lock:
+                    now = time.monotonic()
+                    elapsed = now - self._last_request_times[time_key]
+
+                    if elapsed < interval:
+                        delay = interval - elapsed
+                        logger.debug(f"[{self.account_name}] Задержка ограничения лимита {delay:.2f}с для {endpoint}")
+                        await asyncio.sleep(delay)
+
+                    self._last_request_times[time_key] = time.monotonic()
+
                 logger.debug(f"[{self.account_name}] Запрос: {method} {endpoint}, attempt: {attempt}")
                 async with self.session.request(
                     method=method,
@@ -88,11 +137,22 @@ class CardMarketplaceWB:
                         continue
 
                     if response.status == 404:
-                        raise WBCardsNotFoundError(f"Ресурс не найден: {endpoint}", status_code=404)
+                        logger.warning(f"[{self.account_name}] Ресурс не найден: {endpoint}, {payload=}")
+                        raise WBCardsNotFoundError(f"[{self.account_name}] Ресурс не найден: {endpoint}", status_code=404)
+
+                    if response.status == 400:
+                        error_text = await response.json()
+                        logger.warning(f"[{self.account_name}] WB API error: {error_text.get("errorText")}, {endpoint=}, {payload=}...")
+                        raise WBCardsAPIError(f"[{self.account_name}] WB API error: {error_text.get("errorText")}", status_code=response.status)
+
+                    if 500 <= response.status < 600:
+                        wait_time = min(2 ** (attempt - 1), 10)
+                        logger.warning(f"[{self.account_name}] Серверная ошибка {response.status} на {endpoint}. Попытка {attempt}/{max_retries}. Ждём {wait_time} сек...")
+                        await asyncio.sleep(wait_time)
+                        continue
 
                     response.raise_for_status()
                     return await self._parse_json_response(response)
-
             except aiohttp.ClientResponseError as e:
                 if e.status == 429:
                     continue
@@ -159,7 +219,6 @@ class CardMarketplaceWB:
 
             payload["settings"]["cursor"][cursor_key] = cursor[cursor_key]
             payload["settings"]["cursor"]["nmID"] = cursor["nmID"]
-            await asyncio.sleep(0.6)
 
     async def iter_cards(
         self,
@@ -237,7 +296,6 @@ class CardMarketplaceWB:
             if has_more:
                 payload["cursor"]["updatedAt"] = cursor["updatedAt"]
                 payload["cursor"]["batchUUID"] = cursor["batchUUID"]
-                await asyncio.sleep(6)
 
     async def check_uncreated_cards(self, vendor_codes: set[str]) -> dict[str, any]:
         """Проверить, есть ли ошибки создания по списку артикулов продавца."""
@@ -319,8 +377,6 @@ class WBCardsClient:
 
             if card and card.nm_id == nm_id:
                 return True
-
-            await asyncio.sleep(3)
 
         return False
     

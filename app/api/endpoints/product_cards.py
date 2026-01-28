@@ -33,18 +33,19 @@ router = APIRouter(prefix="/cards", tags=["Карточки товаров"])
 @router.post("/wb/duplicate", description="Создание дубликата карточки товара на WB.")
 async def duplicate_wb_card(
     data: DuplicateWBProductCardRequest,
-    # user: UserPermissions = Depends(get_info_from_token),
+    user: UserPermissions = Depends(get_info_from_token),
     service: WildberriesCardsService = Depends(get_wb_cards_service),
 ) -> DuplicateWBProductCardResponse:
     """Создать дубликат карточки товара."""
-    # if not user.viewing:
-    #     raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+    if not user.viewing:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     try:
         async with ClientSession() as session:
-            source_wb_client = WBCardsClient(account=data.account, session=session)
+            source_wb_client = WBCardsClient(account=data.source_account, session=session)
             result = await service.duplicate_card(
                 wb_client=source_wb_client,
                 source_nm_id=data.nm_id,
+                sync_stocks=data.sync_stocks,
                 close_old=data.close_old_card
             )
         return result
@@ -53,28 +54,28 @@ async def duplicate_wb_card(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.exception(f"Непредвиденная ошибка в /wb/duplicate: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error.")
 
 
 @router.post("/wb/duplicate-to-accounts", description="Создание дубликата карточки товара на других аккаунтах WB.")
 async def duplicate_wb_card_to_accounts(
     data: DuplicateCardToAccountsRequest,
-    # user: UserPermissions = Depends(get_info_from_token),
+    user: UserPermissions = Depends(get_info_from_token),
     service: WildberriesCardsService = Depends(get_wb_cards_service),
 ) -> DuplicateCardToAccountsResponse:
     """Создать дубликат карточки товара на других аккаунтах."""
-    # if not user.viewing:
-    #     raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+    if not user.viewing:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     try:
         async with ClientSession() as session:
-            source_wb_client = WBCardsClient(account=data.account, session=session)
+            source_wb_client = WBCardsClient(account=data.source_account, session=session)
             target_wb_clients = [
                 WBCardsClient(
                     account=account,
                     session=session,
                 )
                 for account in set(data.target_accounts)
-                if account.lower() != data.account.lower()
+                if account.lower() != data.source_account.lower()
             ]
 
             if not target_wb_clients:
@@ -83,6 +84,7 @@ async def duplicate_wb_card_to_accounts(
             result = await service.duplicate_card_to_accounts(
                 source_wb_client=source_wb_client,
                 target_wb_clients=target_wb_clients,
+                sync_stocks=data.sync_stocks,
                 source_nm_id=data.nm_id,
             )
         return result
@@ -91,18 +93,18 @@ async def duplicate_wb_card_to_accounts(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.exception(f"Непредвиденная ошибка в /wb/duplicate-to-accounts: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error.")
 
 
 @router.post("/wb/upload", description="Создать карточки товаров в личных кабинетах WB.")
 async def upload_wb_cards(
     data: list[UploadWBCardsRequest],
-    # user: UserPermissions = Depends(get_info_from_token),
+    user: UserPermissions = Depends(get_info_from_token),
     service: WildberriesCardsService = Depends(get_wb_cards_service),
 ) -> list[UploadWBCardsResponse]:
     """Создать карточки товаров в личных кабинетах WB."""
-    # if not user.viewing:
-    #     raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+    if not user.viewing:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     if not data:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Пустой запрос")
 
@@ -141,12 +143,12 @@ async def upload_wb_cards(
 @router.post("/wb/update", description="Обновить информацию карточек товаров в личных кабинетах WB.")
 async def update_wb_cards(
     data: list[UpdateWBCardsRequest],
-    # user: UserPermissions = Depends(get_info_from_token),
+    user: UserPermissions = Depends(get_info_from_token),
     service: WildberriesCardsService = Depends(get_wb_cards_service),
 ) -> list[UpdateWBCardsResponse]:
     """Обновить информацию карточек товаров в личных кабинетах WB."""
-    # if not user.viewing:
-    #     raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+    if not user.viewing:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     if not data:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Пустой запрос")
 
@@ -184,12 +186,12 @@ async def update_wb_cards(
 @router.post("/wb/delete/trash", description="Переместить карточку товара в корзину.")
 async def move_card_to_trash(
     data: MoveToTrashRequest,
-    # user: UserPermissions = Depends(get_info_from_token),
+    user: UserPermissions = Depends(get_info_from_token),
     service: WildberriesCardsService = Depends(get_wb_cards_service),
 ) -> dict[str, bool]:
     """Переместить карточку товара в корзину."""
-    # if not user.viewing:
-    #     raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+    if not user.viewing:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     try:
         async with ClientSession() as session:
             wb_client = WBCardsClient(account=data.account, session=session)
@@ -206,12 +208,12 @@ async def move_card_to_trash(
 @router.post("/wb/info", description="Получить информацию о карточке с WB.")
 async def get_card_info(
     data: CardInfoRequest,
-    # user: UserPermissions = Depends(get_info_from_token),
+    user: UserPermissions = Depends(get_info_from_token),
     service: WildberriesCardsService = Depends(get_wb_cards_service),
 ) -> WbCard:
     """Получить информацию о карточке с WB."""
-    # if not user.viewing:
-    #     raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+    if not user.viewing:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     if not data.nm_id and not data.vendor_code:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Укажите nm_id или vendor_code")
 
@@ -240,12 +242,12 @@ async def get_card_info(
 @router.post("/wb/info/trashed", description="Получить информацию о карточке с WB из корзины")
 async def get_trashed_card_info(
     data: CardInfoRequest,
-    # user: UserPermissions = Depends(get_info_from_token),
+    user: UserPermissions = Depends(get_info_from_token),
     service: WildberriesCardsService = Depends(get_wb_cards_service),
 ) -> WbCardTrashed:
     """Получить информацию о карточке с WB из корзины."""
-    # if not user.viewing:
-    #     raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+    if not user.viewing:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     if not data.nm_id and not data.vendor_code:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Укажите nm_id или vendor_code")
 

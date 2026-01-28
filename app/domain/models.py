@@ -1598,20 +1598,24 @@ class UploadWBCardsRequest(BaseModel):
     account: str = Field(..., description="Аккаунт")
     data: list[WBCardCreateRequest] = Field(..., description="Список карточек для создания")
 
-class DuplicateWBProductCardRequest(BaseModel):
+class BaseDuplicateProductCard(BaseModel):
+    """Базовая модель для запроса на создание дубликата карточки."""
+    nm_id: int = Field(..., description="Артикул WB исходной карточки")
+    source_account: str = Field(..., description="Аккаунт")
+    sync_stocks: bool = Field(..., description="Сихнронизировать виртуальные остатки или нет")
+
+
+class DuplicateWBProductCardRequest(BaseDuplicateProductCard):
     """Запрос на создание дубликата карточки в том же аккаунте."""
 
-    nm_id: int = Field(..., description="Артикул WB исходной карточки")
-    account: str = Field(..., description="Аккаунт")
     close_old_card: bool = Field(False, description="Закрыть ли исходную карточку")
 
 
-class DuplicateCardToAccountsRequest(BaseModel):
+class DuplicateCardToAccountsRequest(BaseDuplicateProductCard):
     """Запрос на создание дубликата карточки на других аккаунтах."""
 
-    nm_id: int = Field(..., description="Артикул WB исходной карточки")
-    account: str = Field(..., description="Аккаунт с исходной карточкой")
     target_accounts: list[str] = Field(None, description="Список аккаунтов для заведения новой карточки")
+
 
 class AccountProductCard(BaseModel):
     account: str

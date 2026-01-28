@@ -34,9 +34,8 @@ async def get_products_grouped_by_subjects(
 async def get_product_cards(
         service: ProductService = Depends(get_product_service),
         id: str = Path(..., description="Локальный артикул товара."),
-        # user: UserPermissions = Depends(get_info_from_token),
+        user: UserPermissions = Depends(get_info_from_token),
 ) -> list[ProductCard]:
-    # if not user.viewing:
-    #     raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
-    
+    if not user.viewing:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     return await service.get_poduct_cards(product_id=id)

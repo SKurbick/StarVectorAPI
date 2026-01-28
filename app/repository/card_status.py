@@ -149,7 +149,7 @@ class CardStatusRepository:
         nm_account_pairs: list[tuple[int, str]]
     ) -> dict[tuple[int, str], str]:
         """
-        Возвращает {(account, nm_id): status} для существующих записей в card_status.
+        Возвращает {(nm_id, account): status} для существующих записей в card_status.
         Если запись отсутствует — nm_id будет присвоен 'active'.
         """
         if not nm_account_pairs:
@@ -167,7 +167,7 @@ class CardStatusRepository:
         params = []
 
         for nm_id, account in nm_account_pairs:
-            params.extend([nm_id, account])
+            params.extend([nm_id, account.upper()])
 
         rows = await self.pool.fetch(query, *params)
 
