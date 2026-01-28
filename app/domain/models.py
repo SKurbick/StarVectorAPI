@@ -1817,3 +1817,8 @@ class ProductCard(BaseModel):
     barcode: Optional[str] = Field(None, description="Баркод")
     subject_id: Optional[int] = Field(None, description="id предмета")
     photo_link: Optional[str] = Field(None, description="Ссылка на фото")
+
+class AnalyticsTimeExecutingWithWBAccount(BaseModel):
+    """Схема времени выполнения поставки со склада на сортировку"""
+    account: str
+    time_executing: int

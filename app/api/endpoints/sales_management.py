@@ -2,7 +2,7 @@ import datetime
 from typing import Optional
 from http import HTTPStatus
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, HTTPException
 from fastapi.params import Depends
 from starlette import status
 
