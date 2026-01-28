@@ -3,7 +3,7 @@ import json
 
 from asyncpg import Pool
 
-from app.domain.models import  ArticleResponse, ProductResponse, SubjectDataWithProductsResponse
+from app.domain.models import  ArticleResponse, ProductResponse, SubjectDataWithProductsResponse, ProductCard
 
 
 class ProductRepository:
@@ -93,3 +93,37 @@ class ProductRepository:
             subject_name=name,
             products=products
         ) for name, products in subjects_dict.items()]
+
+    async def get_product_cards(self, product_id: str):
+        """Получить все карточки товара."""
+        query = """
+            WITH product_cards AS (
+                SELECT
+                    a.nm_id,
+                    a.account,
+                    a.vendor_code,
+                    a.local_vendor_code,
+                    a.created_at
+                FROM article a 
+                WHERE a.local_vendor_code = $1
+            )
+            SELECT
+                pc.nm_id,
+                pc.account,
+                pc.vendor_code,
+                pc.local_vendor_code,
+                pc.created_at,
+                coalesce(cs.status, 'active') AS status,
+                cd.barcode,
+                cd.subject_id,
+                cd.photo_link
+            FROM product_cards pc
+            LEFT JOIN card_status cs
+                ON pc.nm_id = cs.nm_id
+            LEFT JOIN card_data cd
+                ON cd.article_id = pc.nm_id 
+            ORDER BY pc.account, pc.vendor_code
+        """
+
+        rows = await self.pool.fetch(query, product_id)
+        return [ProductCard(**row) for row in rows]

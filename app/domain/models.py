@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, RootModel
 
-from app.domain.enums import LossOwnerEnum
+from app.domain.enums import LossOwnerEnum, CardStatusEnum
 
 
 # Общий словарь с конфигурациями полей
@@ -330,6 +330,14 @@ class SkuAmountResponseModel(BaseModel):
 
 class UpdateStocksQuantityResponseModel(BaseModel):
     stocks: List[SkuAmountResponseModel]
+
+
+class StocksFBSQuantityInDB(BaseModel):
+    """Остатки ФБС карточки товара."""
+
+    article_id: int
+    barcode: str
+    quantity: int
 
 
 # Модель для данных внутри каждого федерального округа
@@ -1590,20 +1598,24 @@ class UploadWBCardsRequest(BaseModel):
     account: str = Field(..., description="Аккаунт")
     data: list[WBCardCreateRequest] = Field(..., description="Список карточек для создания")
 
-class DuplicateWBProductCardRequest(BaseModel):
+class BaseDuplicateProductCard(BaseModel):
+    """Базовая модель для запроса на создание дубликата карточки."""
+    nm_id: int = Field(..., description="Артикул WB исходной карточки")
+    source_account: str = Field(..., description="Аккаунт")
+    sync_stocks: bool = Field(..., description="Сихнронизировать виртуальные остатки или нет")
+
+
+class DuplicateWBProductCardRequest(BaseDuplicateProductCard):
     """Запрос на создание дубликата карточки в том же аккаунте."""
 
-    nm_id: int = Field(..., description="Артикул WB исходной карточки")
-    account: str = Field(..., description="Аккаунт")
     close_old_card: bool = Field(False, description="Закрыть ли исходную карточку")
 
 
-class DuplicateCardToAccountsRequest(BaseModel):
+class DuplicateCardToAccountsRequest(BaseDuplicateProductCard):
     """Запрос на создание дубликата карточки на других аккаунтах."""
 
-    nm_id: int = Field(..., description="Артикул WB исходной карточки")
-    account: str = Field(..., description="Аккаунт с исходной карточкой")
     target_accounts: list[str] = Field(None, description="Список аккаунтов для заведения новой карточки")
+
 
 class AccountProductCard(BaseModel):
     account: str
@@ -1785,7 +1797,22 @@ class SellerAccount(BaseModel):
     is_active: bool = Field(..., description="Рабочий аккаунт")
     inn: int = Field(..., description="ИНН аккаунта")
 
+
 class SalesManagementSharesGoodWithMargin(SalesManagementSharesGood):
     """Схема товара учавствующего в акции с реальной маржинальностью и плановой маржинальностью"""
     plan_margin: float
     real_margin: float
+
+
+class ProductCard(BaseModel):
+    """Модель карточки товара."""
+
+    nm_id: int = Field(..., description="Артикул wildberries")
+    account: str = Field(..., description="Аккаунт")
+    vendor_code: str = Field(..., description="Артикул продавца")
+    local_vendor_code: str = Field(..., description="Локальный артикул товара")
+    created_at: datetime = Field(..., description="Дата создания карточки")
+    status: CardStatusEnum = Field(..., description="Статус карточки")
+    barcode: Optional[str] = Field(None, description="Баркод")
+    subject_id: Optional[int] = Field(None, description="id предмета")
+    photo_link: Optional[str] = Field(None, description="Ссылка на фото")

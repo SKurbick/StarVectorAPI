@@ -141,7 +141,7 @@ class LeftoversMarketplace:
         Отправить обновление остатков на несколько складов.
         """
         wh_results = {}
-
+        print(edit_chrt_ids_list)
         async with aiohttp.ClientSession() as session:
             for warehouse_id in warehouse_ids:
                 url = self.url.format(warehouse_id)

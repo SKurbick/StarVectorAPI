@@ -41,10 +41,11 @@ async def duplicate_wb_card(
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     try:
         async with ClientSession() as session:
-            source_wb_client = WBCardsClient(account=data.account, session=session)
+            source_wb_client = WBCardsClient(account=data.source_account, session=session)
             result = await service.duplicate_card(
                 wb_client=source_wb_client,
                 source_nm_id=data.nm_id,
+                sync_stocks=data.sync_stocks,
                 close_old=data.close_old_card
             )
         return result
@@ -53,7 +54,7 @@ async def duplicate_wb_card(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.exception(f"Непредвиденная ошибка в /wb/duplicate: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error.")
 
 
 @router.post("/wb/duplicate-to-accounts", description="Создание дубликата карточки товара на других аккаунтах WB.")
@@ -67,14 +68,14 @@ async def duplicate_wb_card_to_accounts(
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     try:
         async with ClientSession() as session:
-            source_wb_client = WBCardsClient(account=data.account, session=session)
+            source_wb_client = WBCardsClient(account=data.source_account, session=session)
             target_wb_clients = [
                 WBCardsClient(
                     account=account,
                     session=session,
                 )
                 for account in set(data.target_accounts)
-                if account.lower() != data.account.lower()
+                if account.lower() != data.source_account.lower()
             ]
 
             if not target_wb_clients:
@@ -83,6 +84,7 @@ async def duplicate_wb_card_to_accounts(
             result = await service.duplicate_card_to_accounts(
                 source_wb_client=source_wb_client,
                 target_wb_clients=target_wb_clients,
+                sync_stocks=data.sync_stocks,
                 source_nm_id=data.nm_id,
             )
         return result
@@ -91,7 +93,7 @@ async def duplicate_wb_card_to_accounts(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.exception(f"Непредвиденная ошибка в /wb/duplicate-to-accounts: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error.")
 
 
 @router.post("/wb/upload", description="Создать карточки товаров в личных кабинетах WB.")
