@@ -10,6 +10,45 @@ class SalesManagementRepository:
     def __init__(self, pool: Pool) -> None:
         self.pool = pool
 
+    async def get_marginality_actual_and_with_promo_price(self, article_id: int) -> Sequence:
+        """
+        Получить акции удовлетворащию требованию для участия,
+        с расчетом текущей маржинальности товара и плановой маржинальности при участии в акции
+
+        Возвращает массив с обьектами либо же пустой массив
+        """
+        params = [article_id]
+        query = """
+            WITH margin AS (
+            SELECT ((cd.price - (cd.price * cd.discount / 100))-((cd.price - (cd.price * cd.discount / 100)) * (0.06+0.26))-cp.purchase_price) AS price,
+                cd.article_id,
+                cp.purchase_price  
+            FROM card_data cd
+            JOIN article a ON a.nm_id = cd.article_id
+            JOIN cost_price cp ON a.local_vendor_code = cp.local_vendor_code
+            WHERE cd.article_id = $1
+            AND cp.date = current_date
+            LIMIT 1
+            ) SELECT p.nm_id,
+                a.local_vendor_code,
+                a.account,
+                cd.subject_name,
+                p.plan_price,
+                (p.plan_price - (p.plan_price * (0.06+0.26))-m.purchase_price ) AS plan_margin,
+                (cd.price - (cd.price * cd.discount / 100)) AS real_price,
+                m.price AS real_margin,
+                p.promo_name
+            FROM promotions p JOIN card_data cd ON cd.article_id = p.nm_id 
+            JOIN article a ON p.nm_id = a.nm_id 
+            JOIN margin m ON p.nm_id = m.article_id 
+            WHERE p.plan_price > (cd.price - (cd.price * cd.discount / 100)) 
+            AND current_date BETWEEN p.promo_start AND p.promo_end 
+            AND cd.article_id = $1 ;
+        """
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, *params)
+        return rows
+
     async def get_shares_goods(self, is_promotion: bool) -> Sequence:
         """Получить товары в акциях или без"""
         query = """
@@ -31,7 +70,6 @@ class SalesManagementRepository:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(query)
         return rows
-
 
     async def get_shares_total_items_by_accounts(self) -> Sequence:
         """Получить количество товаров и товаров с акциями по аккаунтам"""
@@ -78,7 +116,6 @@ class SalesManagementRepository:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(query, *params)
         return rows
-
 
     async def get_penalty_by_category_and_period(
             self,
