@@ -2,21 +2,46 @@ import asyncio
 from contextlib import asynccontextmanager
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
-from app.infrastructure.database import init_postgres_db, close_postgres_db, init_clickhouse_client, close_clickhouse_client
 from app.infrastructure.redis_client import redis_client
-from app.api.endpoints import (article_router, card_data_router, price_discount_router, favicon_router,
-                               turnover_router, orders_revenues_router, unit_economics_router, net_profit_router,
-                               percent_by_tax_router, stocks_quantity_router, product_router, fin_reports_router,
-                               sales_router, penalties_router, close_card_router, open_card_router, competitors_prices_router,
-                               orders_history_router, product_note_router, subject_data_router, product_cards_router, ic_net_profit_router,
-                               sales_management_router, seller_account_router)
+from app.infrastructure.database import (
+    init_postgres_db,
+    close_postgres_db,
+    init_clickhouse_client,
+    close_clickhouse_client
+)
+from app.api.endpoints import (
+    article_router,
+    card_data_router,
+    price_discount_router,
+    favicon_router,
+    turnover_router,
+    orders_revenues_router,
+    unit_economics_router,
+    net_profit_router,
+    percent_by_tax_router,
+    stocks_quantity_router,
+    product_router,
+    fin_reports_router,
+    sales_router,
+    penalties_router,
+    close_card_router,
+    open_card_router,
+    competitors_prices_router,
+    orders_history_router,
+    product_note_router,
+    subject_data_router,
+    product_cards_router,
+    ic_net_profit_router,
+    sales_management_router,
+    seller_account_router,
+    analytics_router
+)
 
 from app.config.settings import settings
-
 
 logging.basicConfig(
     level=logging.INFO,
@@ -48,32 +73,36 @@ async def lifespan(app: FastAPI):
 
 # Создаем экземпляр FastAPI с использованием lifespan
 app = FastAPI(lifespan=lifespan, title="VectorAPI")
-app.include_router(turnover_router, prefix="/api")
-app.include_router(card_data_router, prefix="/api")
-app.include_router(article_router, prefix="/api")
-app.include_router(price_discount_router, prefix="/api")
-app.include_router(orders_revenues_router, prefix="/api")
-app.include_router(unit_economics_router, prefix="/api")
-app.include_router(net_profit_router, prefix="/api")
-app.include_router(percent_by_tax_router, prefix="/api")
-app.include_router(stocks_quantity_router, prefix="/api")
-app.include_router(product_router, prefix="/api")
-app.include_router(fin_reports_router, prefix="/api")
-app.include_router(penalties_router, prefix="/api")
-app.include_router(sales_router, prefix="/api")
-app.include_router(competitors_prices_router, prefix="/api")
-app.include_router(close_card_router, prefix="/api")
-app.include_router(open_card_router, prefix="/api")
-app.include_router(orders_history_router, prefix="/api")
-app.include_router(subject_data_router, prefix="/api")
-app.include_router(product_note_router, prefix="/api")
-app.include_router(product_cards_router, prefix="/api")
-app.include_router(ic_net_profit_router, prefix="/api")
-app.include_router(sales_management_router, prefix="/api")
-app.include_router(seller_account_router, prefix="/api")
 
+base_router = APIRouter(prefix="/api")
+
+base_router.include_router(turnover_router)
+base_router.include_router(card_data_router)
+base_router.include_router(article_router)
+base_router.include_router(price_discount_router)
+base_router.include_router(orders_revenues_router)
+base_router.include_router(unit_economics_router)
+base_router.include_router(net_profit_router)
+base_router.include_router(percent_by_tax_router)
+base_router.include_router(stocks_quantity_router)
+base_router.include_router(product_router)
+base_router.include_router(fin_reports_router)
+base_router.include_router(penalties_router)
+base_router.include_router(sales_router)
+base_router.include_router(competitors_prices_router)
+base_router.include_router(close_card_router)
+base_router.include_router(open_card_router)
+base_router.include_router(orders_history_router)
+base_router.include_router(subject_data_router)
+base_router.include_router(product_note_router)
+base_router.include_router(product_cards_router)
+base_router.include_router(ic_net_profit_router)
+base_router.include_router(sales_management_router)
+base_router.include_router(seller_account_router)
+base_router.include_router(analytics_router)
+
+app.include_router(base_router)
 app.include_router(favicon_router)
-
 
 origins = [
     # "http://192.168.2.49:5173",
