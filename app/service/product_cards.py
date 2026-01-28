@@ -266,8 +266,8 @@ class WildberriesCardsService:
             if close_old:
                 logger.info(f"Закрываем карточку [{source_wb_client.account}:{source_wb_card.nm_id}]")
                 await self._close_card(source_wb_card.nm_id, source_wb_client)
-                status_data = await self.card_status_repo.get_status_by_nm_and_account([(source_wb_card, source_wb_client.account)])
-                current_status = status_data.get((source_wb_card, source_wb_client.account))
+                status_data = await self.card_status_repo.get_status_by_nm_and_account([(source_wb_card.nm_id, source_wb_client.account)])
+                current_status = status_data.get((source_wb_card.nm_id, source_wb_client.account))
 
                 if current_status == CardStatusEnum.closing_pending or current_status == CardStatusEnum.closed:
                     logger.info(f"Карточка [{source_wb_client.account}:{source_wb_card.nm_id}] закрыта.")
