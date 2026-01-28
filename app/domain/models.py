@@ -1802,6 +1802,7 @@ class SalesManagementSharesGoodWithMargin(SalesManagementSharesGood):
     """Схема товара учавствующего в акции с реальной маржинальностью и плановой маржинальностью"""
     plan_margin: float
     real_margin: float
+    percentage: int
 
 
 class ProductCard(BaseModel):
