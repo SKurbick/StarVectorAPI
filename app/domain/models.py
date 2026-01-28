@@ -1784,3 +1784,8 @@ class SellerAccount(BaseModel):
     account_name: str = Field(..., description="Название аккаунта")
     is_active: bool = Field(..., description="Рабочий аккаунт")
     inn: int = Field(..., description="ИНН аккаунта")
+
+class SalesManagementSharesGoodWithMargin(SalesManagementSharesGood):
+    """Схема товара учавствующего в акции с реальной маржинальностью и плановой маржинальностью"""
+    plan_margin: float
+    real_margin: float
