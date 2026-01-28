@@ -34,12 +34,13 @@ class SalesManagementRepository:
                 (p.plan_price - (p.plan_price * (0.06+0.26))-m.purchase_price ) AS plan_margin,
                 (cd.price - (cd.price * cd.discount / 100)) AS real_price,
                 m.price AS real_margin,
+                ROUND(((((p.plan_price - (p.plan_price * (0.06+0.26))-m.purchase_price )/m.price) -1)*100), 0) as percentage,
                 p.promo_name
             FROM promotions p JOIN card_data cd ON cd.article_id = p.nm_id 
             JOIN article a ON p.nm_id = a.nm_id 
             JOIN margin m ON p.nm_id = m.article_id 
             WHERE p.plan_price > (cd.price - (cd.price * cd.discount / 100)) 
-            AND current_date BETWEEN p.promo_start AND p.promo_end;
+            AND current_date BETWEEN p.promo_start AND p.promo_end ORDER BY cd.article_id;
         """
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(query)
