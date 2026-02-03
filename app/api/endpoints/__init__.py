@@ -23,6 +23,7 @@ from.ic_net_profit import router as ic_net_profit_router
 from .sales_management import router as sales_management_router
 from .seller_account import router as seller_account_router
 from .analytics import router as analytics_router
+from .wb_specifications import router as wb_specifications_router
 
 
 __all__ = [
@@ -50,5 +51,6 @@ __all__ = [
     'ic_net_profit_router',
     'sales_management_router',
     'seller_account_router',
-    'analytics_router'
+    'analytics_router',
+    'wb_specifications_router',
 ]

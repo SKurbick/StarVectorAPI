@@ -63,3 +63,13 @@ class ExcelParserEnum(Enum):
     srid = 13
     loss_owner = 28
     comment = 29
+
+
+class PredefinedWBCharcEnum(int, Enum):
+    """ID характеристик WB для которых можно получить варианты значений."""
+
+    VAT = 15001405
+    COUNTRY = 14177451
+    COLOR = 14177449
+    KIND = 204557
+    SEASON = 18769

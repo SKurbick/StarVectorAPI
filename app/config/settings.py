@@ -41,7 +41,7 @@ class Settings(BaseSettings):
 settings: Settings = Settings()
 
 
-async def get_wb_tokens() -> dict:
+async def get_wb_tokens() -> dict[str, str]:
     with open(settings.TOKENS_FILE_NAME, "r", encoding='utf-8') as file:
         tokens = json.load(file)
     return tokens

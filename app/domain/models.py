@@ -1504,7 +1504,7 @@ class CardCharcsCreate(BaseModel):
     """Характеристика для создания карточки."""
 
     id: int = Field(..., description="ID характеристики")
-    value: Union[int, float, list[str]] = Field(..., description="Значение", examples=["Красный"])
+    value: Union[int, float, list[str]] = Field(..., description="Значение", examples=[list(("Красный",))])
 
 
 class SizeCreate(BaseModel):
@@ -1597,6 +1597,7 @@ class UploadWBCardsRequest(BaseModel):
 
     account: str = Field(..., description="Аккаунт")
     data: list[WBCardCreateRequest] = Field(..., description="Список карточек для создания")
+
 
 class BaseDuplicateProductCard(BaseModel):
     """Базовая модель для запроса на создание дубликата карточки."""
@@ -1796,6 +1797,7 @@ class SellerAccount(BaseModel):
     account_name: str = Field(..., description="Название аккаунта")
     is_active: bool = Field(..., description="Рабочий аккаунт")
     inn: int = Field(..., description="ИНН аккаунта")
+    vat_rate: Optional[int] = Field(None, description="Ставка НДС")
 
 
 class SalesManagementSharesGoodWithMargin(SalesManagementSharesGood):
@@ -1805,20 +1807,233 @@ class SalesManagementSharesGoodWithMargin(SalesManagementSharesGood):
     percentage: int
 
 
-class ProductCard(BaseModel):
-    """Модель карточки товара."""
-
-    nm_id: int = Field(..., description="Артикул wildberries")
-    account: str = Field(..., description="Аккаунт")
-    vendor_code: str = Field(..., description="Артикул продавца")
-    local_vendor_code: str = Field(..., description="Локальный артикул товара")
-    created_at: datetime = Field(..., description="Дата создания карточки")
-    status: CardStatusEnum = Field(..., description="Статус карточки")
-    barcode: Optional[str] = Field(None, description="Баркод")
-    subject_id: Optional[int] = Field(None, description="id предмета")
-    photo_link: Optional[str] = Field(None, description="Ссылка на фото")
-
 class AnalyticsTimeExecutingWithWBAccount(BaseModel):
     """Схема времени выполнения поставки со склада на сортировку"""
     account: str
     time_executing: int
+
+
+class WBParentCategory(BaseModel):
+    """Модель родительской категории предметов WB."""
+
+    id: int = Field(..., description="id категории")
+    name: str = Field(..., description="Название категории")
+    is_visible: bool = Field(..., description="Виден на сайте")
+
+
+class WBSubject(BaseModel):
+    """Модель предмета WB."""
+
+    id: int = Field(..., description="id предмета")
+    name: str = Field(..., description="Название предмета")
+    parent_id: int = Field(..., description="id родительской категории")
+
+
+class WBParentCategoryWithSubjects(WBParentCategory):
+    """Модель для списка предметов, сгруппированных по родительской категории."""
+
+    subjects: list[WBSubject] = Field([], description="Список предметов родительской категории")
+
+
+class WBCharc(BaseModel):
+    """Модель характеристики WB."""
+
+    id: int = Field(..., description="id характеристики")
+    name: str = Field(..., description="Название характеристики")
+    unit_name: Optional[str] = Field(None, description="Единицы измерения")
+    max_count: int = Field(..., description="Максимальное количество значений, которое можно присвоить характеристике")
+    required: bool = Field(..., description=(
+        "`true` - характеристику необходимо обязательно указать в карточке товара\n"
+        "`false` - характеристику необязательно указывать"
+    ))
+    popular: bool = Field(..., description="Характеристика популярна у пользователей (true - да, false - нет)")
+    charc_type: str = Field(..., description="Тип данных характеристики")
+
+
+class WBSubjectWithCharcs(WBSubject):
+    """Модель для списка характеристик, сгруппированных по предмету."""
+
+    charcs: list[WBCharc] = Field([], description="Список характеристик предмета.")
+
+
+class WBColor(BaseModel):
+    """Значение характеристики WB Цвет."""
+
+    parent_color: Optional[str] = Field(None, description="Родительский цвет")
+    colors: list[str] = Field(None, description="Цвета подкатегории")
+
+
+class WBCountry(BaseModel):
+    """Значение характеристики WB Страна производства."""
+
+    name: str = Field(..., description="Наименование")
+    full_name: str = Field(..., description="Полное наименование")
+
+
+class ProductData(BaseModel):
+    product_id: str
+    name: Optional[str] = None
+    length: int
+    width: int
+    height: int
+    volume: float
+    wb_length: int
+    wb_width: int
+    wb_height: int
+    wb_volume: float
+    wb_subject_id: Optional[int] = None
+    wb_weight_brutto: float = 0
+
+
+class ProductWBCharc(WBCharc):
+    """Характеристика товара."""
+
+    product_id: str = Field(..., description="Локальный артикул товара.")
+    value: Union[list[str], int, float] = Field(..., description="Значение характеристики.")
+
+
+class ProductCharcInfo(WBCharc):
+    """Модель характеристики товара с метаданными."""
+
+    value: Optional[Union[list[str], int, float]] = Field(None, description="Значение характеристики")
+    status: Literal["valid", "invalid", "empty"] = Field(..., description=(
+        "Статус характеристики:\n"
+        "- valid: заполнена корректно или необязательная и пустая\n"
+        "- invalid: заполнена некорректно или обязательная и пустая\n"
+        "- empty: необязательная и пустая"
+    ))
+    is_filled: bool = Field(..., description="Заполнено ли значение")
+    messages: list[str] = Field(default_factory=list, description="Сообщения о проблемах")
+    suggestions: list[str] = Field(default_factory=list, description="Рекомендации для исправления")
+
+
+class ProductWBDimensions(BaseModel):
+    """Модель габаритов товара на WB."""
+
+    width: int = Field(..., description="Ширина, см")
+    height: int = Field(..., description="Высота, см")
+    length: int = Field(..., description="Длина, см")
+    weight_brutto: float = Field(..., description="Вес брутто, кг")
+
+
+class ProductWBDimensionsResponse(ProductWBDimensions):
+    """Модель ответа с габаритами товара на WB."""
+
+    volume: float = Field(..., description="Объем")
+
+
+class WBPhoto(BaseModel):
+    """Ссылка на фото WB."""
+
+    url: str = Field(..., description="Ссылка на фото")
+    display_order: int = Field(..., ge=1, description="Порядковый номер в списке фотографий")
+
+
+class WBMedia(BaseModel):
+    """ССылки на медиа WB."""
+
+    video: Optional[str] = Field(None, description="Ссылка на видео")
+    photos: list[WBPhoto] = Field(..., description="Список ссылок на фото")
+
+
+class WBBrand(BaseModel):
+    """Бренд товара."""
+
+    name: str = Field(..., description="Название")
+    logo_url: Optional[str] = Field(None, description="Ссылка на лого")
+
+
+class ProductWBCard(BaseModel):
+    """Модель карточки товара на WB."""
+
+    nm_id: int = Field(..., description="Артикул WB")
+    account: str = Field(..., description="Аккаунт продавца")
+    vendor_code: str = Field(..., description="Артикул продавца")
+    local_vendor_code: str = Field(..., description="Локальный артикул товара")
+    
+    name: Optional[str] = Field(None, description="Название товара на WB")
+    description: Optional[str] = Field(None, description="Описание товара на WB")
+    barcode: Optional[str] = Field(None, description="Баркод")
+    small_photo_link: Optional[str] = Field(None, description="Ссылка на миниатюру фото")
+    rating: Optional[float] = Field(None, description="Рейтинг карточки на WB")
+
+    status: CardStatusEnum = Field(..., description="Локальный статус карточки")
+    price: Optional[float] = Field(None, description="Цена")
+    fbs_stock_quantity: Optional[int] = Field(None, description="Виртуальные остатки товара")
+
+
+class ProductWBCardInfo(ProductWBCard):
+    """Модель карточки товара c метаданными."""
+
+    media: WBMedia = Field(..., description="Ссылки на медиа карточки на WB")
+    auto_replenishment: bool = Field(False, description="Автопилот")
+    vat: Optional[str] = Field(None, description="Налоговая ставка")
+    average_sales: Optional[float] = Field(None, description="Средние продажи")
+
+
+class ProductWBCards(BaseModel):
+    """Карточки товара."""
+
+    id: str = Field(..., description="Локальный артикул товара")
+    wb_cards: list[ProductWBCardInfo] = Field(default_factory=list, description="Список карточек товара с информацией.")
+
+
+class ProductWBSpecificationResponse(BaseModel):
+    """Модель WB-спецификаций товара."""
+
+    id: str = Field(..., description="Локальный артикул товара")
+    name: Optional[str] = Field(None, description="Название товара")
+    subject_id: Optional[int] = Field(None, description="id предмета")
+    dimensions: ProductWBDimensionsResponse = Field(..., description="Габариты товара на WB")
+    media: WBMedia = Field(..., description="Ссылки на медиа общие для всех карточек на WB")
+    characteristics: list[ProductCharcInfo] = Field(..., description="Список характеристик товара")
+
+
+class ProsuctWBSpecificationUpdate(BaseModel):
+    """Модель обновления WB-спецификаций товара."""
+
+    id: str = Field(..., description="Локальный артикул товара")
+    subject_id: int = Field(..., description="id предмета")
+    dimensions: ProductWBDimensions = Field(..., description="Габариты товара")
+    wb_media_links: WBMedia = Field(..., description="Ссылки на медиа, общие для всех карточек")
+    characteristics: list[CardCharcsUpdate] = Field(..., description="Список характеристик для обновления")
+
+
+class WBCardUploadRequest(BaseModel):
+    """Модель запроса на создание карточки товара на WB."""
+
+    account: str = Field(..., description="Аккаунт")
+    product_id: str = Field(..., description="Локальный артикул товара")
+    name: Optional[str] = Field(None, description="Название карточки товара")
+    description: Optional[str] = Field(None, description="Описание")
+    wb_media_links: WBMedia = Field(..., description="Ссылки на медиа")
+    price: Optional[int] = Field(None, description="Цена")
+    discount: Optional[int] = Field(None, description="Скидка")
+    fbs_stock_quantity: Optional[int] = Field(None, description="Виртуальные остатки")
+
+
+class WBCardSpecificationUpdateRequest(WBCardUploadRequest):
+    """Модель обновления спецификаций карточки товара на WB."""
+
+    nm_id: int = Field(..., description="Артикул WB")
+    vendor_code: str = Field(..., description="Артикул продавца")
+
+
+class CardOperationResponse(BaseModel):
+    """Ответ на операцию с карточкой (создание/обновление)."""
+    
+    task_id: str = Field(..., description="ID задачи обработки")
+    status: str = Field(default="queued", description="Статус задачи")
+    message: str = Field(..., description="Сообщение о результате")
+    account: str = Field(..., description="Аккаунт продавца")
+    product_id: str = Field(..., description="Локальный артикул товара")
+    nm_id: Optional[int] = Field(None, description="Артикул WB.")
+    created_at: datetime = Field(default_factory=datetime.now, description="Время создания задачи")
+
+
+class ProductUpdateSpecificationsResponse(BaseModel):
+    """Ответ на запрос обновления спецификаций товара."""
+
+    message: str = Field(..., description="Сообщение о результате")
+    product_id: str = Field(..., description="Локальный артикул товара")
+    cards_for_update: list[CardOperationResponse] = Field(..., description="Список карточек для обновления.")
