@@ -8,7 +8,7 @@ from app.domain.models import CategoriesResponse, UserPermissions
 router = APIRouter(prefix="/subjects", tags=["Предметы маркетплейсов"])
 
 
-@router.get("/wildberries", description="Получить предметы Wildberries по категориям")
+@router.get("/wildberries", description="Получить предметы Wildberries по категориям", deprecated=True)
 async def get_subjects_from_wb(
     user: UserPermissions = Depends(get_info_from_token),
     service: SubjectDataService = Depends(get_subject_data_service)

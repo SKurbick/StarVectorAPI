@@ -25,6 +25,9 @@ from .sales_management import get_sales_management_service
 from .jwt_dep import get_info_from_token
 from .seller_account import get_seller_account_service
 from .analytics import get_analytics_service
+from .wb_specifications import get_wb_charc_service, get_wb_subject_service, get_wb_parent_category_service
+from .http_session import get_wb_http_session
+from .product import get_product_service
 
 
 __all__ = [
@@ -65,5 +68,10 @@ __all__ = [
     "get_sales_management_service",
     "get_info_from_token",
     "get_seller_account_service",
-    "get_analytics_service"
+    "get_analytics_service",
+    "get_wb_charc_service",
+    "get_wb_subject_service",
+    "get_wb_parent_category_service",
+    "get_wb_http_session",
+    "get_product_service",
 ]

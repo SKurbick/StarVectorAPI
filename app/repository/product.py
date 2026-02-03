@@ -3,7 +3,12 @@ import json
 
 from asyncpg import Pool
 
-from app.domain.models import  ArticleResponse, ProductResponse, SubjectDataWithProductsResponse, ProductCard
+from app.domain.models import  (
+    ArticleResponse,
+    ProductResponse,
+    SubjectDataWithProductsResponse,
+    ProductWBCard,
+)
 
 
 class ProductRepository:
@@ -94,7 +99,7 @@ class ProductRepository:
             products=products
         ) for name, products in subjects_dict.items()]
 
-    async def get_product_cards(self, product_id: str):
+    async def get_product_wb_cards(self, product_id: str) -> list[ProductWBCard]:
         """Получить все карточки товара."""
         query = """
             WITH product_cards AS (
@@ -102,28 +107,63 @@ class ProductRepository:
                     a.nm_id,
                     a.account,
                     a.vendor_code,
-                    a.local_vendor_code,
-                    a.created_at
+                    a.local_vendor_code
                 FROM article a 
                 WHERE a.local_vendor_code = $1
+            ),
+            card_statuses AS (
+                SELECT
+                    cs.nm_id,
+                    cs.status
+                FROM card_status cs
+                WHERE cs.nm_id IN (
+                    SELECT nm_id
+                    FROM product_cards
+                )
+            ),
+            prices AS (
+                SELECT DISTINCT ON (pc.local_vendor_code, pc.nm_id)
+                    pc.local_vendor_code,
+                    pc.nm_id,
+                    sh.spp_price AS price
+                FROM product_cards pc
+                LEFT JOIN spp_history sh ON pc.nm_id = sh.nm_id
+            ),
+            stocks AS (
+                SELECT
+                    csq.article_id,
+                    csq.quantity
+                FROM current_stocks_quantity csq
+                WHERE csq.article_id IN (
+                    SELECT nm_id
+                    FROM product_cards
+                )
+                AND quantity_type = 'ФБС'
             )
             SELECT
                 pc.nm_id,
                 pc.account,
                 pc.vendor_code,
                 pc.local_vendor_code,
-                pc.created_at,
-                coalesce(cs.status, 'active') AS status,
+                COALESCE(cs.status, 'active') AS status,
                 cd.barcode,
-                cd.subject_id,
-                cd.photo_link
+                cd.rating,
+                cd.photo_link AS small_photo_link,
+                cd.wb_name AS name,
+                cd.wb_description AS description,
+                p.price,
+                COALESCE(s.quantity, 0) AS fbs_stock_quantity
             FROM product_cards pc
-            LEFT JOIN card_status cs
+            LEFT JOIN card_statuses cs
                 ON pc.nm_id = cs.nm_id
+            LEFT JOIN prices p
+                ON p.nm_id = pc.nm_id
             LEFT JOIN card_data cd
                 ON cd.article_id = pc.nm_id 
+            LEFT JOIN stocks s
+                ON s.article_id = pc.nm_id
             ORDER BY pc.account, pc.vendor_code
         """
 
         rows = await self.pool.fetch(query, product_id)
-        return [ProductCard(**row) for row in rows]
+        return [ProductWBCard(**row) for row in rows]

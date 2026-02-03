@@ -16,7 +16,8 @@ class SellerAccountRepository:
                 sa.id,
                 sa.account_name,
                 sa.is_active,
-                sa.inn
+                sa.inn,
+                sa.vat_rate
             FROM
                 seller_account sa
             ORDER BY sa.account_name
