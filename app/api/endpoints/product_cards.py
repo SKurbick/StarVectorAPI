@@ -3,10 +3,10 @@ import logging
 import uuid
 
 from aiohttp import ClientSession
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, File
 from starlette import status
 
-from app.dependencies import get_wb_cards_service, get_info_from_token
+from app.dependencies import get_wb_cards_service, get_info_from_token, get_wb_media_service
 from app.domain.models import (
     DuplicateWBProductCardRequest,
     DuplicateCardToAccountsRequest,
@@ -16,8 +16,10 @@ from app.domain.models import (
     WBCardSpecificationUpdateRequest,
     WBCardUploadRequest,
     CardOperationResponse,
+    CardWBMediaLinksUpdate,
 )
 from app.service.product_cards import WildberriesCardsService
+from app.service.wb_media import WBMediaService
 from app.infrastructure.WildberriesAPI.cards import WBCardsClient
 
 
@@ -131,5 +133,114 @@ async def upload_wb_card(
         account=data.account,
         product_id=data.product_id,
         nm_id=None,
+        created_at=datetime.now()
+    )
+
+
+@router.post(
+    "/wb/media/links",
+    status_code=status.HTTP_202_ACCEPTED,
+    description="""
+    **Обновление медиа карточки товара на WB по ссылкам.**
+
+    Нужно передавать как старые, так и новые ссылки.
+    Новые медиа полностью заменяют старые.
+    Требования:
+        - Максимум 5 уникальных изображений для карточки
+        - Максимум 1 видео
+        - Ссылки должны вести напрямую на файлы
+    """,
+)
+async def update_media_by_links(
+    data: CardWBMediaLinksUpdate,
+    service: WBMediaService = Depends(get_wb_media_service),
+    user: UserPermissions = Depends(get_info_from_token),
+) -> CardOperationResponse:
+    if not user.viewing:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+
+    task_id = f"media_links_{uuid.uuid4().hex}"
+    try:
+        await service.update_card_media_links(data)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e))
+    except Exception as e:
+        logger.exception(f"Ошибка во время обновления медиа: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error.")
+
+    return CardOperationResponse(
+        task_id=task_id,
+        status="completed",
+        message="Медиа успешно обновлены",
+        account=data.account,
+        product_id="None",
+        nm_id=int(data.nm_id),
+        created_at=datetime.now()
+    )
+
+@router.post(
+    "/wb/media/file/add",
+    status_code=status.HTTP_202_ACCEPTED,
+    description="""
+    **Загрузка медиа файла для карточки товара на WB.**
+
+    Требования:
+        - Форматы фото (JPG, PNG, BMP, GIF, WebP)
+        - формат видео (MP4, MOV)
+        - Размер фото: до 32 Мб
+        - Размер видео: до 50 Мб
+    """,
+)
+async def upload_media_files(
+    nm_id: int = Header(..., description="Артикул WB"),
+    file: UploadFile = File(..., description="Файл для загрузки"),
+    service: WBMediaService = Depends(get_wb_media_service),
+    user: UserPermissions = Depends(get_info_from_token),
+) -> CardOperationResponse:
+    if not user.viewing:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+
+    allowed_photo_ext = (".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp")
+    allowed_video_ext = (".mp4", ".mov")
+
+    filename = file.filename.lower()
+    is_photo = any(filename.endswith(ext) for ext in allowed_photo_ext)
+    is_video = any(filename.endswith(ext) for ext in allowed_video_ext)
+
+    if not (is_photo or is_video):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Недопустимый формат файла: {file.filename}. "
+                f"Фото: {', '.join(allowed_photo_ext)}. Видео: {', '.join(allowed_video_ext)}"
+            )
+        )
+
+    task_id = f"media_files_{uuid.uuid4().hex}"
+
+    try:
+        account = await service.upload_card_media_file(
+            nm_id=nm_id,
+            account=None,
+            is_video=is_video,
+            file=file,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e))
+    except Exception as e:
+        logger.exception(f"Ошибка во время загрузки медиа из файла: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error.")
+
+    return CardOperationResponse(
+        task_id=task_id,
+        status="completed",
+        message="Медиафайл успешно загружен.",
+        account=account,
+        product_id="None",
+        nm_id=nm_id,
         created_at=datetime.now()
     )

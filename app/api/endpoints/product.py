@@ -1,12 +1,12 @@
 from datetime import datetime
+import logging
 from typing import Annotated
 import uuid
 
-from fastapi import APIRouter, Depends, Query, HTTPException, Path
+from fastapi import APIRouter, Depends, Query, HTTPException, Path, UploadFile, File, Header
 from starlette import status
 
-from app.dependencies import get_info_from_token
-from app.dependencies import get_product_service
+from app.dependencies import get_info_from_token, get_wb_media_service, get_product_service
 from app.domain.models import (
     SubjectDataWithProductsResponse,
     UserPermissions,
@@ -14,10 +14,14 @@ from app.domain.models import (
     ProductWBSpecificationResponse,
     ProsuctWBSpecificationUpdate,
     ProductUpdateSpecificationsResponse,
-    CardOperationResponse
+    CardOperationResponse,
+    ProductWBMediaLinksUpdate,
 )
 from app.service.product import ProductService
+from app.service.wb_media import WBMediaService
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/products", tags=["Товары"])
 
@@ -107,4 +111,126 @@ async def update_product_wb_specifications(
             nm_id=None,
             created_at=datetime.now()
         )]
+    )
+
+
+@router.post(
+    "/wb/media/links",
+    status_code=status.HTTP_202_ACCEPTED,
+    description="""
+    **Обновление медиа товара на WB по ссылкам.**
+
+    Нужно передавать как старые, так и новые ссылки.
+    Новые медиа полностью заменяют старые. Кроме уникальных медиа для карточки товара.
+
+    Требования:
+        - Максимум 25 изображений
+        - Максимум 1 видео
+        - Ссылки должны вести напрямую на файлы
+    """,
+)
+async def update_media_by_links(
+    data: ProductWBMediaLinksUpdate,
+    service: WBMediaService = Depends(get_wb_media_service),
+    user: UserPermissions = Depends(get_info_from_token),
+) -> ProductUpdateSpecificationsResponse:
+    if not user.viewing:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+
+    task_id = f"media_links_{uuid.uuid4().hex}"
+    try:
+        updated_nm_ids = await service.update_product_media_links(data)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e))
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.exception(f"Ошибка во время обновления медиа: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error.")
+
+    cards = [
+        CardOperationResponse(
+            task_id=task_id,
+            status="completed",
+            message="Медиа успешно обновлены",
+            account="",
+            product_id=data.product_id,
+            nm_id=nm_id,
+            created_at=datetime.now(),
+        )
+        for nm_id in updated_nm_ids
+    ]
+
+    return ProductUpdateSpecificationsResponse(
+        message=f"Обновлены медия в {len(updated_nm_ids)} карточек товара",
+        product_id=data.product_id,
+        cards_for_update=cards,
+    )
+
+@router.post(
+    "/wb/media/file/add",
+    status_code=status.HTTP_202_ACCEPTED,
+    description="""
+    **Загрузка медиа файла для товара на WB.**
+
+    Требования:
+        - Форматы фото (JPG, PNG, BMP, GIF, WebP)
+        - формат видео (MP4, MOV)
+        - Размер фото: до 32 Мб
+        - Размер видео: до 50 Мб
+    """,
+)
+async def upload_media_files(
+    product_id: str = Header(..., description="Локальный артикул товара"),
+    file: UploadFile = File(..., description="Файл для загрузки"),
+    user: UserPermissions = Depends(get_info_from_token),
+    service: WBMediaService = Depends(get_wb_media_service),
+) -> ProductUpdateSpecificationsResponse:
+    if not user.viewing:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+
+    allowed_photo_ext = (".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp")
+    allowed_video_ext = (".mp4", ".mov")
+
+    filename = file.filename.lower()
+    is_photo = any(filename.endswith(ext) for ext in allowed_photo_ext)
+    is_video = any(filename.endswith(ext) for ext in allowed_video_ext)
+
+    if not (is_photo or is_video):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Недопустимый формат файла: {file.filename}. "
+                    f"Фото: {', '.join(allowed_photo_ext)}. Видео: {', '.join(allowed_video_ext)}"
+        )
+
+    task_id = f"media_files_{uuid.uuid4().hex}"
+
+    try:
+        nm_ids = await service.upload_product_media_file(
+            product_id=product_id,
+            is_video=is_video,
+            file=file,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e))
+    except Exception as e:
+        logger.exception(f"Ошибка во время загрузки медиа из файла: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error.")
+
+    return ProductUpdateSpecificationsResponse(
+        message=f"Запрос на обновление медиа файла принят в обработку",
+        product_id=product_id,
+        cards_for_update=[CardOperationResponse(
+            task_id=task_id,
+            status="queued",
+            message="Запрос на обновление медиа по ссылкам принят в обработку",
+            account="account",
+            product_id=product_id,
+            nm_id=nm,
+            created_at=datetime.now()
+        ) for nm in nm_ids]
     )

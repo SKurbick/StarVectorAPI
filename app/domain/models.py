@@ -3,6 +3,7 @@ from typing import Optional, List, Union, Dict, Literal, Any
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, RootModel
+from fastapi import UploadFile
 
 from app.domain.enums import LossOwnerEnum, CardStatusEnum
 
@@ -1788,6 +1789,7 @@ class UserPermissions(BaseModel):
     crm_change_price_and_discounts: bool
     crm_possibility_to_store_leftovers: bool
     crm_ability_to_add_and_remove_products_from_promotions: bool
+    user_id: int
 
 
 class SellerAccount(BaseModel):
@@ -1995,7 +1997,6 @@ class ProsuctWBSpecificationUpdate(BaseModel):
     id: str = Field(..., description="Локальный артикул товара")
     subject_id: int = Field(..., description="id предмета")
     dimensions: ProductWBDimensions = Field(..., description="Габариты товара")
-    wb_media_links: WBMedia = Field(..., description="Ссылки на медиа, общие для всех карточек")
     characteristics: list[CardCharcsUpdate] = Field(..., description="Список характеристик для обновления")
 
 
@@ -2037,3 +2038,70 @@ class ProductUpdateSpecificationsResponse(BaseModel):
     message: str = Field(..., description="Сообщение о результате")
     product_id: str = Field(..., description="Локальный артикул товара")
     cards_for_update: list[CardOperationResponse] = Field(..., description="Список карточек для обновления.")
+
+
+class WBMediaLink(BaseModel):
+    """Ссылка на медиафайл."""
+
+    url: str = Field(..., description="Ссылка на медиафайл")
+    display_order: int = Field(
+        1, 
+        ge=1, 
+        description="Порядковый номер (для фото)"
+    )
+
+    @field_validator("url", mode="after")
+    @classmethod
+    def validate_url(cls, v):
+        v = v.strip()
+        if not v.startswith(('http://', 'https://')):
+            raise ValueError(f"Некорректная ссылка: {v}")
+
+        return v
+
+
+class WBMediaLinksUpdate(BaseModel):
+    """Обновление медиа по ссылкам."""
+
+    video: Optional[WBMediaLink] = Field(None, description="Ссылка на видеофайл (MOV, MP4)")
+    photos: list[WBMediaLink] = Field(..., description="Список ссылок на фото")
+
+
+class ProductWBMediaLinksUpdate(WBMediaLinksUpdate):
+    """Обновление медиа по ссылкам для всех карточек товара на WB."""
+
+    product_id: str = Field(..., description="Локальный артикул товара")
+
+    @model_validator(mode="after")
+    def validate_media(self):
+        """Сортировка списка ссылок на фото ВБ и нормализация порядковых номеров."""
+        photos = self.photos
+
+        if len(photos) > 25:
+            raise ValueError("Максимум 25 изображений для одной карточки")
+
+        if photos:
+            photos_sorted = sorted(
+                photos, 
+                key=lambda x: x.display_order if x.display_order is not None else 999
+            )
+
+            for idx, photo in enumerate(photos_sorted, start=1):
+                photo.display_order = idx
+
+        return self
+
+
+class CardWBMediaLinksUpdate(WBMediaLinksUpdate):
+    """Обновление медиа по ссылкам для карточки товара на WB."""
+
+    nm_id: int = Field(..., description="Артикул WB")
+    account: str = Field(..., description="Аккаунт продавца")
+
+    @field_validator("photos", mode="after")
+    @classmethod
+    def validate_url(cls, v):
+        if len(v) > 5:
+            raise ValueError("Максимум 5 уникальных изображений для одной карточки")
+
+        return v

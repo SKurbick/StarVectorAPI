@@ -167,7 +167,7 @@ async def get_brands(
 
 
 @charcs_router.get("/predifined", status_code=status.HTTP_200_OK, description="""
-    **Получить id характеристик, по которым можно получить доступные значени.**
+    **Получить id характеристик, по которым можно получить доступные значения.**
 """)
 async def get_predifined_charc_ids(
         user: UserPermissions = Depends(get_info_from_token),
@@ -175,7 +175,7 @@ async def get_predifined_charc_ids(
     if not user.viewing:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     return {
-        "Старна производства": PredefinedWBCharcEnum.COUNTRY,
+        "Страна производства": PredefinedWBCharcEnum.COUNTRY,
         "Цвет": PredefinedWBCharcEnum.COLOR,
         "Пол": PredefinedWBCharcEnum.KIND,
         "Cезон": PredefinedWBCharcEnum.SEASON,
