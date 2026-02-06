@@ -1,7 +1,9 @@
 import logging
 from typing import Optional, AsyncGenerator
 
-from app.infrastructure.API.wildberries.base.client import HTTPMethod
+import aiohttp
+
+from app.infrastructure.API.wildberries.base.client import HTTPMethod, WBAPIError
 from app.infrastructure.API.wildberries.content.base import ContentWBAPI
 from app.infrastructure.API.wildberries.content.schemes.card import Card
 from app.infrastructure.API.wildberries.content.schemes.card_trashed import CardTrashed, CardsToTrash
@@ -163,11 +165,62 @@ class CardsMediaWBAPI(ContentWBAPI):
     """API-клиент медиа карточек товаров WB."""
 
     WB_MEDIA_SAVE = "/content/v3/media/save"
+    WB_MEDIA_FILE = "/content/v3/media/file"
 
     async def upload_media_by_links(self, card_media: CardMediaUploadByLinks) -> dict[str, any]:
         """Загрузить фото/видео к карточке по ссылкам."""
         payload = card_media.model_dump(by_alias=True, mode="json", exclude_none=True)
         return await self._make_request(self.WB_MEDIA_SAVE, HTTPMethod.POST, payload=payload)
+
+    async def upload_media_file(
+        self,
+        nm_id: int,
+        photo_number: int,
+        filename: str,
+        content_type: str,
+        content: bytes,
+    ) -> dict[str, any]:
+        """Загрузить фото/видео файлом."""
+        url = f"{self._base_url}{self.WB_MEDIA_FILE}"
+        headers = {
+            "Authorization": await self._get_api_token(),
+            "X-Nm-Id": str(nm_id),
+            "X-Photo-Number": str(photo_number),
+        }
+
+        form = aiohttp.FormData()
+        form.add_field(
+            "uploadfile",
+            content,
+            filename=filename,
+            content_type=content_type,
+        )
+
+        try:
+            await self._rate_limiter.acquire(self.WB_MEDIA_FILE)
+            logger.debug(
+                f"[{self.account_name}] Запрос: {HTTPMethod.POST} {url}"
+            )
+            async with self.session.request(
+                method=HTTPMethod.POST,
+                url=url,
+                headers=headers,
+                data=form,
+            ) as response:
+                if response.status == 200:
+                    return await self._response_handler.parse_json(response)
+
+                await self._handle_response_error(response, url, 1)
+        except aiohttp.ClientError as e:
+            logger.error(
+                f"[{self.account_name}] Ошибка клиента на {url}: {e}"
+            )
+            raise WBAPIError(f"Ошибка клиента: {str(e)}")
+        except WBAPIError:
+            raise
+        except Exception as e:
+            logger.error(f"[{self.account_name}] Неожиданная ошибка: {e}")
+            raise WBAPIError(f"Неожиданная ошибка: {str(e)}")
 
 
 class CardsWBAPI(CardsListWBAPI, CardsUncreatedWBAPI, CardsMediaWBAPI):

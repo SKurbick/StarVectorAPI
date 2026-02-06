@@ -28,6 +28,7 @@ from .analytics import get_analytics_service
 from .wb_specifications import get_wb_charc_service, get_wb_subject_service, get_wb_parent_category_service
 from .http_session import get_wb_http_session
 from .product import get_product_service
+from .wb_media import get_wb_media_service
 
 
 __all__ = [
@@ -74,4 +75,5 @@ __all__ = [
     "get_wb_parent_category_service",
     "get_wb_http_session",
     "get_product_service",
+    "get_wb_media_service",
 ]
