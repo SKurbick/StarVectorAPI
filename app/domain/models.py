@@ -1961,7 +1961,8 @@ class ProductWBCard(BaseModel):
     rating: Optional[float] = Field(None, description="Рейтинг карточки на WB")
 
     status: CardStatusEnum = Field(..., description="Локальный статус карточки")
-    price: Optional[float] = Field(None, description="Цена")
+    price: Optional[int] = Field(None, description="Цена")
+    discount: Optional[int] = Field(None, description="Скидка")
     fbs_stock_quantity: Optional[int] = Field(None, description="Виртуальные остатки товара")
 
 
