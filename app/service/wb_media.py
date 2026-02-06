@@ -25,6 +25,8 @@ logger = logging.getLogger(__name__)
 class WBMediaService:
     """Сервис для медиа карточек товаров на WB."""
 
+    MAX_COUNT_PHOTOS_FOR_CARD = 30
+
     def __init__(
         self,
         wb_media_repo: WBMediaRepository,
@@ -281,6 +283,11 @@ class WBMediaService:
         product_media = await self._wb_media_repo.get_media_by_product(product_id)
         card_media = await self._wb_media_repo.get_media_by_article(nm_id)
         last_count_photos = len(product_media.photos or []) + len(card_media.photos or [])
+
+        if not is_video and last_count_photos > self.MAX_COUNT_PHOTOS_FOR_CARD - 1:
+            error_message = f"Ошибка при загрузке фото для карточки {nm_id}. Достигнуто максимальное количество."
+            logger.error(error_message)
+            raise RuntimeError(error_message)
 
         if is_video:
             display_order = 1
