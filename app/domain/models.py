@@ -1960,7 +1960,8 @@ class ProductWBCard(BaseModel):
     rating: Optional[float] = Field(None, description="Рейтинг карточки на WB")
 
     status: CardStatusEnum = Field(..., description="Локальный статус карточки")
-    price: Optional[float] = Field(None, description="Цена")
+    price: Optional[int] = Field(None, description="Цена")
+    discount: Optional[int] = Field(None, description="Скидка")
     fbs_stock_quantity: Optional[int] = Field(None, description="Виртуальные остатки товара")
 
 
@@ -2007,7 +2008,6 @@ class WBCardUploadRequest(BaseModel):
     product_id: str = Field(..., description="Локальный артикул товара")
     name: Optional[str] = Field(None, description="Название карточки товара")
     description: Optional[str] = Field(None, description="Описание")
-    wb_media_links: WBMedia = Field(..., description="Ссылки на медиа")
     price: Optional[int] = Field(None, description="Цена")
     discount: Optional[int] = Field(None, description="Скидка")
     fbs_stock_quantity: Optional[int] = Field(None, description="Виртуальные остатки")
