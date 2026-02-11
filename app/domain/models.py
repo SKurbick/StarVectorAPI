@@ -1272,11 +1272,11 @@ class OrderHistoryResponseModel(BaseModel):
     avg_orders_count_7d: int
     average_bill: float | None
     marginal: str
-    conditional_profit: int
-    net_profit: int
+    conditional_profit: float
+    net_profit: float
     profitability: str
     purchase_price: int
-    adversting: int
+    adversting: float
     views: int
     clicks: int
     carts: int
