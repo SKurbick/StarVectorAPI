@@ -6,7 +6,14 @@ from aiohttp import ClientSession
 from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, File
 from starlette import status
 
-from app.dependencies import get_wb_cards_service, get_info_from_token, get_wb_media_service
+from app.dependencies import (
+    get_wb_cards_service,
+    get_info_from_token,
+    get_wb_media_service,
+    get_wb_http_session,
+    get_wb_card_update_service,
+    get_wb_card_create_service,
+)
 from app.domain.models import (
     DuplicateWBProductCardRequest,
     DuplicateCardToAccountsRequest,
@@ -20,7 +27,10 @@ from app.domain.models import (
 )
 from app.service.product_cards import WildberriesCardsService
 from app.service.wb_media import WBMediaService
+from app.service.wb_card_create import WBCardCreateService
+from app.service.wb_card_update import WBCardUpdateService
 from app.infrastructure.WildberriesAPI.cards import WBCardsClient
+from app.infrastructure.API.wildberries.content.wb_cards import CardsWBAPI
 
 
 logger = logging.getLogger(__name__)
@@ -33,19 +43,19 @@ async def duplicate_wb_card(
     data: DuplicateWBProductCardRequest,
     user: UserPermissions = Depends(get_info_from_token),
     service: WildberriesCardsService = Depends(get_wb_cards_service),
+    session: ClientSession = Depends(get_wb_http_session),
 ) -> DuplicateWBProductCardResponse:
     """Создать дубликат карточки товара."""
     if not user.viewing:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     try:
-        async with ClientSession() as session:
-            source_wb_client = WBCardsClient(account=data.source_account, session=session)
-            result = await service.duplicate_card(
-                wb_client=source_wb_client,
-                source_nm_id=data.nm_id,
-                sync_stocks=data.sync_stocks,
-                close_old=data.close_old_card
-            )
+        source_wb_client = CardsWBAPI(account_name=data.source_account, session=session)
+        result = await service.duplicate_card(
+            wb_client=source_wb_client,
+            source_nm_id=data.nm_id,
+            sync_stocks=data.sync_stocks,
+            close_old=data.close_old_card
+        )
         return result
     except ValueError as e:
         logger.warning(f"Ошибка клиента при дублировании: {e}")
@@ -60,31 +70,31 @@ async def duplicate_wb_card_to_accounts(
     data: DuplicateCardToAccountsRequest,
     user: UserPermissions = Depends(get_info_from_token),
     service: WildberriesCardsService = Depends(get_wb_cards_service),
+    session: ClientSession = Depends(get_wb_http_session),
 ) -> DuplicateCardToAccountsResponse:
     """Создать дубликат карточки товара на других аккаунтах."""
     if not user.viewing:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     try:
-        async with ClientSession() as session:
-            source_wb_client = WBCardsClient(account=data.source_account, session=session)
-            target_wb_clients = [
-                WBCardsClient(
-                    account=account,
-                    session=session,
-                )
-                for account in set(data.target_accounts)
-                if account.lower() != data.source_account.lower()
-            ]
-
-            if not target_wb_clients:
-                raise ValueError("Не указаны аккаунты для создания дубликатов.")
-    
-            result = await service.duplicate_card_to_accounts(
-                source_wb_client=source_wb_client,
-                target_wb_clients=target_wb_clients,
-                sync_stocks=data.sync_stocks,
-                source_nm_id=data.nm_id,
+        source_wb_client = CardsWBAPI(account_name=data.source_account, session=session)
+        target_wb_clients = [
+            CardsWBAPI(
+                account_name=account,
+                session=session,
             )
+            for account in set(data.target_accounts)
+            if account.lower() != data.source_account.lower()
+        ]
+
+        if not target_wb_clients:
+            raise ValueError("Не указаны аккаунты для создания дубликатов.")
+
+        result = await service.duplicate_card_to_accounts(
+            source_wb_client=source_wb_client,
+            target_wb_clients=target_wb_clients,
+            sync_stocks=data.sync_stocks,
+            source_nm_id=data.nm_id,
+        )
         return result
     except ValueError as e:
         logger.warning(f"Ошибка клиента при дублировании: {e}")
@@ -98,43 +108,52 @@ async def duplicate_wb_card_to_accounts(
 async def update_wb_card(
     data: WBCardSpecificationUpdateRequest,
     user: UserPermissions = Depends(get_info_from_token),
-    # service: WildberriesCardsService = Depends(get_wb_cards_service),
+    service: WBCardUpdateService = Depends(get_wb_card_update_service),
 ) -> CardOperationResponse:
     if not user.viewing:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     
-    task_id = f"update_{uuid.uuid4().hex}"
-    return CardOperationResponse(
-        task_id=task_id,
-        status="queued",
-        message="Запрос на обновление карточки принят в обработку",
-        account=data.account,
-        product_id=data.product_id,
-        nm_id=data.nm_id,
-        created_at=datetime.now()
-    )
+    try:
+        task_id = f"update_{uuid.uuid4().hex}"
+        result = await service.update_card(data)
+        return CardOperationResponse(
+            task_id=task_id,
+            status="queued",
+            message="Запрос на обновление карточки принят в обработку",
+            account=data.account,
+            product_id=data.product_id,
+            nm_id=result,
+            created_at=datetime.now()
+        )
+    except Exception as e:
+        logger.exception(f"Непредвиденная ошибка в /wb/update: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error.")
 
 
 @router.post("/wb/upload", description="Создать карточку товара на WB.")
 async def upload_wb_card(
     data: WBCardUploadRequest,
     user: UserPermissions = Depends(get_info_from_token),
-    # service: WildberriesCardsService = Depends(get_wb_cards_service),
+    service: WBCardCreateService = Depends(get_wb_card_create_service),
 ) -> CardOperationResponse:
     if not user.viewing:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
 
-    task_id = f"create_{uuid.uuid4().hex}"
-    
-    return CardOperationResponse(
-        task_id=task_id,
-        status="queued",
-        message="Запрос на создание карточки принят в обработку",
-        account=data.account,
-        product_id=data.product_id,
-        nm_id=None,
-        created_at=datetime.now()
-    )
+    try:
+        task_id = f"create_{uuid.uuid4().hex}"
+        result = await service.create_card(data)
+        return CardOperationResponse(
+            task_id=task_id,
+            status="queued",
+            message="Запрос на создание карточки принят в обработку",
+            account=data.account,
+            product_id=data.product_id,
+            nm_id=result,
+            created_at=datetime.now()
+        )
+    except Exception as e:
+        logger.exception(f"Непредвиденная ошибка в /wb/upload: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error.")
 
 
 @router.post(

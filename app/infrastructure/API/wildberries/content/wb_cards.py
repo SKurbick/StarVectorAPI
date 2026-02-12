@@ -242,6 +242,18 @@ class CardsWBAPI(CardsListWBAPI, CardsUncreatedWBAPI, CardsMediaWBAPI):
 
         return None
 
+    async def get_trashed_card(
+            self,
+            nm_id: Optional[int] = None,
+            vendor_code: Optional[str] = None,
+    ) -> Optional[CardTrashed]:
+        """Найти карточку товара в корзине по nm_id или vendor_code."""
+        async for card in self.iter_trashed_cards(nm_id=nm_id, vendor_code=vendor_code):
+            if card.nm_id == nm_id or card.vendor_code == vendor_code:
+                return card
+
+        return None
+
     async def upload_cards(self, cards: list[CardCreate]) -> dict[str, any]:
         """Создать карточки в личном кабинете."""
         payload = [card.model_dump(by_alias=True, mode="json", exclude_none=True) for card in cards]

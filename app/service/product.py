@@ -42,7 +42,6 @@ class ProductService:
         product_wb_cards = await self._product_repo.get_product_wb_cards(product_id)
         seller_accounts = await self._seller_account_repo.get_list()
         account_vat_map = {acc.account_name.capitalize(): acc.vat_rate for acc in seller_accounts}
-
         wb_cards: list[ProductWBCardInfo] = []
         for item in product_wb_cards:
             media = await self._wb_media_repo.get_media_by_article(item.nm_id)

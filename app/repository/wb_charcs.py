@@ -57,3 +57,35 @@ class WBCharcRepository:
             )
 
         return result
+
+    async def replace_product_charcs(
+        self,
+        product_id: str,
+        charcs: list[ProductWBCharc] | list[dict],
+    ) -> None:
+        """
+        Полностью заменить характеристики товара в wb_product_characteristics.
+        Ожидает список с полями id и value (value будет сериализован в JSON).
+        """
+        delete_query = """
+            DELETE FROM wb_product_characteristics
+            WHERE product_id = $1
+        """
+        insert_query = """
+            INSERT INTO wb_product_characteristics (product_id, charc_id, value)
+            VALUES ($1, $2, $3)
+        """
+
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute(delete_query, product_id)
+                if not charcs:
+                    return
+
+                values = []
+                for item in charcs:
+                    charc_id = item.id if hasattr(item, "id") else item["id"]
+                    value = item.value if hasattr(item, "value") else item["value"]
+                    values.append((product_id, charc_id, json.dumps(value, ensure_ascii=False)))
+
+                await conn.executemany(insert_query, values)

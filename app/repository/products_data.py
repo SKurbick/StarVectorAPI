@@ -1,6 +1,11 @@
+import logging
+
 from asyncpg import Pool
 
 from app.domain.models import ProductData
+
+
+logger = logging.getLogger(__name__)
 
 
 class ProducsDataRepository:
@@ -41,3 +46,33 @@ class ProducsDataRepository:
 
         row = await self.pool.fetchrow(query, product_id)
         return ProductData(**row) if row else None
+
+    async def update_wb_specifications(
+        self,
+        product_id: str,
+        width: int,
+        height: int,
+        length: int,
+        weight_brutto: float,
+    ) -> None:
+        """Обновить WB-спецификации товара в products_data."""
+        query = """
+            UPDATE products_data
+            SET
+                wb_width = $2,
+                wb_height = $3,
+                wb_length = $4,
+                wb_weight_brutto = $5
+            WHERE product_id = $1
+        """
+
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute(
+                    query,
+                    product_id,
+                    width,
+                    height,
+                    length,
+                    weight_brutto,
+                )
