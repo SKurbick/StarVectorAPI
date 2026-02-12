@@ -69,6 +69,7 @@ class CardData(ArticleBase):
     rating: Union[float, None] = field_configs['commission_wb']
 
     # last_update_time: datetime = field_configs['last_update_time']
+    chrt_id: Union[int, None]
 
     class Config:
         json_schema_extra = {
@@ -1996,7 +1997,6 @@ class ProsuctWBSpecificationUpdate(BaseModel):
     """Модель обновления WB-спецификаций товара."""
 
     id: str = Field(..., description="Локальный артикул товара")
-    subject_id: int = Field(..., description="id предмета")
     dimensions: ProductWBDimensions = Field(..., description="Габариты товара")
     characteristics: list[CardCharcsUpdate] = Field(..., description="Список характеристик для обновления")
 
@@ -2007,6 +2007,7 @@ class WBCardUploadRequest(BaseModel):
     account: str = Field(..., description="Аккаунт")
     product_id: str = Field(..., description="Локальный артикул товара")
     name: Optional[str] = Field(None, description="Название карточки товара")
+    brand: Optional[str] = Field(None, description="Бренд")
     description: Optional[str] = Field(None, description="Описание")
     price: Optional[int] = Field(None, description="Цена")
     discount: Optional[int] = Field(None, description="Скидка")
@@ -2017,7 +2018,6 @@ class WBCardSpecificationUpdateRequest(WBCardUploadRequest):
     """Модель обновления спецификаций карточки товара на WB."""
 
     nm_id: int = Field(..., description="Артикул WB")
-    vendor_code: str = Field(..., description="Артикул продавца")
 
 
 class CardOperationResponse(BaseModel):

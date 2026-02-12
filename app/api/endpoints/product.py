@@ -6,7 +6,12 @@ import uuid
 from fastapi import APIRouter, Depends, Query, HTTPException, Path, UploadFile, File, Header
 from starlette import status
 
-from app.dependencies import get_info_from_token, get_wb_media_service, get_product_service
+from app.dependencies import (
+    get_info_from_token,
+    get_wb_media_service,
+    get_product_service,
+    get_product_specifications_update_service,
+)
 from app.domain.models import (
     SubjectDataWithProductsResponse,
     UserPermissions,
@@ -19,6 +24,7 @@ from app.domain.models import (
 )
 from app.service.product import ProductService
 from app.service.wb_media import WBMediaService
+from app.service.product_specifications import ProductWBSpecificationsUpdateService
 
 
 logger = logging.getLogger(__name__)
@@ -55,6 +61,7 @@ async def get_product_cards(
     try:
         return await service.get_poduct_cards(product_id=id)
     except Exception as e:
+        logger.exception(f"Ошибка во время получения карточек товара: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error."
@@ -80,6 +87,7 @@ async def get_product_wb_specifications(
             detail=str(e)
         )
     except Exception as e:
+        logger.exception("Ошибка во время получения спецификаций товара: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error."
@@ -88,29 +96,45 @@ async def get_product_wb_specifications(
 
 @router.post(
         "/wb/specifications/update", 
-        status_code=status.HTTP_200_OK,
+        status_code=status.HTTP_202_ACCEPTED,
         description="**Обновить спецификации товара.**"
 )
 async def update_product_wb_specifications(
     data: ProsuctWBSpecificationUpdate,
     user: UserPermissions = Depends(get_info_from_token),
+    service: ProductWBSpecificationsUpdateService = Depends(get_product_specifications_update_service),
 ) -> ProductUpdateSpecificationsResponse:
     if not user.viewing:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
 
-    task_id = f"create_{uuid.uuid4().hex}"
-    return ProductUpdateSpecificationsResponse(
-        message="Запрос на обновление спецификаций товара принят в обработку",
-        product_id=data.id,
-        cards_for_update=[CardOperationResponse(
+    task_id = f"update_{uuid.uuid4().hex}"
+    try:
+        updated_cards = await service.update_product_specifications(data)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e))
+    except Exception as e:
+        logger.exception(e)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error.")
+
+    cards = [
+        CardOperationResponse(
             task_id=task_id,
-            status="queued",
-            message="Запрос на создание карточки принят в обработку",
-            account="Вектор",
+            status="completed",
+            message="Карточка товара успешно обновлена",
+            account=item["account"].capitalize(),
             product_id=data.id,
-            nm_id=None,
-            created_at=datetime.now()
-        )]
+            nm_id=item["nm_id"],
+            created_at=datetime.now(),
+        )
+        for item in updated_cards
+    ]
+
+    return ProductUpdateSpecificationsResponse(
+        message="Спецификации товара успешно обновлены.",
+        product_id=data.id,
+        cards_for_update=cards,
     )
 
 
@@ -202,7 +226,7 @@ async def upload_media_files(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Недопустимый формат файла: {file.filename}. "
-                    f"Фото: {', '.join(allowed_photo_ext)}. Видео: {', '.join(allowed_video_ext)}"
+                    f"Фото: {", ".join(allowed_photo_ext)}. Видео: {", ".join(allowed_video_ext)}"
         )
 
     task_id = f"media_files_{uuid.uuid4().hex}"

@@ -193,7 +193,7 @@ class BaseWBAPIClient(ABC):
         status = response.status
         
         if status == 429:
-            wait_time = 65
+            wait_time = 5 * attempt
             logger.warning(
                 f"[{self.account_name}] Rate limit на {url}. "
                 f"Ждем {wait_time}с..."

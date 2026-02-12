@@ -13,6 +13,18 @@ class CardDataRepository:
             row = await conn.fetchrow("SELECT * FROM card_data WHERE article_id = $1", article_id)
             return CardData(**row) if row else None
 
+    async def get_card_data_by_article_ids(self, article_ids: list[int]) -> dict[int, CardData]:
+        """Получить card_data по списку article_id."""
+        if not article_ids:
+            return {}
+
+        query = "SELECT * FROM card_data WHERE article_id = ANY($1)"
+
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query, article_ids)
+
+        return {row["article_id"]: CardData(**row) for row in rows}
+
     async def get_all_card_data(self) -> List[CardData]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch("SELECT * FROM card_data ")
@@ -66,9 +78,9 @@ class CardDataRepository:
         query = """
         INSERT INTO card_data (
             article_id, barcode, height, length, width,
-            weight_brutto, subject_name, last_update_time, chrt_id
+            weight_brutto, subject_name, last_update_time, chrt_id, wb_name, wb_description
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         ON CONFLICT (article_id) DO UPDATE 
         SET height = EXCLUDED.height,
             length = EXCLUDED.length,
@@ -76,6 +88,8 @@ class CardDataRepository:
             weight_brutto = EXCLUDED.weight_brutto,                
             subject_name = EXCLUDED.subject_name,
             last_update_time = EXCLUDED.last_update_time,
+            wb_name = EXCLUDED.wb_name,
+            wb_description = EXCLUDED.wb_description,
             chrt_id = EXCLUDED.chrt_id
         """
 
