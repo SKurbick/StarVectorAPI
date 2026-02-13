@@ -911,6 +911,16 @@ class WildberriesCardsService:
         wb_card: WbCard
     ):
         """Обновить виртуальные остатки карточки."""
+
+        status_data = await self.card_status_repo.get_status_by_nm_and_account(
+            [(wb_card.nm_id, wb_client.account_name)]
+        )
+
+        status = status_data.get((wb_card.nm_id, wb_client.account_name), CardStatusEnum.active)
+
+        if status in (CardStatusEnum.closed, CardStatusEnum.closing_pending):
+            amount = 0
+
         target_sku = wb_card.sizes[0].skus[-1]
         update_data = {
             wb_client.account_name: UpdateStocksQuantityResponseModel(
@@ -924,6 +934,14 @@ class WildberriesCardsService:
         }
 
         await self.stock_quantity_service.edit_stocks_quantity(update_data)
+
+        if amount > 0:
+            await self.card_status_repo.update_card_status(
+                account=wb_client.account_name,
+                nm_ids=[wb_card.nm_id],
+                new_status=CardStatusEnum.active,
+                from_status=CardStatusEnum.new,
+            )
 
         for _ in range(20):
             get_stocks_result = await self.stock_quantity_service.get_current_stocks_for_account(
