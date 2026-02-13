@@ -125,9 +125,11 @@ class ProductRepository:
                 SELECT DISTINCT ON (pc.local_vendor_code, pc.nm_id)
                     pc.local_vendor_code,
                     pc.nm_id,
-                    sh.spp_price AS price
+                    sh.spp_price AS price,
+                    ROUND(sh.spp_percent::NUMERIC, 0) AS discount
                 FROM product_cards pc
                 LEFT JOIN spp_history sh ON pc.nm_id = sh.nm_id
+                ORDER BY pc.local_vendor_code, pc.nm_id, created_at DESC
             ),
             stocks AS (
                 SELECT
@@ -152,6 +154,7 @@ class ProductRepository:
                 cd.wb_name AS name,
                 cd.wb_description AS description,
                 p.price,
+                p.discount,
                 COALESCE(s.quantity, 0) AS fbs_stock_quantity
             FROM product_cards pc
             LEFT JOIN card_statuses cs
@@ -167,3 +170,15 @@ class ProductRepository:
 
         rows = await self.pool.fetch(query, product_id)
         return [ProductWBCard(**row) for row in rows]
+
+    async def check_product_exists(self, product_id: str) -> bool:
+        """Проверить, существует ли товар."""
+        query = """
+            SELECT EXISTS (
+                SELECT 1
+                FROM products
+                WHERE id = $1
+            );
+        """
+
+        return await self.pool.fetchval(query, product_id)

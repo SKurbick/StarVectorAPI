@@ -211,65 +211,32 @@ class WildberriesCardsService:
             f"Создан дубликат [{target_wb_client.account_name}:{new_card_wb.nm_id}]. "
             "Синхронизируем медиа, цены и остатки..."
         )
-        # Синхронизация медиа
-        try:
-            logger.info(f"Синхронизация медиа [{source_wb_client.account_name}{source_wb_card.nm_id}]->[{target_wb_client.account_name}{new_card_wb.nm_id}]...")
-            media_links = []
 
-            if source_wb_card.photos:
-                media_links = [
-                    photo["big"]
-                    for photo in source_wb_card.photos or []
-                ]
+        async with asyncio.TaskGroup() as group:
+            # Синхронизация медиа
+            group.create_task(self._sync_media(
+                source_wb_client=source_wb_client,
+                target_wb_client=target_wb_client,
+                source_wb_card=source_wb_card,
+                target_wb_card=new_card_wb,
+            ))
 
-            if source_wb_card.video:
-                media_links.append(source_wb_card.video)
+            # Синхронизация цен
+            group.create_task(self._sync_price_discount(
+                source_wb_client=source_wb_client,
+                target_wb_client=target_wb_client,
+                source_wb_card=source_wb_card,
+                target_wb_card=new_card_wb,
+            ))
 
-            if media_links:
-                card_media = CardMediaUploadByLinks(
-                    nm_id=new_card_wb.nm_id,
-                    data=media_links,
-                )
-                await self._add_media_from_links(
-                    nm_id=new_card_wb.nm_id,
-                    links=card_media,
-                    wb_client=target_wb_client,
-                )
-        except Exception as e:
-            logger.exception(f"Ошибка во время синхронизации медиа [{target_wb_client.account_name}:{new_card_wb.nm_id}]: {e}")
-
-        # Синхронизация цен
-        try:
-            logger.info(f"Синхронизация цен [{source_wb_client.account_name}{source_wb_card.nm_id}]->[{target_wb_client.account_name}{new_card_wb.nm_id}]...")
-            logger.info(f"Получаем старые цены: [{source_wb_client.account_name}:{source_wb_card.nm_id}]")
-            source_price_discount = await self._get_card_price_discount(
-                nm_id=source_wb_card.nm_id,
-                wb_client=source_wb_client,
-            )
-
-            if source_price_discount:
-                logger.info(f"Записываем новые цены: [{target_wb_client.account_name}:{new_card_wb.nm_id}]")
-                await self._update_price_discount(
-                    source_price_discount,
-                    target_wb_client,
-                    new_card_wb,
-                )
-        except Exception as e:
-            logger.exception(f"Ошибка во время синхронизации цен [{target_wb_client.account_name}:{new_card_wb.nm_id}]: {e}")
-
-        # Синхронизация остатков
-        try:
+            # Синхронизация остатков
             if sync_stocks:
-                logger.info(f"Синхронизация остатков [{source_wb_client.account_name}{source_wb_card.nm_id}]->[{target_wb_client.account_name}{new_card_wb.nm_id}]...")
-                logger.info(f"Обновляем остатки: [{target_wb_client.account_name}:{new_card_wb.nm_id}]")
-                fbs_qty = await self._get_fbs_stocks(source_wb_card.nm_id)
-                await self._update_fbs_stocks(
-                    fbs_qty,
-                    target_wb_client,
-                    new_card_wb,
-                )
-        except Exception as e:
-            logger.exception(f"Ошибка во время синхронизации остатков [{target_wb_client.account_name}:{new_card_wb.nm_id}]: {e}")
+                group.create_task(self._sync_stocks(
+                source_wb_client=source_wb_client,
+                target_wb_client=target_wb_client,
+                source_wb_card=source_wb_card,
+                target_wb_card=new_card_wb,
+            ))
 
         # Закрытие старой карточки
         try:
@@ -344,9 +311,9 @@ class WildberriesCardsService:
                         WBCardUpdate(
                             nm_id=existing_card.nm_id,
                             vendor_code=existing_card.vendor_code,
-                            brand=variant.brand,
-                            title=variant.title,
-                            description=variant.description,
+                            brand=variant.brand or "",
+                            title=variant.title or "",
+                            description=variant.description or "",
                             dimensions=DimensionsUpdate(
                                 width=variant.dimensions.width,
                                 height=variant.dimensions.height,
@@ -990,3 +957,83 @@ class WildberriesCardsService:
             raise ValueError(f"Аккаунт '{account}' не найден для определения НДС.")
 
         return [f"{target.vat_rate}"] if isinstance(target.vat_rate, int) else ["Без НДС"]
+
+    async def _sync_media(
+            self,
+            source_wb_client: CardsWBAPI,
+            target_wb_client: CardsWBAPI,
+            source_wb_card: WbCard,
+            target_wb_card: WbCard,
+    ):
+        """Синхронизировать медиа между двумя карточками."""
+        try:
+            logger.info(f"Синхронизация медиа [{source_wb_client.account_name}{source_wb_card.nm_id}]->[{target_wb_client.account_name}{target_wb_card.nm_id}]...")
+            media_links = []
+
+            if source_wb_card.photos:
+                media_links = [
+                    photo["big"]
+                    for photo in source_wb_card.photos or []
+                ]
+
+            if source_wb_card.video:
+                media_links.append(source_wb_card.video)
+
+            if media_links:
+                card_media = CardMediaUploadByLinks(
+                    nm_id=target_wb_card.nm_id,
+                    data=media_links,
+                )
+                await self._add_media_from_links(
+                    nm_id=target_wb_card.nm_id,
+                    links=card_media,
+                    wb_client=target_wb_client,
+                )
+        except Exception as e:
+            logger.exception(f"Ошибка во время синхронизации медиа [{target_wb_client.account_name}:{target_wb_card.nm_id}]: {e}")
+
+    async def _sync_price_discount(
+            self,
+            source_wb_client: CardsWBAPI,
+            target_wb_client: CardsWBAPI,
+            source_wb_card: WbCard,
+            target_wb_card: WbCard,
+    ):
+        """Синхронизировать цены между двумя карточками."""
+        try:
+            logger.info(f"Синхронизация цен [{source_wb_client.account_name}{source_wb_card.nm_id}]->[{target_wb_client.account_name}{target_wb_card.nm_id}]...")
+            logger.info(f"Получаем старые цены: [{source_wb_client.account_name}:{source_wb_card.nm_id}]")
+            source_price_discount = await self._get_card_price_discount(
+                nm_id=source_wb_card.nm_id,
+                wb_client=source_wb_client,
+            )
+
+            if source_price_discount:
+                logger.info(f"Записываем новые цены: [{target_wb_client.account_name}:{target_wb_card.nm_id}]")
+                await self._update_price_discount(
+                    source_price_discount,
+                    target_wb_client,
+                    target_wb_card,
+                )
+        except Exception as e:
+            logger.exception(f"Ошибка во время синхронизации цен [{target_wb_client.account_name}:{target_wb_card.nm_id}]: {e}")
+
+    async def _sync_stocks(
+            self,
+            source_wb_client: CardsWBAPI,
+            target_wb_client: CardsWBAPI,
+            source_wb_card: WbCard,
+            target_wb_card: WbCard,
+    ):
+        """Синхронизировать виртуальные остатки между двумя карточками."""
+        try:
+            logger.info(f"Синхронизация остатков [{source_wb_client.account_name}{source_wb_card.nm_id}]->[{target_wb_client.account_name}{target_wb_card.nm_id}]...")
+            logger.info(f"Обновляем остатки: [{target_wb_client.account_name}:{target_wb_card.nm_id}]")
+            fbs_qty = await self._get_fbs_stocks(source_wb_card.nm_id)
+            await self._update_fbs_stocks(
+                fbs_qty,
+                target_wb_client,
+                target_wb_card,
+            )
+        except Exception as e:
+            logger.exception(f"Ошибка во время синхронизации остатков [{target_wb_client.account_name}:{target_wb_card.nm_id}]: {e}")

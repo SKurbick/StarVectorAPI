@@ -1876,16 +1876,17 @@ class WBCountry(BaseModel):
 class ProductData(BaseModel):
     product_id: str
     name: Optional[str] = None
-    length: int
-    width: int
-    height: int
-    volume: float
-    wb_length: int
-    wb_width: int
-    wb_height: int
-    wb_volume: float
+    length: Optional[int] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    volume: Optional[float] = None
+    wb_length: Optional[int] = None
+    wb_width: Optional[int] = None
+    wb_height: Optional[int] = None
+    wb_volume: Optional[float] = None
     wb_subject_id: Optional[int] = None
-    wb_weight_brutto: float = 0
+    wb_weight_brutto: Optional[float] = None
+    wb_brand: Optional[str] = None
 
 
 class ProductWBCharc(WBCharc):
@@ -1988,6 +1989,7 @@ class ProductWBSpecificationResponse(BaseModel):
     id: str = Field(..., description="Локальный артикул товара")
     name: Optional[str] = Field(None, description="Название товара")
     subject_id: Optional[int] = Field(None, description="id предмета")
+    brand: Optional[str] = Field(None, description="Бренд товара на ВБ.")
     dimensions: ProductWBDimensionsResponse = Field(..., description="Габариты товара на WB")
     media: WBMedia = Field(..., description="Ссылки на медиа общие для всех карточек на WB")
     characteristics: list[ProductCharcInfo] = Field(..., description="Список характеристик товара")
@@ -1997,6 +1999,7 @@ class ProsuctWBSpecificationUpdate(BaseModel):
     """Модель обновления WB-спецификаций товара."""
 
     id: str = Field(..., description="Локальный артикул товара")
+    brand: str = Field("", description="Бренд товара на ВБ.")
     dimensions: ProductWBDimensions = Field(..., description="Габариты товара")
     characteristics: list[CardCharcsUpdate] = Field(..., description="Список характеристик для обновления")
 
@@ -2007,7 +2010,6 @@ class WBCardUploadRequest(BaseModel):
     account: str = Field(..., description="Аккаунт")
     product_id: str = Field(..., description="Локальный артикул товара")
     name: Optional[str] = Field(None, description="Название карточки товара")
-    brand: Optional[str] = Field(None, description="Бренд")
     description: Optional[str] = Field(None, description="Описание")
     price: Optional[int] = Field(None, description="Цена")
     discount: Optional[int] = Field(None, description="Скидка")

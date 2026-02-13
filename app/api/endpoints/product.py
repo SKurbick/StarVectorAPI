@@ -3,7 +3,7 @@ import logging
 from typing import Annotated
 import uuid
 
-from fastapi import APIRouter, Depends, Query, HTTPException, Path, UploadFile, File, Header
+from fastapi import APIRouter, Depends, Query, HTTPException, Path, UploadFile, File, Header, Body
 from starlette import status
 
 from app.dependencies import (
@@ -21,6 +21,7 @@ from app.domain.models import (
     ProductUpdateSpecificationsResponse,
     CardOperationResponse,
     ProductWBMediaLinksUpdate,
+    ResponseMessage,
 )
 from app.service.product import ProductService
 from app.service.wb_media import WBMediaService
@@ -62,6 +63,35 @@ async def get_product_cards(
         return await service.get_poduct_cards(product_id=id)
     except Exception as e:
         logger.exception(f"Ошибка во время получения карточек товара: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error."
+        )
+    
+
+@router.post("/subject", status_code=status.HTTP_200_OK, description="""
+    **Присвоить предмет WB для товара.**
+""")
+async def set_subject_id(
+    product_id: str = Body(..., description="Артикул товара"),
+    subject_id: int = Body(..., description="id предмета WB"),
+    user: UserPermissions = Depends(get_info_from_token),
+    service: ProductService = Depends(get_product_service),
+):
+    if not user.viewing:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+    try:
+        await service.set_subject_id(product_id, subject_id)
+        return ResponseMessage(
+            status=status.HTTP_200_OK,
+            message=f"Товару id={product_id} присвоен предмет id={subject_id}"
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e))
+    except Exception as e:
+        logger.exception(f"Ошибка во время присвоения предмета товару товара: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error."

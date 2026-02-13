@@ -71,7 +71,7 @@ class WBCardCreateService:
         variant = WBCardCreateRequest(
             subject_id=product_data.wb_subject_id,
             variants=[WBCardVariantLocal(
-                brand=data.brand or "",
+                brand=product_data.wb_brand or "",
                 title=data.name or product_data.name,
                 description=data.description or "",
                 dimensions=dimensions,
@@ -99,24 +99,24 @@ class WBCardCreateService:
         logger.info(f"Карточка vendor_code={card.vendor_code} успешно создана, nm_id={card.nm_id}.")
 
         try:
-            
-            await self._wb_media_service.update_card_media_links(data=CardWBMediaLinksUpdate(
-                photos=[],
-                nm_id=card.nm_id,
-                account=wb_client.account_name,
-            ))
+            async with asyncio.TaskGroup() as group:
+                group.create_task(self._wb_media_service.update_card_media_links(data=CardWBMediaLinksUpdate(
+                    photos=[],
+                    nm_id=card.nm_id,
+                    account=wb_client.account_name,
+                )))
 
-            await self._wb_cards_service._update_price_discount(
-                price_discount_data={"price": data.price or 0, "discount": data.price or 0},
-                wb_client=wb_client,
-                wb_card=card,
-            )
+                group.create_task(self._wb_cards_service._update_price_discount(
+                    price_discount_data={"price": data.price or 0, "discount": data.price or 0},
+                    wb_client=wb_client,
+                    wb_card=card,
+                ))
 
-            await self._wb_cards_service._update_fbs_stocks(
-                amount=data.fbs_stock_quantity or 0,
-                wb_client=wb_client,
-                wb_card=card,
-            )
+                group.create_task(self._wb_cards_service._update_fbs_stocks(
+                    amount=data.fbs_stock_quantity or 0,
+                    wb_client=wb_client,
+                    wb_card=card,
+                ))
         except Exception as e:
             logger.exception(f"Ошибка во время создания краточки {card.nm_id}: {e}")
 

@@ -9,6 +9,8 @@ from app.repository.product import ProductRepository
 from app.repository.products_data import ProducsDataRepository
 from app.repository.seller_account import SellerAccountRepository
 from app.repository.wb_media import WBMediaRepository
+from app.repository.article import ArticleRepository
+from app.repository.wb_subjects import WBSubjectRepository
 from app.service.wb_specifications import WBCharcService
 
 
@@ -22,12 +24,16 @@ class ProductService:
             wb_media_repo: WBMediaRepository,
             seller_account_repo: SellerAccountRepository,
             wb_charc_service: WBCharcService,
+            wb_subject_repo: WBSubjectRepository,
+            article_repo: ArticleRepository,
     ):
         self._product_repo = product_repo
         self._wb_charc_service = wb_charc_service
         self._wb_media_repo = wb_media_repo
         self._products_data_repo = products_data_repo
         self._seller_account_repo = seller_account_repo
+        self._article_repo = article_repo
+        self._wb_subject_repo = wb_subject_repo
 
     async def get_products_grouped_by_subjects(
         self,
@@ -59,6 +65,7 @@ class ProductService:
                 rating=item.rating,
                 media=media,
                 price=item.price,
+                discount=item.discount,
                 fbs_stock_quantity=item.fbs_stock_quantity,
                 vat=f"{vat}%" if isinstance(vat, int) else "Без НДС",
                 average_sales=0,
@@ -80,12 +87,13 @@ class ProductService:
         subject_id = products_data.wb_subject_id
         characteristics_info = await self._wb_charc_service.get_product_charcs(product_id)
         name = products_data.name
+        brand = products_data.wb_brand
         dimensions = ProductWBDimensionsResponse(
-            width=products_data.wb_width,
-            height=products_data.wb_height,
-            length=products_data.wb_length,
-            weight_brutto=products_data.wb_weight_brutto,
-            volume=products_data.wb_volume,
+            width=products_data.wb_width or 0,
+            height=products_data.wb_height or 0,
+            length=products_data.wb_length or 0,
+            weight_brutto=products_data.wb_weight_brutto or 0,
+            volume=products_data.wb_volume or 0,
         )
         media = await self._wb_media_repo.get_media_by_product(product_id)
 
@@ -93,7 +101,32 @@ class ProductService:
             id=product_id,
             name=name,
             subject_id=subject_id,
+            brand=brand,
             dimensions=dimensions,
             media=media,
             characteristics=characteristics_info,
         )
+
+    async def set_subject_id(self, product_id: str, subject_id: int):
+        """Присвоить предмет WB для товара."""
+        product_is_exists = await self._product_repo.check_product_exists(product_id)
+
+        if not product_is_exists:
+            raise ValueError(f"Товар с id={product_id} не найден.")
+
+        articles, _, _ = await self._article_repo.get_articles_by_criteria(local_vendor_codes=[product_id])
+
+        if articles:
+            raise RuntimeError(f"У товара id={product_id} есть созданные карточки. Предмет изменить нельзя.")
+
+        subject_is_exists = await self._wb_subject_repo.get(subject_id)
+
+        if not subject_is_exists:
+            raise ValueError(f"Предмет с id={subject_id} не найден.")
+
+        product_data = await self._products_data_repo.get(product_id)
+
+        if not product_data:
+            await self._products_data_repo.create(product_id)
+
+        await self._products_data_repo.update_wb_specifications(product_id, subject_id=subject_id)

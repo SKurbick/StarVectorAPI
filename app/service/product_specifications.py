@@ -103,7 +103,7 @@ class ProductWBSpecificationsUpdateService:
                     WBCardUpdate(
                         nm_id=wb_card.nm_id,
                         vendor_code=wb_card.vendor_code,
-                        brand=wb_card.brand or "",
+                        brand=data.brand or "",
                         title=wb_card.title or "",
                         description=wb_card.description or "",
                         dimensions=DimensionsUpdate(
@@ -139,6 +139,7 @@ class ProductWBSpecificationsUpdateService:
             height=data.dimensions.height,
             length=data.dimensions.length,
             weight_brutto=data.dimensions.weight_brutto,
+            brand=data.brand or None
         )
 
         await self._wb_charc_repo.replace_product_charcs(

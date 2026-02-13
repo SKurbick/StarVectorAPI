@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from aiohttp import ClientSession
@@ -85,7 +86,7 @@ class WBCardUpdateService:
         update_payload = WBCardUpdate(
             nm_id=data.nm_id,
             vendor_code=card.vendor_code,
-            brand=data.brand or "",
+            brand=product_data.wb_brand or "",
             title=title,
             description=description,
             dimensions=dimensions,
@@ -111,18 +112,18 @@ class WBCardUpdateService:
         logger.info(f"Карточка nm_id={card.nm_id} успешно обновлена.")
 
         try:
-            await self._wb_cards_service._update_price_discount(
-                price_discount_data={"price": data.price or 0, "discount": data.price or 0},
-                wb_client=wb_client,
-                wb_card=card,
-            )
+            async with asyncio.TaskGroup() as group:
+                group.create_task(self._wb_cards_service._update_price_discount(
+                    price_discount_data={"price": data.price or 0, "discount": data.price or 0},
+                    wb_client=wb_client,
+                    wb_card=card,
+                ))
 
-            await self._wb_cards_service._update_fbs_stocks(
-                amount=data.fbs_stock_quantity or 0,
-                wb_client=wb_client,
-                wb_card=card,
-            )
-
+                group.create_task(self._wb_cards_service._update_fbs_stocks(
+                    amount=data.fbs_stock_quantity or 0,
+                    wb_client=wb_client,
+                    wb_card=card,
+                ))
         except Exception as e:
             logger.exception(f"Ошибка во время обновления краточки {card.nm_id}: {e}")
 
