@@ -51,6 +51,7 @@ class ArticleRepository:
                 cd.rating,
                 cd.manager,
                 cd.local_card_name,
+                cd.chrt_id,
                 -- Добавляем остальные нужные поля из card_data...
                 crfs.stocks_quantity,
                 pn.note

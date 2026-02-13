@@ -69,7 +69,7 @@ class CardData(ArticleBase):
     rating: Union[float, None] = field_configs['commission_wb']
 
     # last_update_time: datetime = field_configs['last_update_time']
-    chrt_id: Union[int, None]
+    chrt_id: Union[int, None] = None
 
     class Config:
         json_schema_extra = {
