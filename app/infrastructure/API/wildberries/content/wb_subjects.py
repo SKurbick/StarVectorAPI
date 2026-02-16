@@ -4,6 +4,7 @@ from typing import Optional
 from app.infrastructure.API.wildberries.base.client import HTTPMethod
 from app.infrastructure.API.wildberries.content.base import ContentWBAPI
 from app.infrastructure.API.wildberries.content.schemes.subject import Subject
+from app.infrastructure.cache import redis_cache_async
 
 
 logger = logging.getLogger(__name__)
@@ -14,6 +15,7 @@ class SubjectsWBAPI(ContentWBAPI):
 
     GET_OBJECT_ENDPOINT = "/content/v2/object/all?limit={limit}&offset={offset}"
 
+    @redis_cache_async(ttl=300)
     async def get_subjects_by_filters(
             self,
             name: Optional[str] = None,
