@@ -57,17 +57,39 @@ class ProductWBSpecificationsUpdateService:
         product_data = await self._products_data_repo.get(data.id)
 
         if not product_data:
-            raise ValueError(f"Товар с product_id='{data.id}' не найден.")
+            product_is_exists = await self._product_repo.check_product_exists(data.id)
+
+            if not product_is_exists:
+                raise ValueError(f"Товар с id={data.id} не найден.")
+
+            await self._products_data_repo.create(data.id)
+            product_data = await self._products_data_repo.get(data.id)
 
         current_charcs = await self._wb_charc_service.get_product_charcs(data.id)
         final_charcs = self._build_final_charcs(current_charcs, data.characteristics)
 
-        articles, _, invalid_lvc = await self._article_repo.get_articles_by_criteria(
+        await self._products_data_repo.update_wb_specifications(
+            product_id=data.id,
+            width=data.dimensions.width,
+            height=data.dimensions.height,
+            length=data.dimensions.length,
+            weight_brutto=data.dimensions.weight_brutto,
+            brand=data.brand or None,
+            user_id=user_id,
+        )
+
+        await self._wb_charc_repo.replace_product_charcs(
+            product_id=data.id,
+            charcs=final_charcs,
+            user_id=user_id,
+        )
+
+        articles, _, _ = await self._article_repo.get_articles_by_criteria(
             local_vendor_codes=[data.id]
         )
 
-        if invalid_lvc or not articles:
-            raise ValueError(f"Для товара '{data.id}' не найдено карточек.")
+        if not articles:
+            return []
 
         cards_by_account: dict[str, list[int]] = {}
 
@@ -134,22 +156,6 @@ class ProductWBSpecificationsUpdateService:
 
         if errors:
             raise RuntimeError("; ".join(errors))
-
-        await self._products_data_repo.update_wb_specifications(
-            product_id=data.id,
-            width=data.dimensions.width,
-            height=data.dimensions.height,
-            length=data.dimensions.length,
-            weight_brutto=data.dimensions.weight_brutto,
-            brand=data.brand or None,
-            user_id=user_id,
-        )
-
-        await self._wb_charc_repo.replace_product_charcs(
-            product_id=data.id,
-            charcs=final_charcs,
-            user_id=user_id,
-        )
 
         await self._update_card_data_dimensions(
             [item["nm_id"] for item in updated_cards],
