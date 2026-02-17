@@ -84,7 +84,13 @@ class ProductService:
         products_data = await self._products_data_repo.get(product_id)
 
         if not products_data:
-            raise ValueError(f"Товар с {product_id=} не найден.")
+            product_is_exists = await self._product_repo.check_product_exists(product_id)
+
+            if not product_is_exists:
+                raise ValueError(f"Товар с id={product_id} не найден.")
+
+            await self._products_data_repo.create(product_id)
+            products_data = await self._products_data_repo.get(product_id)
 
         subject_id = products_data.wb_subject_id
         characteristics_info = await self._wb_charc_service.get_product_charcs(product_id)
