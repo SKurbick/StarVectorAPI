@@ -295,9 +295,12 @@ class SalesManagementService:
                 dict_helper[i.subject_name] = {i.date: {"ic": i.ic, "revenue": i.revenue, "adv_spend": 0}}
             else:
                 dict_helper[i.subject_name] = dict_helper[i.subject_name] | {i.date: {"ic": i.ic, "revenue": i.revenue, "adv_spend": 0}}
-
+        
         for i in valid_actual_outlay:
-            dict_helper[i.subject_name][i.date]["adv_spend"] = i.adv_spend
+            try:
+                dict_helper[i.subject_name][i.date]["adv_spend"] = i.adv_spend
+            except KeyError:
+                continue
         ##
 
         # Добавление соединенных значений затрат, прибыли и ИУ в результирующий словарь + мат расчеты
