@@ -68,35 +68,37 @@ class ProducsDataRepository:
         """
 
         params = []
+        set_conditions = []
         
         if width is not None:
-            query += f" wb_width = ${len(params) + 2}"
+            set_conditions.append(f"wb_width = ${len(params) + 2}")
             params.append(width)
 
         if height is not None:
-            query += f" wb_height = ${len(params) + 2}"
+            set_conditions.append(f"wb_height = ${len(params) + 2}")
             params.append(height)
 
         if length is not None:
-            query += f" wb_length = ${len(params) + 2}"
+            set_conditions.append(f"wb_length = ${len(params) + 2}")
             params.append(length)
 
         if weight_brutto is not None:
-            query += f" wb_weight_brutto = ${len(params) + 2}"
+            set_conditions.append(f"wb_weight_brutto = ${len(params) + 2}")
             params.append(weight_brutto)
 
         if brand is not None:
-            query += f" wb_brand = ${len(params) + 2}"
+            set_conditions.append(f"wb_brand = ${len(params) + 2}")
             params.append(brand)
 
         if subject_id is not None:
-            query += f" wb_subject_id = ${len(params) + 2}"
+            set_conditions.append(f"wb_subject_id = ${len(params) + 2}")
             params.append(subject_id)
 
         if user_id is not None:
-            query += f" last_modified_by_user_id = ${len(params) + 2}"
+            set_conditions.append(f"last_modified_by_user_id = ${len(params) + 2}")
             params.append(user_id)
 
+        query += " " + ", ".join(set_conditions)
         query += " WHERE product_id = $1"
 
         if not params:
