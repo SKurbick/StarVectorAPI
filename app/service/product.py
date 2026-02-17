@@ -1,3 +1,5 @@
+from typing import Optional
+
 from app.domain.models import (
     SubjectDataWithProductsResponse, 
     ProductWBDimensionsResponse,
@@ -107,7 +109,7 @@ class ProductService:
             characteristics=characteristics_info,
         )
 
-    async def set_subject_id(self, product_id: str, subject_id: int):
+    async def set_subject_id(self, product_id: str, subject_id: int, user_id: Optional[int] = None):
         """Присвоить предмет WB для товара."""
         product_is_exists = await self._product_repo.check_product_exists(product_id)
 
@@ -127,6 +129,6 @@ class ProductService:
         product_data = await self._products_data_repo.get(product_id)
 
         if not product_data:
-            await self._products_data_repo.create(product_id)
+            await self._products_data_repo.create(product_id, user_id)
 
-        await self._products_data_repo.update_wb_specifications(product_id, subject_id=subject_id)
+        await self._products_data_repo.update_wb_specifications(product_id, subject_id=subject_id, user_id=user_id)

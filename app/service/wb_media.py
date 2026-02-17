@@ -37,7 +37,7 @@ class WBMediaService:
         self._article_repo = article_repo
         self._session = session
 
-    async def update_product_media_links(self, data: ProductWBMediaLinksUpdate) -> list[int]:
+    async def update_product_media_links(self, data: ProductWBMediaLinksUpdate, user_id: Optional[int] = None) -> list[int]:
         """Обновить медиа товара на WB по ссылкам на файлы."""
         logger.info(f"Обновление медиа на WB для товара {data.product_id}...")
         articles, _, invalid_lvc = await self._article_repo.get_articles_by_criteria(
@@ -72,6 +72,7 @@ class WBMediaService:
                 self.update_card_media_links(
                     data=card_data,
                     product_media=product_media,
+                    user_id=user_id,
                 )
             ))
 
@@ -113,10 +114,10 @@ class WBMediaService:
             if not updated_uniq_card_media.video:
                 products_media_for_update_db.video = card.video
 
-        await self._wb_media_repo.replace_product_media(data.product_id, products_media_for_update_db)
+        await self._wb_media_repo.replace_product_media(data.product_id, products_media_for_update_db, user_id=user_id)
         return updated_nm_ids
 
-    async def update_card_media_links(self, data: CardWBMediaLinksUpdate, product_media: Optional[WBMedia] = None) -> None:
+    async def update_card_media_links(self, data: CardWBMediaLinksUpdate, product_media: Optional[WBMedia] = None, user_id: Optional[int] = None) -> None:
         """Обновить медиа карточки товара на WB по ссылкам на файлы."""
         logger.info(f"Обновление медиа на WB для карточки товара [{data.account}:{data.nm_id}]...")
         if not product_media:
@@ -162,13 +163,14 @@ class WBMediaService:
             photos=new_uniq_photos or []
         )
 
-        await self._wb_media_repo.replace_card_media(data.nm_id, new_uniq_wb_links)
+        await self._wb_media_repo.replace_card_media(data.nm_id, new_uniq_wb_links, user_id=user_id)
 
     async def upload_product_media_file(
             self,
             product_id: str,
             is_video: bool,
             file: UploadFile,
+            user_id: Optional[int] = None,
     ) -> list[int]:
         """Загрузка медиа файла для товара (во все карточки товара)."""
         articles, _, invalid_lvc = await self._article_repo.get_articles_by_criteria(
@@ -235,7 +237,7 @@ class WBMediaService:
             product_media.photos.append(new_media)
 
         if product_media:
-            await self._wb_media_repo.replace_product_media(product_id, product_media)
+            await self._wb_media_repo.replace_product_media(product_id, product_media, user_id=user_id)
 
         return updated_nm_ids
 
@@ -245,6 +247,7 @@ class WBMediaService:
             account: Optional[str],
             is_video: bool,
             file: UploadFile,
+            user_id: Optional[int] = None,
     ) -> str:
         """Загрузка медиа файла для карточки товара."""
         resolved_account = account or await self._get_account_by_nm_id(nm_id)
@@ -265,7 +268,7 @@ class WBMediaService:
         else:
             card_media.photos.append(new_link)
 
-        await self._wb_media_repo.replace_card_media(nm_id, card_media)
+        await self._wb_media_repo.replace_card_media(nm_id, card_media, user_id=user_id)
         return resolved_account
 
     async def _upload_media_file(

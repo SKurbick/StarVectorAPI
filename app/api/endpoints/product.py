@@ -81,7 +81,7 @@ async def set_subject_id(
     if not user.viewing:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     try:
-        await service.set_subject_id(product_id, subject_id)
+        await service.set_subject_id(product_id, subject_id, user.user_id)
         return ResponseMessage(
             status=status.HTTP_200_OK,
             message=f"Товару id={product_id} присвоен предмет id={subject_id}"
@@ -139,7 +139,7 @@ async def update_product_wb_specifications(
 
     task_id = f"update_{uuid.uuid4().hex}"
     try:
-        updated_cards = await service.update_product_specifications(data)
+        updated_cards = await service.update_product_specifications(data, user.user_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except RuntimeError as e:
@@ -193,7 +193,7 @@ async def update_media_by_links(
 
     task_id = f"media_links_{uuid.uuid4().hex}"
     try:
-        updated_nm_ids = await service.update_product_media_links(data)
+        updated_nm_ids = await service.update_product_media_links(data, user.user_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except RuntimeError as e:
@@ -266,6 +266,7 @@ async def upload_media_files(
             product_id=product_id,
             is_video=is_video,
             file=file,
+            user_id=user.user_id,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

@@ -1,4 +1,4 @@
-from typing import List
+from typing import Optional
 
 from asyncpg import Pool
 from app.domain.models import CardData
@@ -25,7 +25,7 @@ class CardDataRepository:
 
         return {row["article_id"]: CardData(**row) for row in rows}
 
-    async def get_all_card_data(self) -> List[CardData]:
+    async def get_all_card_data(self) -> list[CardData]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch("SELECT * FROM card_data ")
 
@@ -74,13 +74,18 @@ class CardDataRepository:
 
         return result
 
-    async def create_card_data(self, data):
-        query = """
-        INSERT INTO card_data (
-            article_id, barcode, height, length, width,
-            weight_brutto, subject_name, last_update_time, chrt_id, wb_name, wb_description
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    async def create_card_data(self, data, user_id: Optional[int] = None):
+        into_cols = """article_id, barcode, height, length, width, weight_brutto, 
+            subject_name, last_update_time, chrt_id, wb_name, wb_description"""
+        params_placeholders = "$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11"
+
+        if user_id is not None:
+            into_cols += ", last_modified_by_user_id"
+            params_placeholders += ", $12"
+
+        query = f"""
+        INSERT INTO card_data ({into_cols})
+        VALUES ({params_placeholders})
         ON CONFLICT (article_id) DO UPDATE 
         SET height = EXCLUDED.height,
             length = EXCLUDED.length,
@@ -92,10 +97,22 @@ class CardDataRepository:
             wb_description = EXCLUDED.wb_description,
             chrt_id = EXCLUDED.chrt_id
         """
+        if user_id is not None:
+            query += ", last_modified_by_user_id = EXCLUDED.last_modified_by_user_id"
+
+        data_to_insert = []
+
+        for item in data:
+            if user_id is not None:
+                item_to_insert = item + (user_id,)
+            else:
+                item_to_insert = item
+
+            data_to_insert.append(item_to_insert)
 
         async with self.pool.acquire() as conn:
             async with conn.transaction():
-                await conn.executemany(query, data)
+                await conn.executemany(query, data_to_insert)
 
     async def get_chrt_ids_by_article_ids(self, article_ids: list[int]) -> dict[int, int]:
         """

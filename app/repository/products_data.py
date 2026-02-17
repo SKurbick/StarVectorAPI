@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 from asyncpg import Pool
 
@@ -58,6 +59,7 @@ class ProducsDataRepository:
         weight_brutto: float | None = None,
         brand: str | None = None,
         subject_id: int | None = None,
+        user_id: int | None = None,
     ) -> None:
         """Обновить WB-спецификации товара в products_data."""
         query = """
@@ -91,23 +93,35 @@ class ProducsDataRepository:
             query += f" wb_subject_id = ${len(params) + 2}"
             params.append(subject_id)
 
+        if user_id is not None:
+            query += f" last_modified_by_user_id = ${len(params) + 2}"
+            params.append(user_id)
+
         query += " WHERE product_id = $1"
 
         if not params:
             return
 
-        print(params)
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 await conn.execute(query, product_id, *params)
 
-    async def create(self, product_id: str):
-        query = """
-            INSERT INTO products_data (product_id)
-            VALUES ($1)
+    async def create(self, product_id: str, user_id: Optional[int] = None):
+        into_cols = "product_id"
+        params_placeholders = "$1"
+        params = [product_id]
+
+        if user_id is not None:
+            into_cols += ", last_modified_by_user_id"
+            params_placeholders += ", $2"
+            params.append(user_id)
+
+        query = f"""
+            INSERT INTO products_data ({into_cols})
+            VALUES ({params_placeholders})
             ON CONFLICT (product_id) DO NOTHING;
         """
 
         async with self.pool.acquire() as conn:
             async with conn.transaction():
-                await conn.execute(query, product_id)
+                await conn.execute(query, *params)

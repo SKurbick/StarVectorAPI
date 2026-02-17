@@ -73,7 +73,8 @@ class WildberriesCardsService:
         wb_client: CardsWBAPI,
         source_nm_id: int,
         sync_stocks: bool,
-        close_old: bool = False
+        close_old: bool = False,
+        user_id: Optional[int] = None,
     ) -> DuplicateWBProductCardResponse:
         """
         Создать дубликат карточки.
@@ -87,7 +88,8 @@ class WildberriesCardsService:
             source_wb_client=wb_client,
             target_wb_client=wb_client,
             sync_stocks=sync_stocks,
-            close_old=close_old
+            close_old=close_old,
+            user_id=user_id,
         )
 
     async def duplicate_card_to_accounts(
@@ -96,6 +98,7 @@ class WildberriesCardsService:
         target_wb_clients: list[CardsWBAPI],
         sync_stocks: bool,
         source_nm_id: int,
+        user_id: Optional[int] = None,
     ) -> DuplicateCardToAccountsResponse:
         """Создать дубликаты карточки на других аккаунтах."""
         original_card = await source_wb_client.get_card(nm_id=source_nm_id)
@@ -108,7 +111,8 @@ class WildberriesCardsService:
                 source_wb_client=source_wb_client,
                 target_wb_client=target_client,
                 sync_stocks=sync_stocks,
-                close_old=False
+                close_old=False,
+                user_id=user_id,
             )
             for target_client in target_wb_clients
         ]
@@ -154,7 +158,8 @@ class WildberriesCardsService:
         source_wb_client: CardsWBAPI,
         target_wb_client: CardsWBAPI,
         sync_stocks: bool,
-        close_old: bool = False
+        close_old: bool = False,
+        user_id: Optional[int] = None,
     ) -> dict[str, any]:
         """Создать дубликат карточки. Если close_old, то карточка-источник будет закрыта."""
         logger.info(f"Начинаем создание дубликата карточки [{source_wb_client.account_name}|{source_wb_card.nm_id}] в аккаунте: {target_wb_client.account_name}...")
@@ -178,7 +183,8 @@ class WildberriesCardsService:
             # Создание на WB и валидация
             upload_result = await self.create_cards_from_request(
                 wb_client=target_wb_client,
-                creation_requests=[creation_payload]
+                creation_requests=[creation_payload],
+                user_id=user_id,
             )
 
             new_card_wb: Optional[WbCard] = None
@@ -270,7 +276,8 @@ class WildberriesCardsService:
     async def create_cards_from_request(
         self,
         wb_client: CardsWBAPI,
-        creation_requests: list[WBCardCreateRequest]
+        creation_requests: list[WBCardCreateRequest],
+        user_id: Optional[int] = None,
     ) -> UploadWBCardsResponse:
         """Создать новые карточки на WB."""
         logger.info("Начинаем создание карточек на WB...")
@@ -303,10 +310,11 @@ class WildberriesCardsService:
                 # сохраняем карточку в бд
                 await self._add_new_card_to_db(existing_card, wb_client.account_name)
                 await self._set_card_status([existing_card.nm_id], wb_client.account_name, CardStatusEnum.new)
-                await self._update_card_data_in_db([existing_card])
+                await self._update_card_data_in_db([existing_card], user_id=user_id)
 
                 update_result = await self.update_cards_from_request(
                     wb_client=wb_client,
+                    user_id=user_id,
                     update_cards=[
                         WBCardUpdate(
                             nm_id=existing_card.nm_id,
@@ -391,7 +399,7 @@ class WildberriesCardsService:
                     await self._add_new_card_to_db(card, wb_client.account_name)
 
             await self._set_card_status(nm_ids, wb_client.account_name, CardStatusEnum.new)
-            await self._update_card_data_in_db(created_cards)
+            await self._update_card_data_in_db(created_cards, user_id=user_id)
 
         return UploadWBCardsResponse(
             account=wb_client.account_name,
@@ -403,6 +411,7 @@ class WildberriesCardsService:
         self,
         wb_client: CardsWBAPI,
         update_cards: list[WBCardUpdate],
+        user_id: Optional[int] = None,
     ) -> UpdateWBCardsResponse:
         """Обновить карточки на WB."""
         logger.info("Начинаем обновление карточек на WB...")
@@ -431,7 +440,7 @@ class WildberriesCardsService:
                 else:
                     errors.append(updated_result["error"])
             if updated_cards:
-                await self._update_card_data_in_db(updated_cards)
+                await self._update_card_data_in_db(updated_cards, user_id=user_id)
         except Exception as e:
             error_msg = f"Ошибка обновления карточек учетной записи {wb_client.account_name}: {e}"
             logger.exception(error_msg)
@@ -773,7 +782,7 @@ class WildberriesCardsService:
         logger.info(f"Обновляем cтатус карточек товаров на {status}: {nm_ids}")
         await self.card_status_repo.update_card_status(account, nm_ids, status)
 
-    async def _update_card_data_in_db(self, cards: list[WbCard]) -> None:
+    async def _update_card_data_in_db(self, cards: list[WbCard], user_id: Optional[int] = None) -> None:
         """Обновить данные о карточке товара в БД."""
         logger.info(f"Обновляем данные в card_data...")
         data_to_update = []
@@ -795,7 +804,7 @@ class WildberriesCardsService:
 
             data_to_update.append(card_data)
 
-        await self.card_data_repo.create_card_data(data_to_update)
+        await self.card_data_repo.create_card_data(data_to_update, user_id=user_id)
 
     async def _add_media_from_links(
         self,
@@ -805,7 +814,7 @@ class WildberriesCardsService:
     ) -> bool:
         """
         Добавить фото/видео к карточке товара по ссылкам.
-        
+
         Передавать нужно весь список ссылок, включая те, что уже есть.
         Порядок фото зависит от порядка ссылок.
         Ссылка на видео может быть в любом месте списка.

@@ -1,4 +1,5 @@
 from asyncpg import Pool
+from typing import Optional
 
 from app.domain.models import WBPhoto, WBMedia
 
@@ -64,19 +65,20 @@ class WBMediaRepository:
 
         return media
 
-    async def replace_product_media(self, product_id: str, media: WBMedia) -> None:
+    async def replace_product_media(self, product_id: str, media: WBMedia, user_id: Optional[int] = None) -> None:
         """Полностью заменить медиа товара (общие для всех карточек)."""
-        await self._replace_media(product_id=product_id, article_id=None, media=media)
+        await self._replace_media(product_id=product_id, article_id=None, media=media, user_id=user_id)
 
-    async def replace_card_media(self, article_id: int, media: WBMedia) -> None:
+    async def replace_card_media(self, article_id: int, media: WBMedia,  user_id: Optional[int] = None) -> None:
         """Полностью заменить медиа карточки."""
-        await self._replace_media(product_id=None, article_id=article_id, media=media)
+        await self._replace_media(product_id=None, article_id=article_id, media=media, user_id=user_id)
 
     async def _replace_media(
         self,
         product_id: str | None,
         article_id: int | None,
         media: WBMedia,
+        user_id: Optional[int] = None,
     ) -> None:
         get_product_id_query = """
             SELECT local_vendor_code
@@ -91,9 +93,16 @@ class WBMediaRepository:
                 AND (article_id = $2 OR ($2 IS NULL AND article_id IS NULL))
         """
 
-        insert_query = """
-            INSERT INTO wb_media (product_id, article_id, media_type, media_url, display_order)
-            VALUES ($1, $2, $3, $4, $5)
+        into_cols = "product_id, article_id, media_type, media_url, display_order"
+        params_placeholders = "$1, $2, $3, $4, $5"
+
+        if user_id is not None:
+            into_cols += ", last_modified_by_user_id"
+            params_placeholders += ", $6"
+
+        insert_query = f"""
+            INSERT INTO wb_media ({into_cols})
+            VALUES ({params_placeholders})
         """
 
         async with self.pool.acquire() as conn:
@@ -105,16 +114,20 @@ class WBMediaRepository:
 
                 rows = []
                 if media.video:
-                    rows.append((product_id, article_id, "video", media.video, 0))
+                    video_item = [product_id, article_id, "video", media.video, 0]
+
+                    if user_id is not None:
+                        video_item.append(user_id)
+
+                    rows.append(tuple(video_item))
 
                 for photo in media.photos:
-                    rows.append((
-                        product_id,
-                        article_id,
-                        "photo",
-                        photo.url,
-                        photo.display_order,
-                    ))
+                    photo_item = [product_id, article_id, "photo", photo.url, photo.display_order]
+
+                    if user_id is not None:
+                        photo_item.append(user_id)
+
+                    rows.append(tuple(photo_item))
 
                 if rows:
                     await conn.executemany(insert_query, rows)

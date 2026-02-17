@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import Optional
 
 from aiohttp import ClientSession
 
@@ -42,7 +43,7 @@ class WBCardCreateService:
         self._wb_media_service = wb_media_service
         self._session = session
 
-    async def create_card(self, data: WBCardUploadRequest) -> int:
+    async def create_card(self, data: WBCardUploadRequest, user_id: Optional[int] = None) -> int:
         """Создать карточку товара на WB."""
         logger.info(f"Начинаем создание карточки для product_id={data.product_id} в аккаунте {data.account}.")
 
@@ -83,7 +84,8 @@ class WBCardCreateService:
         wb_client = CardsWBAPI(session=self._session, account_name=data.account)
         upload_result = await self._wb_cards_service.create_cards_from_request(
             wb_client=wb_client,
-            creation_requests=[variant]
+            creation_requests=[variant],
+            user_id=user_id,
         )
 
         new_card_nm_id = next((item for item in upload_result.created), None)
@@ -104,6 +106,7 @@ class WBCardCreateService:
                     photos=[],
                     nm_id=card.nm_id,
                     account=wb_client.account_name,
+                    user_id=user_id,
                 )))
 
                 group.create_task(self._wb_cards_service._update_price_discount(

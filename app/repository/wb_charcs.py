@@ -1,4 +1,5 @@
 import json
+from typing import Optional
 
 from asyncpg import Pool
 
@@ -62,6 +63,7 @@ class WBCharcRepository:
         self,
         product_id: str,
         charcs: list[ProductWBCharc] | list[dict],
+        user_id: Optional[int] = None
     ) -> None:
         """
         Полностью заменить характеристики товара в wb_product_characteristics.
@@ -71,9 +73,16 @@ class WBCharcRepository:
             DELETE FROM wb_product_characteristics
             WHERE product_id = $1
         """
-        insert_query = """
-            INSERT INTO wb_product_characteristics (product_id, charc_id, value)
-            VALUES ($1, $2, $3)
+        into_cols = "product_id, charc_id, value"
+        params_placeholders = "$1, $2, $3"
+
+        if user_id is not None:
+            into_cols += ", last_modified_by_user_id"
+            params_placeholders += ", $4"
+
+        insert_query = f"""
+            INSERT INTO wb_product_characteristics ({into_cols})
+            VALUES ({params_placeholders})
         """
 
         async with self.pool.acquire() as conn:
@@ -86,6 +95,11 @@ class WBCharcRepository:
                 for item in charcs:
                     charc_id = item.id if hasattr(item, "id") else item["id"]
                     value = item.value if hasattr(item, "value") else item["value"]
-                    values.append((product_id, charc_id, json.dumps(value, ensure_ascii=False)))
+                    params = [product_id, charc_id, json.dumps(value, ensure_ascii=False)]
+                    
+                    if user_id is not None:
+                        params.append(user_id)
+
+                    values.append(tuple(params))
 
                 await conn.executemany(insert_query, values)

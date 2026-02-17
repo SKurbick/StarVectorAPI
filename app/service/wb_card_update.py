@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import Optional
 
 from aiohttp import ClientSession
 
@@ -38,7 +39,7 @@ class WBCardUpdateService:
         self._wb_cards_service = wb_cards_service
         self._session = session
 
-    async def update_card(self, data: WBCardSpecificationUpdateRequest) -> int:
+    async def update_card(self, data: WBCardSpecificationUpdateRequest, user_id: Optional[int] = None) -> int:
         """Обновить карточку товара на WB."""
         logger.info(f"Начинаем обновление карточки {data.nm_id} в аккаунте {data.account}.")
         product_data = await self._products_data_repo.get(data.product_id)
@@ -97,6 +98,7 @@ class WBCardUpdateService:
         update_result = await self._wb_cards_service.update_cards_from_request(
             wb_client=wb_client,
             update_cards=[update_payload],
+            user_id=user_id,
         )
 
         card_nm_id = next((item for item in update_result.updated), None)

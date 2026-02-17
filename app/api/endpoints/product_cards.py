@@ -54,7 +54,8 @@ async def duplicate_wb_card(
             wb_client=source_wb_client,
             source_nm_id=data.nm_id,
             sync_stocks=data.sync_stocks,
-            close_old=data.close_old_card
+            close_old=data.close_old_card,
+            user_id=user.user_id,
         )
         return result
     except ValueError as e:
@@ -94,6 +95,7 @@ async def duplicate_wb_card_to_accounts(
             target_wb_clients=target_wb_clients,
             sync_stocks=data.sync_stocks,
             source_nm_id=data.nm_id,
+            user_id=user.user_id,
         )
         return result
     except ValueError as e:
@@ -112,10 +114,10 @@ async def update_wb_card(
 ) -> CardOperationResponse:
     if not user.viewing:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
-    
+
     try:
         task_id = f"update_{uuid.uuid4().hex}"
-        result = await service.update_card(data)
+        result = await service.update_card(data, user_id=user.user_id)
         return CardOperationResponse(
             task_id=task_id,
             status="queued",
@@ -141,7 +143,7 @@ async def upload_wb_card(
 
     try:
         task_id = f"create_{uuid.uuid4().hex}"
-        result = await service.create_card(data)
+        result = await service.create_card(data, user_id=user.user_id)
         return CardOperationResponse(
             task_id=task_id,
             status="queued",
@@ -180,7 +182,7 @@ async def update_media_by_links(
 
     task_id = f"media_links_{uuid.uuid4().hex}"
     try:
-        await service.update_card_media_links(data)
+        await service.update_card_media_links(data, user_id=user.user_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except RuntimeError as e:
@@ -245,6 +247,7 @@ async def upload_media_files(
             account=None,
             is_video=is_video,
             file=file,
+            user_id=user.user_id,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

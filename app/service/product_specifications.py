@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from typing import Optional
 
 from aiohttp import ClientSession
 
@@ -48,7 +49,7 @@ class ProductWBSpecificationsUpdateService:
         self._wb_cards_service = wb_cards_service
         self._session = session
 
-    async def update_product_specifications(self, data: ProsuctWBSpecificationUpdate) -> list[dict]:
+    async def update_product_specifications(self, data: ProsuctWBSpecificationUpdate, user_id: Optional[int] = None) -> list[dict]:
         """
         Обновить спецификации товара и все его карточки на WB.
         Возвращает список nm_id обновлённых карточек.
@@ -124,6 +125,7 @@ class ProductWBSpecificationsUpdateService:
                 result = await self._wb_cards_service.update_cards_from_request(
                     wb_client=wb_client,
                     update_cards=update_cards,
+                    user_id=user_id,
                 )
                 updated_cards.extend(
                     [{"account": account, "nm_id": nm_id} for nm_id in result.updated]
@@ -139,17 +141,20 @@ class ProductWBSpecificationsUpdateService:
             height=data.dimensions.height,
             length=data.dimensions.length,
             weight_brutto=data.dimensions.weight_brutto,
-            brand=data.brand or None
+            brand=data.brand or None,
+            user_id=user_id,
         )
 
         await self._wb_charc_repo.replace_product_charcs(
             product_id=data.id,
             charcs=final_charcs,
+            user_id=user_id,
         )
 
         await self._update_card_data_dimensions(
             [item["nm_id"] for item in updated_cards],
             data,
+            user_id,
         )
 
         return updated_cards
@@ -158,6 +163,7 @@ class ProductWBSpecificationsUpdateService:
         self,
         nm_ids: list[int],
         data: ProsuctWBSpecificationUpdate,
+        user_id: Optional[int] = None,
     ) -> None:
         if not nm_ids:
             return
@@ -186,7 +192,7 @@ class ProductWBSpecificationsUpdateService:
             ))
 
         if to_upsert:
-            await self._card_data_repo.create_card_data(to_upsert)
+            await self._card_data_repo.create_card_data(to_upsert, user_id)
 
     def _build_final_charcs(
         self,
