@@ -82,7 +82,6 @@ async def set_subject_id(
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     try:
         await service.set_subject_id(product_id, subject_id, user.user_id)
-        await service.set_subject_id(product_id, subject_id, 7)
         return ResponseMessage(
             status=status.HTTP_200_OK,
             message=f"Товару id={product_id} присвоен предмет id={subject_id}"
