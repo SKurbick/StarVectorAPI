@@ -129,3 +129,21 @@ class CardDataRepository:
 
         rows = await self.pool.fetch(query, article_ids)
         return {row["article_id"]: row["chrt_id"] for row in rows}
+
+    async def update_card_photo(self, nm_id: int, photo_url: Optional[str], user_id: Optional[int] = None):
+        query = """
+            UPDATE card_data
+            SET photo_link = $2
+        """
+
+        params = [photo_url]
+
+        if user_id is not None:
+            query += ", last_modified_by_user_id = $3"
+            params.append(user_id)
+        
+        query += " WHERE article_id = $1"
+
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute(query, nm_id, *params)

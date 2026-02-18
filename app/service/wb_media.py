@@ -17,6 +17,7 @@ from app.infrastructure.API.wildberries.content.wb_cards import CardsWBAPI
 from app.infrastructure.API.wildberries.content.schemes.card_media import CardMediaUploadByLinks
 from app.repository.article import ArticleRepository
 from app.repository.wb_media import WBMediaRepository
+from app.repository.card_data import CardDataRepository
 
 
 logger = logging.getLogger(__name__)
@@ -31,10 +32,12 @@ class WBMediaService:
         self,
         wb_media_repo: WBMediaRepository,
         article_repo: ArticleRepository,
+        card_data_repo: CardDataRepository,
         session: ClientSession,
     ):
         self._wb_media_repo = wb_media_repo
         self._article_repo = article_repo
+        self._card_data_repo = card_data_repo
         self._session = session
 
     async def update_product_media_links(self, data: ProductWBMediaLinksUpdate, user_id: Optional[int] = None) -> list[int]:
@@ -113,6 +116,10 @@ class WBMediaService:
 
             if not updated_uniq_card_media.video:
                 products_media_for_update_db.video = card.video
+            
+            if card.photos:
+                tm = card.photos[0]["tm"]
+                await self._card_data_repo.update_card_photo(card.nm_id, tm, user_id)
 
         await self._wb_media_repo.replace_product_media(data.product_id, products_media_for_update_db, user_id=user_id)
         return updated_nm_ids
@@ -163,6 +170,10 @@ class WBMediaService:
             photos=new_uniq_photos or []
         )
 
+        if card.photos:
+            tm = card.photos[0]["tm"]
+            await self._card_data_repo.update_card_photo(card.nm_id, tm, user_id)
+
         await self._wb_media_repo.replace_card_media(data.nm_id, new_uniq_wb_links, user_id=user_id)
 
     async def upload_product_media_file(
@@ -201,6 +212,7 @@ class WBMediaService:
                 file_content=content,
                 filename=file.filename,
                 content_type=file.content_type,
+                user_id=user_id,
             )))
 
         results = await asyncio.gather(*upload_tasks, return_exceptions=True)
@@ -261,6 +273,7 @@ class WBMediaService:
             file_content=content,
             filename=file.filename,
             content_type=file.content_type,
+            user_id=user_id,
         )
 
         if is_video:
@@ -279,6 +292,7 @@ class WBMediaService:
             file_content: bytes,
             filename: str,
             content_type: str,
+            user_id: Optional[int] = None,
     ) -> str | WBPhoto | None:
         """Загрузка медиа файла для карточки товара."""
         resolved_account = account or await self._get_account_by_nm_id(nm_id)
@@ -327,7 +341,11 @@ class WBMediaService:
 
             current_card_media = self._media_from_card(card)
             new_link = current_card_media.video if is_video else current_card_media.photos[-1]
-        
+
+            if card.photos:
+                tm = card.photos[0]["tm"]
+                await self._card_data_repo.update_card_photo(card.nm_id, tm, user_id)
+
             if not (isinstance(new_link, WBPhoto) and new_link.display_order != last_count_photos + 1):
                 return new_link
 
