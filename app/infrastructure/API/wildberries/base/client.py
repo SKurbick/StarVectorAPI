@@ -112,10 +112,16 @@ class BaseWBAPIClient(ABC):
     async def _get_tokens(cls) -> dict[str, str]:
         if not cls._tokens:
             cls._tokens = await get_wb_tokens()
+
+        return cls._tokens
         
     async def _get_api_token(self) -> str:
-        tokens = await get_wb_tokens()
-        return tokens[self.account_name]
+        tokens = await self._get_tokens()
+
+        try:
+            return tokens[self.account_name]
+        except KeyError:
+            return tokens[self.account_name.upper()]
 
     async def _make_request(
             self,

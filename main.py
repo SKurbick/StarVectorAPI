@@ -47,7 +47,7 @@ from app.api.endpoints import (
 from app.config.settings import settings, get_wb_tokens
 
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
         logging.StreamHandler()

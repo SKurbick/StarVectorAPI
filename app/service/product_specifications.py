@@ -195,6 +195,8 @@ class ProductWBSpecificationsUpdateService:
                 card_data.subject_name,
                 now,
                 card_data.chrt_id,
+                card_data.wb_name,
+                card_data.wb_description,
             ))
 
         if to_upsert:

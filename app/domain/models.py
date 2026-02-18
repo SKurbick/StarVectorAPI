@@ -70,6 +70,8 @@ class CardData(ArticleBase):
 
     # last_update_time: datetime = field_configs['last_update_time']
     chrt_id: Union[int, None] = None
+    wb_name: Union[str, None] = None
+    wb_description: Union[str, None] = None
 
     class Config:
         json_schema_extra = {

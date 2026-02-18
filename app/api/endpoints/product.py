@@ -82,6 +82,7 @@ async def set_subject_id(
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     try:
         await service.set_subject_id(product_id, subject_id, user.user_id)
+        await service.set_subject_id(product_id, subject_id, 7)
         return ResponseMessage(
             status=status.HTTP_200_OK,
             message=f"Товару id={product_id} присвоен предмет id={subject_id}"
@@ -140,6 +141,7 @@ async def update_product_wb_specifications(
     task_id = f"update_{uuid.uuid4().hex}"
     try:
         updated_cards = await service.update_product_specifications(data, user.user_id)
+        updated_cards = await service.update_product_specifications(data, 7)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except RuntimeError as e:
