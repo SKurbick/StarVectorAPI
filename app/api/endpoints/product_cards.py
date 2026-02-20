@@ -29,7 +29,6 @@ from app.service.product_cards import WildberriesCardsService
 from app.service.wb_media import WBMediaService
 from app.service.wb_card_create import WBCardCreateService
 from app.service.wb_card_update import WBCardUpdateService
-from app.infrastructure.WildberriesAPI.cards import WBCardsClient
 from app.infrastructure.API.wildberries.content.wb_cards import CardsWBAPI
 
 
@@ -127,6 +126,8 @@ async def update_wb_card(
             nm_id=result,
             created_at=datetime.now()
         )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.exception(f"Непредвиденная ошибка в /wb/update: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error.")
@@ -153,6 +154,8 @@ async def upload_wb_card(
             nm_id=result,
             created_at=datetime.now()
         )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.exception(f"Непредвиденная ошибка в /wb/upload: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error.")

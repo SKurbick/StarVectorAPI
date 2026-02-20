@@ -422,11 +422,27 @@ class WildberriesCardsService:
         updated_cards: list[WbCard] = []
         errors = []
 
+        all_vc_to_update = set()
+
+        for update_data in update_cards:
+            all_vc_to_update.add(update_data.vendor_code)
+
         try:
+            found_errors = await wb_client.get_uncreated_cards(all_vc_to_update)
             await wb_client.update_cards([CardUpdate(**item.model_dump()) for item in update_cards])
 
-            for update_data in update_cards:   
-                updated_result = await self._wait_for_card_updated(wb_client, update_data)
+            for update_data in update_cards:
+                all_vc_errors = found_errors.get(update_data.vendor_code)
+                last_error_batch_id = None
+
+                if all_vc_errors:
+                    last_error_batch_id = all_vc_errors[0]["uuid"]
+
+                updated_result = await self._wait_for_card_updated(
+                    wb_client,
+                    update_data,
+                    last_error_batch_id,
+                    )
 
                 updated_card = updated_result["card"]
 
@@ -583,6 +599,7 @@ class WildberriesCardsService:
         self,
         wb_client: CardsWBAPI,
         update_data: WBCardUpdate,
+        last_error_batch_id: Optional[str] = None,
     ) -> dict[str, any]:
         """Проверить, обновилась ли карточка."""
         result = {
@@ -608,8 +625,20 @@ class WildberriesCardsService:
                 logger.info(f"Карточка [{wb_client.account_name}:{card.nm_id}] обновлена.")
                 result["card"] = card
                 return result
-
+            
             logger.info(f"Карточка [{wb_client.account_name}:{card.nm_id}] не обновлена.")
+            errors_message = await self._check_uncrated_card(
+                wb_client=wb_client,
+                vendor_code=update_data.vendor_code,
+                last_error_batch_id=last_error_batch_id
+            )
+            if errors_message:
+                logger.info(f"При обновлении карточки [{wb_client.account_name}:{update_data.nm_id}] получена ошибка: {errors_message}.")
+                result["error"] = errors_message
+                return result
+
+            logger.info(f"При обновлении карточки [{wb_client.account_name}:{card.nm_id}] ошибок не найдено.")
+
             await asyncio.sleep(3)
 
         error_message = f"Закончились попытки проверить обновление карточки [{wb_client.account_name}:{update_data.nm_id}]"

@@ -47,12 +47,7 @@ class WBCardUpdateService:
         if not product_data:
             raise ValueError(f"Товар с product_id='{data.product_id}' не найден.")
 
-        charcs = await self._wb_charc_repo.get_charcs_by_product_id(data.product_id)
-
-        if not charcs:
-            raise ValueError(
-                f"Для product_id='{data.product_id}' не найдены характеристики в БД."
-            )
+        charcs = await self._wb_charc_repo.get_charcs_by_product_id(data.product_id) or []
 
         wb_client = CardsWBAPI(session=self._session, account_name=data.account)
         card = await wb_client.get_card(nm_id=data.nm_id)

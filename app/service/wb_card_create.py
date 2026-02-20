@@ -55,12 +55,7 @@ class WBCardCreateService:
         if not product_data.wb_subject_id:
             raise ValueError(f"Для product_id='{data.product_id}' не задан subject_id.")
 
-        charcs = await self._wb_charc_repo.get_charcs_by_product_id(data.product_id)
-        if not charcs:
-            raise ValueError(
-                f"Для product_id='{data.product_id}' не найдены характеристики в БД."
-            )
-
+        charcs = await self._wb_charc_repo.get_charcs_by_product_id(data.product_id) or []
         vat_charc = await self._get_vat_charc(data.account)
         characteristics = [
             CardCharcsCreate(id=charc.id, value=charc.value)
