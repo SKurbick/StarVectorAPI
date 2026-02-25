@@ -5,19 +5,21 @@ from aiohttp import ClientSession
 
 from app.domain.models import (
     WBSubjectWithCharcs,
-    WBCharc,
     WBColor,
     WBCountry,
     WBBrand,
     ProductCharcInfo,
+    WBCharc,
     ProductWBCharc,
 )
-from app.domain.enums import PredefinedWBCharcEnum
+
 from app.repository.wb_parent_categories import WBParentCategoryRepository, WBParentCategory
 from app.repository.products_data import ProducsDataRepository
 from app.repository.wb_charcs import WBCharcRepository
 from app.repository.wb_subjects import WBSubjectRepository, WBParentCategoryWithSubjects
 from app.infrastructure.API.wildberries.content.wb_charcs import CharcsWBAPI
+
+from app.service.marketplace_cards import MarketplaceCardsService
 
 
 DEFAULT_ACCOUNT_NAME = "Вектор"
@@ -26,19 +28,29 @@ DEFAULT_ACCOUNT_NAME = "Вектор"
 class WBParentCategoryService:
     """Сервис для родительских категорий Wildberies."""
 
-    def __init__(self, repo: WBParentCategoryRepository):
+    def __init__(
+            self,
+            repo: WBParentCategoryRepository,
+            marketplace_cards_service: MarketplaceCardsService,
+    ):
         self.repo = repo
+        self.marketplace_cards_service = marketplace_cards_service
 
     async def get_all_categories(self) -> list[WBParentCategory]:
         """Метод возвращает все родительские категории."""
-        return await self.repo.list()
+        return await self.marketplace_cards_service.get_all_categories()
 
 
 class WBSubjectService:
     """Сервис для предметов Wildberies."""
 
-    def __init__(self, repo: WBSubjectRepository):
+    def __init__(
+            self,
+            repo: WBSubjectRepository,
+            marketplace_cards_service: MarketplaceCardsService,
+    ):
         self.repo = repo
+        self.marketplace_cards_service = marketplace_cards_service
 
     async def get_subjects_by_filters(
             self,
@@ -50,7 +62,7 @@ class WBSubjectService:
         Args:
             parent_id: id родительской категории.
         """
-        return await self.repo.list(parent_id=parent_id)
+        return await self.marketplace_cards_service.get_subjects_by_filters(parent_id)
 
 
 class WBCharcService:
@@ -61,11 +73,13 @@ class WBCharcService:
             charc_repo: WBCharcRepository,
             subject_repo: WBSubjectRepository,
             products_data_repo: ProducsDataRepository,
+            marketplace_cards_service: MarketplaceCardsService,
             session: ClientSession
     ):
         self._charc_repo = charc_repo
         self._subject_repo = subject_repo
         self._products_data_repo = products_data_repo
+        self._marketplace_cards_service = marketplace_cards_service
         self._wb_client = CharcsWBAPI(
             session=session,
             account_name=DEFAULT_ACCOUNT_NAME
@@ -78,65 +92,27 @@ class WBCharcService:
         Args:
             subject_id: id предмета.
         """
-        subject = await self._subject_repo.get(subject_id)
-
-        if not subject:
-            raise ValueError(f"Предмет с {subject_id=} не найден.")
-
-        characteristics = await self._wb_client.get_charcs_by_subject_id(subject_id=subject_id)
-        characteristics.sort(key=lambda x: x.name)
-        return WBSubjectWithCharcs(
-            id=subject.id,
-            name=subject.name,
-            parent_id=subject.parent_id,
-            charcs=[
-                WBCharc.model_validate(ch.model_dump())
-                for ch in characteristics if ch.id != PredefinedWBCharcEnum.VAT
-            ]
-        )
+        return await self._marketplace_cards_service.get_charcs_by_subject_id(subject_id)
 
     async def get_colors(self) -> list[WBColor]:
         """Метод возвращает возможные значения характеристики предмета Цвет."""
-        colors = await self._wb_client.get_colors()
-        grouped_colors = defaultdict(list)
-
-        for color in colors:
-            grouped_colors[color.parent_name].append(color.name)
-        
-        result = [
-            WBColor(
-                parent_color=parent_color,
-                colors=sorted(colors)
-            ) for parent_color, colors in grouped_colors.items()
-        ]
-
-        result.sort(key=lambda x: x.parent_color)
-        return result
+        return await self._marketplace_cards_service.get_colors()
 
     async def get_kinds(self) -> list[str]:
         """Метод возвращает возможные значения характеристики предмета Пол."""
-        result = await self._wb_client.get_kinds()
-        result.sort()
-        return result
+        return await self._marketplace_cards_service.get_kinds()
 
     async def get_countries(self) -> list[WBCountry]:
         """Метод возвращает возможные значения характеристики предмета Страна производства."""
-        countries = await self._wb_client.get_countries()
-        result = [WBCountry.model_validate(c.model_dump()) for c in countries]
-        result.sort(key=lambda x: x.name)
-        return result
+        return await self._marketplace_cards_service.get_countries()
 
     async def get_seasons(self) -> list[str]:
         """Метод возвращает возможные значения характеристики предмета Сезон."""
-        result = await self._wb_client.get_seasons()
-        result.sort()
-        return result
+        return await self._marketplace_cards_service.get_seasons()
 
     async def get_vat(self) -> list[str]:
         """Метод возвращает возможные значения характеристики предмета Ставка НДС."""
-        result = await self._wb_client.get_vat()
-        result.sort()
-        return result
+        return await self._marketplace_cards_service.get_vat()
 
     async def get_brands(self, subject_id: int, limit: int = 1, offset: int = 0) -> list[WBBrand]:
         """
@@ -145,9 +121,7 @@ class WBCharcService:
         Args:
             subject_id: id предмета.
         """
-        result = await self._wb_client.get_brands(subject_id=subject_id)
-        result.sort(key=lambda x: x.name)
-        return [WBBrand.model_validate(brand.model_dump()) for brand in result[offset:limit+offset]]
+        return await self._marketplace_cards_service.get_brands(subject_id, limit, offset)
 
     async def get_product_charcs(self, product_id) -> list[ProductCharcInfo]:
         """

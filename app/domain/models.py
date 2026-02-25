@@ -483,10 +483,6 @@ class ProductResponse(BaseModel):
     id: str = field_configs["local_vendor_code"]
     name: str = field_configs["product_name"]
     photo_link: str | None = field_configs["photo_link"]
-    length: int | None = field_configs["length"]
-    width: int | None = field_configs["width"]
-    height: int | None = field_configs["height"]
-    manager: str | None = field_configs["manager"]
 
     articles: list[ArticleResponse] = field_configs["articles_list"]
 
@@ -497,10 +493,6 @@ class ProductResponse(BaseModel):
                     "id": "wild123",
                     "name": "Монитор Redmi",
                     "photo_link": "https://example.com/images/tm/1.webp",
-                    "length": 100,
-                    "width": 50,
-                    "height": 20,
-                    "manager": "Иванов Иван",
                     "articles": [
                         ArticleResponse.model_config['json_schema_extra']['examples'][0],
                         {

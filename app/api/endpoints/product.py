@@ -38,10 +38,10 @@ async def get_products_grouped_by_subjects(
         service: Annotated[ProductService, Depends(get_product_service)],
         limit: Annotated[int, Query(ge=1)] = 1000,
         offset: Annotated[int, Query(ge=0)] = 0,
-        user: UserPermissions = Depends(get_info_from_token),
+        # user: UserPermissions = Depends(get_info_from_token),
 ) -> list[SubjectDataWithProductsResponse]:
-    if not user.viewing:
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+    # if not user.viewing:
+        # raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     return await service.get_products_grouped_by_subjects(
         limit=limit,
         offset=offset,
@@ -54,13 +54,13 @@ async def get_products_grouped_by_subjects(
 """)
 async def get_product_cards(
         id: str = Path(..., description="Локальный артикул товара."),
-        user: UserPermissions = Depends(get_info_from_token),
+        # user: UserPermissions = Depends(get_info_from_token),
         service: ProductService = Depends(get_product_service),
 ) -> ProductWBCards:
-    if not user.viewing:
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+    # if not user.viewing:
+        # raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     try:
-        return await service.get_poduct_cards(product_id=id)
+        return await service.get_product_cards(product_id=id)
     except Exception as e:
         logger.exception(f"Ошибка во время получения карточек товара: {e}")
         raise HTTPException(
@@ -104,11 +104,11 @@ async def set_subject_id(
 """)
 async def get_product_wb_specifications(
     id: str = Path(..., description="Локальный артикул товара."),
-    user: UserPermissions = Depends(get_info_from_token),
+    # user: UserPermissions = Depends(get_info_from_token),
     service: ProductService = Depends(get_product_service),
 ) -> ProductWBSpecificationResponse:
-    if not user.viewing:
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+    # if not user.viewing:
+        # raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     try:
         return await service.get_product_wb_specifications(id)
     except ValueError as e:
@@ -117,7 +117,7 @@ async def get_product_wb_specifications(
             detail=str(e)
         )
     except Exception as e:
-        logger.exception("Ошибка во время получения спецификаций товара: {e}")
+        logger.exception(f"Ошибка во время получения спецификаций товара: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error."

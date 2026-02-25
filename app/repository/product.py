@@ -54,10 +54,6 @@ class ProductRepository:
                 p.id,
                 p.name,
                 p.photo_link,
-                p.length,
-                p.width,
-                p.height,
-                p.manager,
                 acd.subject_name,
                 coalesce(acd.cards, '[]') AS articles
             FROM
@@ -85,10 +81,6 @@ class ProductRepository:
                 id=row["id"],
                 name=row["name"],
                 photo_link=row["photo_link"],
-                length=row["length"],
-                width=row["width"],
-                height=row["height"],
-                manager=row["manager"],
                 articles=articles,
             )
 

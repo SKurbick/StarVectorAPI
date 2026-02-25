@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str
     JWT_SECRET_KEY: str
 
+    MARKETPLACE_CARDS_APP_IP_ADDRESS: str
+    MARKETPLACE_CARDS_APP_PORT: int
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 
