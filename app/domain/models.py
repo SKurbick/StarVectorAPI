@@ -1939,7 +1939,7 @@ class WBMedia(BaseModel):
     """ССылки на медиа WB."""
 
     video: Optional[str] = Field(None, description="Ссылка на видео")
-    photos: list[WBPhoto] = Field(..., description="Список ссылок на фото")
+    photos: list[WBPhoto] = Field(..., default_factory=list, description="Список ссылок на фото")
 
 
 class WBBrand(BaseModel):

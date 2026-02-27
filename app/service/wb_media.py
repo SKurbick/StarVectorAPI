@@ -99,12 +99,16 @@ class WBMediaService:
             wb_client = CardsWBAPI(session=self._session, account_name=account)
             card = await wb_client.get_card(nm_id=nm_id)
 
+            if not card:
+                logger.warning(f"Карточка не найдена: {account} | {nm_id}")
+                continue
+
             places_uniq_card = {photo.display_order for photo in updated_uniq_card_media.photos}
             new_product_photos: list[WBPhoto] = []
 
             display_order_count = 1
 
-            for i, photo in enumerate(card.photos, start=1):
+            for i, photo in enumerate((card.photos or []), start=1):
                 if i not in places_uniq_card:
                     new_product_photos.append(
                         WBPhoto(url=photo["big"], display_order=display_order_count)
@@ -163,7 +167,7 @@ class WBMediaService:
         places_uniq_card = {photo.display_order for photo in card_unique_media.photos}
         new_uniq_photos = [
             WBPhoto(url=photo["big"], display_order=i)
-            for i, photo in enumerate(card.photos, start=1) if i in places_uniq_card
+            for i, photo in enumerate((card.photos or []), start=1) if i in places_uniq_card
         ]
         new_uniq_wb_links = WBMedia(
             video=card.video,

@@ -114,7 +114,7 @@ class Card(BaseModel):
     title: Optional[str] = Field(None, description="Название товара")
     description: Optional[str] = Field(None, description="Описание товара",)
     need_kiz: bool = Field(..., validation_alias="needKiz", description="Требуется ли КИЗ (маркировка)")
-    photos: Optional[list[dict[str, str]]] = Field([], description="Список URL фото", examples=[[{"big": "https://..."}]])
+    photos: Optional[list[dict[str, str]]] = Field(default_factory=list, description="Список URL фото", examples=[[{"big": "https://..."}]])
     video: Optional[str] = Field(None, description="URL видео")
     wholesale: Optional[CardWholesale] = Field(None, description="Оптовые настройки")
     dimensions: CardDimensions = Field(..., description="Габариты товара")
