@@ -523,7 +523,11 @@ class WBMediaService:
 
         expected_count = last_count_photos
 
-        if display_order > last_count_photos:
+        if (
+            (display_order > last_count_photos)
+            or (is_video and not video)
+            or (is_cover and not cover)
+        ):
             expected_count += 1
 
         await self._ensure_card_media_count(
