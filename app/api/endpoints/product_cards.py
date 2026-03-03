@@ -174,6 +174,7 @@ async def upload_wb_card(
         - Максимум 1 видео
         - Ссылки должны вести напрямую на файлы
     """,
+    deprecated=True
 )
 async def update_media_by_links(
     data: CardWBMediaLinksUpdate,
@@ -185,7 +186,8 @@ async def update_media_by_links(
 
     task_id = f"media_links_{uuid.uuid4().hex}"
     try:
-        await service.update_card_media_links(data, user_id=user.user_id)
+        pass
+        # await service.update_card_media_links(data, user_id=user.user_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except RuntimeError as e:
@@ -204,11 +206,12 @@ async def update_media_by_links(
         created_at=datetime.now()
     )
 
+
 @router.post(
     "/wb/media/file/add",
     status_code=status.HTTP_202_ACCEPTED,
     description="""
-    **Загрузка медиа файла для карточки товара на WB.**
+    **Загрузка обложки или видео для карточки товара на WB.**
 
     Требования:
         - Форматы фото (JPG, PNG, BMP, GIF, WebP)
@@ -251,6 +254,7 @@ async def upload_media_files(
             is_video=is_video,
             file=file,
             user_id=user.user_id,
+            display_order=1,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

@@ -1997,7 +1997,7 @@ class ProductWBSpecificationResponse(BaseModel):
     characteristics: list[ProductCharcInfo] = Field(..., description="Список характеристик товара")
 
 
-class ProsuctWBSpecificationUpdate(BaseModel):
+class ProductWBSpecificationUpdate(BaseModel):
     """Модель обновления WB-спецификаций товара."""
 
     id: str = Field(..., description="Локальный артикул товара")
@@ -2013,9 +2013,6 @@ class WBCardUploadRequest(BaseModel):
     product_id: str = Field(..., description="Локальный артикул товара")
     name: Optional[str] = Field(None, description="Название карточки товара")
     description: Optional[str] = Field(None, description="Описание")
-    price: Optional[int] = Field(None, description="Цена")
-    discount: Optional[int] = Field(None, description="Скидка")
-    fbs_stock_quantity: Optional[int] = Field(None, description="Виртуальные остатки")
 
 
 class WBCardSpecificationUpdateRequest(WBCardUploadRequest):

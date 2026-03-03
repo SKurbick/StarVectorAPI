@@ -106,24 +106,6 @@ class WBCardUpdateService:
         if not card:
             raise RuntimeError("Не удалось получить обновленную карточку из WB.")
 
-        logger.info(f"Карточка nm_id={card.nm_id} успешно обновлена.")
-
-        try:
-            async with asyncio.TaskGroup() as group:
-                group.create_task(self._wb_cards_service._update_price_discount(
-                    price_discount_data={"price": data.price or 0, "discount": data.price or 0},
-                    wb_client=wb_client,
-                    wb_card=card,
-                ))
-
-                group.create_task(self._wb_cards_service._update_fbs_stocks(
-                    amount=data.fbs_stock_quantity or 0,
-                    wb_client=wb_client,
-                    wb_card=card,
-                ))
-        except Exception as e:
-            logger.exception(f"Ошибка во время обновления краточки {card.nm_id}: {e}")
-
         logger.info(f"Карточка nm_id={data.nm_id} в аккаунте {data.account} успешно обновлена.")
         return card.nm_id
 

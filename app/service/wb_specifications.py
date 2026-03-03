@@ -12,7 +12,7 @@ from app.domain.models import (
     ProductCharcInfo,
     ProductWBCharc,
 )
-from app.domain.enums import PredefinedWBCharcEnum
+from app.domain.enums import PredefinedWBCharcEnum, CertificationCharсEnum
 from app.repository.wb_parent_categories import WBParentCategoryRepository, WBParentCategory
 from app.repository.products_data import ProducsDataRepository
 from app.repository.wb_charcs import WBCharcRepository
@@ -91,7 +91,8 @@ class WBCharcService:
             parent_id=subject.parent_id,
             charcs=[
                 WBCharc.model_validate(ch.model_dump())
-                for ch in characteristics if ch.id != PredefinedWBCharcEnum.VAT
+                for ch in characteristics
+                if ch.id != PredefinedWBCharcEnum.VAT and ch.id not in CertificationCharсEnum
             ]
         )
 

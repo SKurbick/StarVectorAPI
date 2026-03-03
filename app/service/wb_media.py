@@ -120,13 +120,186 @@ class WBMediaService:
 
             if not updated_uniq_card_media.video:
                 products_media_for_update_db.video = card.video
-            
+
             if card.photos:
                 tm = card.photos[0]["tm"]
                 await self._card_data_repo.update_card_photo(card.nm_id, tm, user_id)
 
         await self._wb_media_repo.replace_product_media(data.product_id, products_media_for_update_db, user_id=user_id)
         return updated_nm_ids
+
+    async def update_product_additionals(
+            self,
+            data: ProductWBMediaLinksUpdate,
+            user_id: Optional[int] = None
+    ) -> list[int]:
+        logger.info(f"Обновление дополнительных фото на WB для товара {data.product_id}...")
+        
+        articles, _, invalid_lvc = await self._article_repo.get_articles_by_criteria(
+            local_vendor_codes=[data.product_id]
+        )
+
+        if invalid_lvc or not articles:
+            raise ValueError(f"Для товара '{data.product_id}' не найдено карточек.")
+        
+        product_additionals = [WBPhoto(
+            url = ph.url,
+            display_order=ph.display_order,
+        ) for ph in data.photos]
+
+        for item in articles:
+            nm_id = item["nm_id"]
+            account = item["account"]
+            cover_and_video: WBMedia = await self._wb_media_repo.get_cover_and_video_of_card(nm_id=nm_id)
+            update_tasks = []
+
+            card_data = CardWBMediaLinksUpdate(
+                nm_id=nm_id,
+                account=account,
+                video=WBMediaLink(
+                    url=cover_and_video.video,
+                ) if cover_and_video.video else None,
+                photos=[WBMediaLink(
+                    url=photo.url,
+                    display_order=photo.display_order,
+                ) for photo in cover_and_video.photos]
+            )
+
+            update_tasks.append(asyncio.create_task(
+                self.update_cover_and_video_card(
+                    data=card_data,
+                    product_additionals=product_additionals,
+                    user_id=user_id
+                )
+            ))
+
+        results = await asyncio.gather(*update_tasks, return_exceptions=True)
+        updated_nm_ids: list[int] = []
+
+        for (res, article) in zip(results, articles):
+            if isinstance(res, Exception):
+                logger.exception(
+                    f"Ошибка во время обновления медиа для карточки товара {data.product_id}-{article["nm_id"]}: {res}"
+                )
+                continue
+
+            nm_id = article["nm_id"]
+            updated_nm_ids.append(nm_id)
+        
+        is_update_additionals = False
+        logger.info("Обноваляем список дополнительных фотографий в БД...")
+        for item in articles:
+            nm_id = item["nm_id"]
+
+            if nm_id not in updated_nm_ids:
+                logger.warning(f"Карточки {nm_id} нет среди обновленных. Пропускаем.")
+                continue
+
+            account = item["account"]
+            wb_client = CardsWBAPI(session=self._session, account_name=account)
+            can_update = False
+            for _ in range(3):
+                card = await wb_client.get_card(nm_id=nm_id)
+
+                if not card:
+                    logger.warning(f"Карточка не найдена: {account} | {nm_id}")
+                    break
+
+                cover_and_video: WBMedia = await self._wb_media_repo.get_cover_and_video_of_card(nm_id=nm_id)
+                new_additionals = card.photos or []
+
+                if cover_and_video.photos:
+                    new_additionals = new_additionals[1:]
+
+                if len(product_additionals) != len(new_additionals):
+                    logger.warning(f"Количество новых ссылок не совпадает.")
+                    await asyncio.sleep(2)
+                    continue
+
+                can_update = True
+
+            if can_update:
+                await self._wb_media_repo.replace_product_media(
+                    product_id=data.product_id,
+                    user_id=user_id,
+                    media=WBMedia(
+                        photos=[WBPhoto(
+                            url=ph["big"],
+                            display_order=i
+                        ) for i, ph in enumerate(new_additionals, start=1)]
+                    )
+                )
+                is_update_additionals = True
+                break
+
+        if not is_update_additionals:
+            logger.warning(f"Обновление дополнительных фото на WB для товара {data.product_id} не выполнено.")
+        
+        return updated_nm_ids
+
+    async def update_cover_and_video_card(
+            self,
+            data: CardWBMediaLinksUpdate,
+            product_additionals: list[WBPhoto] | None = None,
+            user_id: Optional[int] = None
+    ) -> None:
+        logger.info(f"Обновление обложки и видео на WB для карточки товара [{data.account}:{data.nm_id}]...")
+        article = await self._article_repo.get_article_by_nm_id_and_account(
+            nm_id=data.nm_id,
+            account=data.account,
+        )
+
+        if not article:
+            raise ValueError(f"Карточка nm_id={data.nm_id} не найдена в БД.")
+
+        if product_additionals is None:
+            product_id = article["local_vendor_code"]
+            product_additionals: list[WBPhoto] = await self._wb_media_repo.get_product_additional(product_id)
+
+        video: str | None = data.video.url if data.video else None
+        cover: WBPhoto | None = next((WBPhoto(
+            url=photo.url,
+            display_order=photo.display_order,
+        ) for photo in data.photos if photo.display_order <= 1), None)
+
+        all_links = self._build_links_of_card(
+            cover=cover,
+            video=video,
+            additionals=product_additionals
+        )
+
+        wb_client = CardsWBAPI(session=self._session, account_name=data.account)
+        await wb_client.upload_media_by_links(
+            CardMediaUploadByLinks(nm_id=data.nm_id, data=all_links)
+        )
+
+        await self._ensure_card_media_count(
+            wb_client=wb_client,
+            nm_id=data.nm_id,
+            expected_count=len(all_links),
+        )
+
+        card = await wb_client.get_card(nm_id=data.nm_id)
+        new_video = card.video
+        new_cover = None
+
+        if cover and card.photos:
+            cover_map = card.photos[0]
+            new_cover = WBPhoto(
+                url=cover_map["big"],
+                display_order=1
+            )
+            cover_tm = cover_map["tm"]
+            await self._card_data_repo.update_card_photo(nm_id=card.nm_id, photo_url=cover_tm, user_id=user_id)
+
+        await self._wb_media_repo.replace_card_media(
+            data.nm_id,
+            WBMedia(
+                video=new_video,
+                photos=[new_cover] if new_cover else []
+            ),
+            user_id=user_id,
+        )
 
     async def update_card_media_links(self, data: CardWBMediaLinksUpdate, product_media: Optional[WBMedia] = None, user_id: Optional[int] = None) -> None:
         """Обновить медиа карточки товара на WB по ссылкам на файлы."""
@@ -263,11 +436,13 @@ class WBMediaService:
             account: Optional[str],
             is_video: bool,
             file: UploadFile,
+            display_order: int = 1,
             user_id: Optional[int] = None,
     ) -> str:
         """Загрузка медиа файла для карточки товара."""
         resolved_account = account or await self._get_account_by_nm_id(nm_id)
-        card_media = await self._wb_media_repo.get_media_by_article(nm_id)
+        card_video_and_cover: WBMedia = await self._wb_media_repo.get_cover_and_video_of_card(nm_id)
+
         content = await file.read()
 
         new_link = await self._upload_media_file(
@@ -278,14 +453,20 @@ class WBMediaService:
             filename=file.filename,
             content_type=file.content_type,
             user_id=user_id,
+            display_order=display_order,
+            is_cover=not is_video,
         )
 
-        if is_video:
-            card_media.video = new_link
-        else:
-            card_media.photos.append(new_link)
+        new_card_media = WBMedia(photos=[])
 
-        await self._wb_media_repo.replace_card_media(nm_id, card_media, user_id=user_id)
+        if is_video:
+            new_card_media.video = new_link
+            new_card_media.photos = card_video_and_cover.photos
+        elif not is_video and display_order == 1:
+            new_card_media.video = card_video_and_cover.video
+            new_card_media.photos.append(new_link)
+
+        await self._wb_media_repo.replace_card_media(nm_id, new_card_media, user_id=user_id)
         return resolved_account
 
     async def _upload_media_file(
@@ -296,23 +477,38 @@ class WBMediaService:
             file_content: bytes,
             filename: str,
             content_type: str,
+            display_order: int = 1,
+            is_cover: bool = False,
             user_id: Optional[int] = None,
     ) -> str | WBPhoto | None:
         """Загрузка медиа файла для карточки товара."""
+        logger.info(f"Загрузка файла для карточки [{account}:{nm_id}]...")
         resolved_account = account or await self._get_account_by_nm_id(nm_id)
         product_id = await self._get_product_id(nm_id, resolved_account)
-        product_media = await self._wb_media_repo.get_media_by_product(product_id)
-        card_media = await self._wb_media_repo.get_media_by_article(nm_id)
-        last_count_photos = len(product_media.photos or []) + len(card_media.photos or [])
+
+        card_cover_and_video = await self._wb_media_repo.get_cover_and_video_of_card(nm_id)
+
+        cover = next((ph for ph in card_cover_and_video.photos), None)
+        video = card_cover_and_video.video or None
+        products_additionals = await self._wb_media_repo.get_product_additional(product_id)
+
+        all_links = self._build_links_of_card(
+            cover=cover,
+            video=video,
+            additionals=products_additionals,
+        )
+        last_count_photos = max(len(all_links), display_order)
 
         if not is_video and last_count_photos > self.MAX_COUNT_PHOTOS_FOR_CARD - 1:
             error_message = f"Ошибка при загрузке фото для карточки {nm_id}. Достигнуто максимальное количество."
             logger.error(error_message)
             raise RuntimeError(error_message)
 
-        if is_video:
+        if is_video or (is_cover and cover is not None):
             display_order = 1
-        else:
+        elif is_cover and cover is None:
+            display_order = last_count_photos + 1
+        elif display_order > last_count_photos:
             display_order = last_count_photos + 1
 
         wb_client = CardsWBAPI(session=self._session, account_name=resolved_account)
@@ -325,10 +521,9 @@ class WBMediaService:
             content=file_content,
         )
 
-        has_video = card_media.video or product_media.video
-        expected_count = last_count_photos + (1 if has_video else 0)
+        expected_count = last_count_photos
 
-        if not is_video or (is_video and not has_video):
+        if display_order > last_count_photos:
             expected_count += 1
 
         await self._ensure_card_media_count(
@@ -344,17 +539,133 @@ class WBMediaService:
                 raise RuntimeError(f"Карточка nm_id={nm_id} не найдена после загрузки файла.")
 
             current_card_media = self._media_from_card(card)
-            new_link = current_card_media.video if is_video else current_card_media.photos[-1]
+    
+            if is_video:
+                return current_card_media.video
+            
+            if is_cover:
+                if display_order != 1:
+                    data_to_update = []
+                    if card.video:
+                        data_to_update.append(card.video)
 
-            if card.photos:
+                    if card.photos:
+                        data_to_update.append(card.photos[-1]["big"])
+                        data_to_update.extend(list(c["big"] for c in card.photos[:-1]))
+
+                    await wb_client.upload_media_by_links(CardMediaUploadByLinks(
+                        nm_id=card.nm_id, data=data_to_update
+                    ))
+                    await self._wb_media_repo.replace_product_media(
+                        product_id=product_id,
+                        media=WBMedia(
+                            photos=[WBPhoto(url=c["big"], display_order=i) for i, c in enumerate(card.photos[1:], start=1)]
+                        )
+                    )
                 tm = card.photos[0]["tm"]
                 await self._card_data_repo.update_card_photo(card.nm_id, tm, user_id)
+                return current_card_media.photos[0]
 
-            if not (isinstance(new_link, WBPhoto) and new_link.display_order != last_count_photos + 1):
-                return new_link
+            return current_card_media.photos[display_order - 1]
 
         logger.error(f"Ошибка при получении последней фотографии из карточки {nm_id}.")
         raise RuntimeError(f"Ошибка при получении последней фотографии из карточки {nm_id}.")
+
+    async def upload_product_media_files(
+        self,
+        product_id: str,
+        files: list[UploadFile],
+        user_id: Optional[int] = None,
+    ) -> list[int]:
+        """Загрузить дополнительные фотографии для всех карточек товаров в указанном порядке."""
+        logger.info(f"Загрузка файлов для товара {product_id}...")
+        if not files:
+            return []
+
+        articles, _, invalid_lvc = await self._article_repo.get_articles_by_criteria(local_vendor_codes=[product_id])
+
+        if invalid_lvc or not articles:
+            raise ValueError(f"Для товара '{product_id}' не найдено карточек.")
+
+        updated_nm_ids = []
+
+        await self.update_product_additionals(user_id=user_id, data=ProductWBMediaLinksUpdate(
+            photos=[],
+            product_id=product_id
+        ))
+
+        for i, file in enumerate(files, start=1):
+            content = await file.read()
+            logger.info(f"Загрузка файла {i} для товара {product_id}...")
+            if not content:
+                logger.warning(f"Пустое содержимое файла {file.filename} для product {product_id}")
+                continue
+
+            upload_tasks = []
+
+            for item in articles:
+                nm_id = item["nm_id"]
+                account = item["account"]
+                card_cover_and_video = await self._wb_media_repo.get_cover_and_video_of_card(nm_id)
+                has_cover = 1 if card_cover_and_video.photos else 0
+                photo_number = i + has_cover
+                upload_tasks.append(asyncio.create_task(self._upload_media_file(
+                    nm_id=nm_id,
+                    account=account,
+                    is_video=False,
+                    file_content=content,
+                    filename=file.filename,
+                    content_type=file.content_type,
+                    display_order=photo_number,
+                    user_id=user_id,
+                )))
+
+            results = await asyncio.gather(*upload_tasks, return_exceptions=True)
+            updated_nm_ids.extend(
+                [
+                    article["nm_id"] 
+                    for article, res in zip(articles, results)
+                    if not isinstance(res, Exception)
+                ]
+            )
+
+        for item in articles:
+            nm_id = item["nm_id"]
+            account = item["account"]
+            card_cover_and_video = await self._wb_media_repo.get_cover_and_video_of_card(nm_id)
+            has_cover = 1 if card_cover_and_video.photos else 0
+
+            wb_client = CardsWBAPI(session=self._session, account_name=account)
+
+            can_update = False
+            
+            for _ in range(3):
+                card = await wb_client.get_card(nm_id)
+
+                if not card:
+                    logger.warning(f"Не найдена карточка: [{account}:{nm_id}]")
+                    break
+
+                card_photos = [ph["big"] for ph in card.photos]
+
+                if has_cover:
+                    card_photos = card_photos[1:]
+                
+                card_photos = card_photos[:len(files)]
+
+                if not (len(card_photos) == len(files)):
+                    logger.warning(f"Количество ссылок в карточке не совпадает: {len(card_photos)}-{len(files)}")
+                    await asyncio.sleep(2)
+                    continue
+
+                can_update = True
+
+            if can_update:            
+                new_product_media = [WBPhoto(url=url, display_order=i) for i, url in enumerate(card_photos, start=1)]
+                await self._wb_media_repo.replace_product_media(product_id, WBMedia(photos=new_product_media), user_id=user_id)
+                break
+
+        return sorted(set(updated_nm_ids))
 
     async def _get_product_id(self, nm_id: int, account: str) -> str:
         article = await self._article_repo.get_article_by_nm_id_and_account(nm_id, account)
@@ -426,6 +737,7 @@ class WBMediaService:
             delay_seconds: float = 3.0,
     ) -> None:
         """Проверить, что в карточке ожидаемое количество файлов."""
+        logger.info(f"Проверяем соответствия ожидаемого количества медиа в карточке [{wb_client.account_name}:{nm_id}]...")
         for _ in range(attempts):
             card = await wb_client.get_card(nm_id=nm_id)
 
@@ -451,3 +763,18 @@ class WBMediaService:
             for i, photo in enumerate(card.photos or [], start=1)
         ]
         return WBMedia(video=card.video, photos=photos)
+
+    @staticmethod
+    def _build_links_of_card(cover: WBPhoto | None, video: str | None, additionals: list[WBPhoto]) -> list[str]:
+        additionals = sorted(additionals, key=lambda x: x.display_order)
+        all_links = [] 
+
+        if video:
+            all_links.append(video)
+
+        if cover:
+            all_links.append(cover.url)
+        
+        all_links.extend([adds.url for adds in additionals])
+
+        return all_links

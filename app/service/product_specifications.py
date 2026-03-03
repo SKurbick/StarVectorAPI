@@ -4,9 +4,9 @@ from typing import Optional
 
 from aiohttp import ClientSession
 
-from app.domain.enums import PredefinedWBCharcEnum
+from app.domain.enums import PredefinedWBCharcEnum, CertificationCharсEnum
 from app.domain.models import (
-    ProsuctWBSpecificationUpdate,
+    ProductWBSpecificationUpdate,
     ProductCharcInfo,
     CardCharcsUpdate,
     WBCardUpdate,
@@ -49,7 +49,7 @@ class ProductWBSpecificationsUpdateService:
         self._wb_cards_service = wb_cards_service
         self._session = session
 
-    async def update_product_specifications(self, data: ProsuctWBSpecificationUpdate, user_id: Optional[int] = None) -> list[dict]:
+    async def update_product_specifications(self, data: ProductWBSpecificationUpdate, user_id: Optional[int] = None) -> list[dict]:
         """
         Обновить спецификации товара и все его карточки на WB.
         Возвращает список nm_id обновлённых карточек.
@@ -111,6 +111,7 @@ class ProductWBSpecificationsUpdateService:
                     errors.append(f"Карточка nm_id={nm_id} не найдена в аккаунте {account}.")
                     continue
 
+                certificate_charcs = self._get_certificate_chars(wb_card.characteristics)
                 sizes = [
                     SizeUpdate(
                         chrt_id=size.chrt_id,
@@ -137,6 +138,7 @@ class ProductWBSpecificationsUpdateService:
                         ),
                         characteristics=[
                             *final_charcs,
+                            *certificate_charcs,
                             vat_charc,
                         ],
                         sizes=sizes,
@@ -168,7 +170,7 @@ class ProductWBSpecificationsUpdateService:
     async def _update_card_data_dimensions(
         self,
         nm_ids: list[int],
-        data: ProsuctWBSpecificationUpdate,
+        data: ProductWBSpecificationUpdate,
         user_id: Optional[int] = None,
     ) -> None:
         if not nm_ids:
@@ -316,3 +318,18 @@ class ProductWBSpecificationsUpdateService:
             id=PredefinedWBCharcEnum.VAT,
             value=[vat_value],
         )
+
+    @staticmethod
+    def _get_certificate_chars(charcs: list) -> list[CardCharcsUpdate]:
+        certificate_charcs = []
+
+        for ch in charcs:
+            if ch.id in CertificationCharсEnum:
+                certificate_charcs.append(
+                    CardCharcsUpdate(
+                        id=ch.id,
+                        value=ch.value,
+                    )
+                )
+
+        return certificate_charcs

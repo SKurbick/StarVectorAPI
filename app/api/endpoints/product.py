@@ -17,7 +17,7 @@ from app.domain.models import (
     UserPermissions,
     ProductWBCards,
     ProductWBSpecificationResponse,
-    ProsuctWBSpecificationUpdate,
+    ProductWBSpecificationUpdate,
     ProductUpdateSpecificationsResponse,
     CardOperationResponse,
     ProductWBMediaLinksUpdate,
@@ -130,7 +130,7 @@ async def get_product_wb_specifications(
         description="**Обновить спецификации товара.**"
 )
 async def update_product_wb_specifications(
-    data: ProsuctWBSpecificationUpdate,
+    data: ProductWBSpecificationUpdate,
     user: UserPermissions = Depends(get_info_from_token),
     service: ProductWBSpecificationsUpdateService = Depends(get_product_specifications_update_service),
 ) -> ProductUpdateSpecificationsResponse:
@@ -179,7 +179,6 @@ async def update_product_wb_specifications(
 
     Требования:
         - Максимум 25 изображений
-        - Максимум 1 видео
         - Ссылки должны вести напрямую на файлы
     """,
 )
@@ -193,7 +192,10 @@ async def update_media_by_links(
 
     task_id = f"media_links_{uuid.uuid4().hex}"
     try:
-        updated_nm_ids = await service.update_product_media_links(data, user.user_id)
+        updated_nm_ids = await service.update_product_additionals(data=ProductWBMediaLinksUpdate(
+            product_id=data.product_id,
+            photos=data.photos
+        ), user_id=user.user_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except RuntimeError as e:
@@ -235,8 +237,9 @@ async def update_media_by_links(
         - Размер фото: до 32 Мб
         - Размер видео: до 50 Мб
     """,
+    deprecated=True
 )
-async def upload_media_files(
+async def upload_media_file(
     product_id: str = Header(..., description="Локальный артикул товара"),
     file: UploadFile = File(..., description="Файл для загрузки"),
     user: UserPermissions = Depends(get_info_from_token),
@@ -288,4 +291,67 @@ async def upload_media_files(
             nm_id=nm,
             created_at=datetime.now()
         ) for nm in nm_ids]
+    )
+
+
+@router.post(
+    "/wb/media/files/add",
+    status_code=status.HTTP_202_ACCEPTED,
+    description="""
+    **Загрузка дополнительных фото для карточек товара на WB.**
+
+    Требования:
+        - Форматы фото (JPG, PNG, BMP, GIF, WebP)
+        - Размер фото: до 32 Мб
+    """,
+)
+async def upload_media_files(
+    product_id: str = Header(..., description="Локальный артикул товара"),
+    files: list[UploadFile] = File(..., description="Файл для загрузки"),
+    user: UserPermissions = Depends(get_info_from_token),
+    service: WBMediaService = Depends(get_wb_media_service),
+) -> ProductUpdateSpecificationsResponse:
+    if not user.viewing:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+
+    allowed_photo_ext = (".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp")
+    invalid_files = [file.filename for file in files if not file.filename.lower().endswith(allowed_photo_ext)]
+
+    if invalid_files:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(f"Недопустимый формат файла: {', '.join(invalid_files)}. Фото: {', '.join(allowed_photo_ext)}"),
+        )
+
+    task_id = f"media_files_{uuid.uuid4().hex}"
+
+    try:
+        nm_ids = await service.upload_product_media_files(
+            product_id=product_id,
+            files=files,
+            user_id=user.user_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e))
+    except Exception as e:
+        logger.exception(f"Ошибка во время загрузки медиа из файлов: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error.")
+
+    return ProductUpdateSpecificationsResponse(
+        message=f"Запрос на обновление медиа файлов принят в обработку",
+        product_id=product_id,
+        cards_for_update=[
+            CardOperationResponse(
+                task_id=task_id,
+                status="queued",
+                message="Запрос на обновление медиа по ссылкам принят в обработку",
+                account="account",
+                product_id=product_id,
+                nm_id=nm,
+                created_at=datetime.now(),
+            )
+            for nm in nm_ids
+        ],
     )

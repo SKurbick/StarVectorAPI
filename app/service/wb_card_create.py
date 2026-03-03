@@ -104,17 +104,6 @@ class WBCardCreateService:
                     user_id=user_id,
                 )))
 
-                group.create_task(self._wb_cards_service._update_price_discount(
-                    price_discount_data={"price": data.price or 0, "discount": data.price or 0},
-                    wb_client=wb_client,
-                    wb_card=card,
-                ))
-
-                group.create_task(self._wb_cards_service._update_fbs_stocks(
-                    amount=data.fbs_stock_quantity or 0,
-                    wb_client=wb_client,
-                    wb_card=card,
-                ))
         except Exception as e:
             logger.exception(f"Ошибка во время создания краточки {card.nm_id}: {e}")
 

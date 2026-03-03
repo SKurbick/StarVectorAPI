@@ -131,3 +131,57 @@ class WBMediaRepository:
 
                 if rows:
                     await conn.executemany(insert_query, rows)
+
+    async def get_cover_and_video_of_card(self, nm_id: int) -> WBMedia:
+        """Получить медиа-ссылки на WB для карточки."""
+        query = """
+            SELECT
+                media_type,
+                media_url,
+                display_order
+            FROM
+                wb_media
+            WHERE article_id = $1
+            AND display_order < 2
+            ORDER BY display_order;
+        """
+
+        rows = await self.pool.fetch(query, nm_id)
+        media = WBMedia(photos=[])
+
+        for row in rows:
+            if row["media_type"] == "video":
+                media.video = row["media_url"]
+                continue
+
+            media.photos.append(WBPhoto(
+                url=row["media_url"],
+                display_order=row["display_order"],
+            ))
+
+        return media
+
+    async def get_product_additional(self, product_id: str) -> list[WBPhoto]:
+        """Получить медиа-ссылки на допники WB для товара."""
+        query = """
+            SELECT
+                media_url,
+                display_order
+            FROM
+                wb_media
+            WHERE product_id = $1
+            AND article_id IS NULL
+            AND media_type != 'video'
+            ORDER BY display_order;
+        """
+
+        rows = await self.pool.fetch(query, product_id)
+        media = []
+
+        for row in rows:
+            media.append(WBPhoto(
+                url=row["media_url"],
+                display_order=row["display_order"],
+            ))
+
+        return media

@@ -73,3 +73,12 @@ class PredefinedWBCharcEnum(int, Enum):
     COLOR = 14177449
     KIND = 204557
     SEASON = 18769
+
+
+class CertificationCharсEnum(int, Enum):
+    "ID характеристик WB, которые хранят информацию о сертификатах и декларациях товаров."
+
+    EXPIRATION_DATE = 15001138  # Дата окончания действия сертификата/декларации
+    REGISTRATION_DATE = 15001137  # Дата регистрации сертификата/декларации
+    DECLARATION_NUMBER = 15001135  # Номер декларации соответствия
+    CERTIFICATE_NUMBER = 15001136  # Номер сертификата соответствия
