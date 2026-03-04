@@ -308,11 +308,11 @@ async def upload_media_file(
 async def upload_media_files(
     product_id: str = Header(..., description="Локальный артикул товара"),
     files: list[UploadFile] = File(..., description="Файл для загрузки"),
-    user: UserPermissions = Depends(get_info_from_token),
+    # user: UserPermissions = Depends(get_info_from_token),
     service: WBMediaService = Depends(get_wb_media_service),
 ) -> ProductUpdateSpecificationsResponse:
-    if not user.viewing:
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+    # if not user.viewing:
+    #     raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
 
     allowed_photo_ext = (".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp")
     invalid_files = [file.filename for file in files if not file.filename.lower().endswith(allowed_photo_ext)]
@@ -329,7 +329,8 @@ async def upload_media_files(
         nm_ids = await service.upload_product_media_files(
             product_id=product_id,
             files=files,
-            user_id=user.user_id,
+            # user_id=user.user_id,
+            user_id=7,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

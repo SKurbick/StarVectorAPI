@@ -382,7 +382,7 @@ class WBMediaService:
             nm_id = item["nm_id"]
             account = item["account"]
 
-            upload_tasks.append(asyncio.create_task(self._upload_media_file(
+            upload_tasks.append(asyncio.create_task(self._upload_media_file_old(
                 nm_id=nm_id,
                 account=account,
                 is_video=is_video,
@@ -468,6 +468,63 @@ class WBMediaService:
 
         await self._wb_media_repo.replace_card_media(nm_id, new_card_media, user_id=user_id)
         return resolved_account
+
+    async def _upload_media_file_old(
+        self,
+        nm_id: int,
+        account: Optional[str],
+        is_video: bool,
+        file_content: bytes,
+        filename: str,
+        content_type: str,
+        photo_number: int,
+        expected_count: int,
+        user_id: Optional[int] = None,
+    ) -> str | WBPhoto | None:
+        """Загрузить один медиа файл на WB. (Старый метод.)"""
+        resolved_account = account or await self._get_account_by_nm_id(nm_id)
+        wb_client = CardsWBAPI(session=self._session, account_name=resolved_account)
+
+        await wb_client.upload_media_file(
+            nm_id=nm_id,
+            photo_number=photo_number,
+            filename=filename,
+            content_type=content_type or "application/octet-stream",
+            content=file_content,
+        )
+
+        await self._ensure_card_media_count(
+            wb_client=wb_client,
+            nm_id=nm_id,
+            expected_count=expected_count,
+        )
+
+        for _ in range(3):
+            card = await wb_client.get_card(nm_id=nm_id)
+
+            if not card:
+                raise RuntimeError(f"Карточка nm_id={nm_id} не найдена после загрузки медиа.")
+
+            current_card_media = self._media_from_card(card)
+
+            new_link: str | WBPhoto | None = None
+
+            if is_video:
+                new_link = current_card_media.video
+            else:
+                new_link = next(
+                    (photo for photo in current_card_media.photos if photo.display_order == photo_number), None
+                )
+
+            if card.photos:
+                tm = card.photos[0]["tm"]
+                await self._card_data_repo.update_card_photo(card.nm_id, tm, user_id)
+
+            if new_link:
+                return new_link
+
+        logger.error(f"Не удалось обработать загруженные медиафайлы для карточки: {nm_id}.")
+        raise RuntimeError(f"Не удалось обработать загруженные медиафайлы для карточки: {nm_id}.")
 
     async def _upload_media_file(
             self,
