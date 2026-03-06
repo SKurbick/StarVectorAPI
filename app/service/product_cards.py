@@ -32,8 +32,10 @@ from app.repository.article import ArticleRepository
 from app.repository.card_status import CardStatusRepository
 from app.repository.card_data import CardDataRepository
 from app.repository.seller_account import SellerAccountRepository
+from app.repository.wb_media import WBMediaRepository
 from app.service.price_discount import PriceDiscountService
 from app.service.stocks_quantity import StocksQuantityService
+from app.service.wb_media import WBMediaService
 from app.use_cases.card_use_cases.close_card_use_case import CloseCardUseCase
 from app.infrastructure.API.wildberries.content.wb_cards import CardsWBAPI
 from app.infrastructure.API.wildberries.content.schemes.card_upload import CardCreate, CardVariant
@@ -58,6 +60,8 @@ class WildberriesCardsService:
         price_discount_service: PriceDiscountService,
         stock_quantity_service: StocksQuantityService,
         seller_account_repo: SellerAccountRepository,
+        wb_media_repo: WBMediaRepository,
+        wb_media_service: WBMediaService,
         pool: Pool,
     ):
         self.article_repo = article_repo
@@ -66,6 +70,8 @@ class WildberriesCardsService:
         self.price_discount_service = price_discount_service
         self.stock_quantity_service = stock_quantity_service
         self._seller_account_repo = seller_account_repo
+        self._wb_media_repo = wb_media_repo
+        self._wb_media_service = wb_media_service
         self.pool = pool
 
     async def duplicate_card(
@@ -1025,27 +1031,63 @@ class WildberriesCardsService:
         """Синхронизировать медиа между двумя карточками."""
         try:
             logger.info(f"Синхронизация медиа [{source_wb_client.account_name}{source_wb_card.nm_id}]->[{target_wb_client.account_name}{target_wb_card.nm_id}]...")
-            media_links = []
+            unic_attrs = []
 
-            if source_wb_card.photos:
-                media_links = [
-                    photo["big"]
-                    for photo in source_wb_card.photos or []
-                ]
+            cover = self._wb_media_repo.get_cover_url_of_card(source_wb_card.nm_id)
+            video = self._wb_media_repo.get_video_url_of_card(source_wb_card.nm_id)
+            
+            if cover:
+                unic_attrs.append(cover)
+            
+            if video: 
+                unic_attrs.append(video)
 
-            if source_wb_card.video:
-                media_links.append(source_wb_card.video)
-
-            if media_links:
-                card_media = CardMediaUploadByLinks(
+            if unic_attrs:
+                data_to_upload = CardMediaUploadByLinks(
                     nm_id=target_wb_card.nm_id,
-                    data=media_links,
+                    data=unic_attrs,
                 )
                 await self._add_media_from_links(
                     nm_id=target_wb_card.nm_id,
-                    links=card_media,
                     wb_client=target_wb_client,
+                    links=data_to_upload,
                 )
+            
+                async with asyncio.TaskGroup() as group:
+                    if cover:
+                        group.create_task(self._wb_media_service._ensure_card_photo_count(
+                            wb_client=target_wb_client,
+                            nm_id=target_wb_card.nm_id,
+                            expected_count=1
+                        ))
+
+                    if video:
+                        group.create_task(self._wb_media_service._ensure_card_video_state(
+                            wb_client=target_wb_client,
+                            nm_id=target_wb_card.nm_id,
+                            has_video=True
+                        ))
+
+            updated_card = await target_wb_client.get_card(target_wb_card.nm_id)
+
+            if video:
+                video = updated_card.video
+                await self._wb_media_repo.update_video_of_card(
+                    article_id=updated_card.nm_id,
+                    media_url=video
+                )
+
+            if cover:
+                cover = next((ph["big"] for ph in (updated_card.photos or [])), None)
+                await self._wb_media_repo.update_cover_of_card(
+                    article_id=updated_card.nm_id,
+                    media_url=cover
+                )
+
+            await self._wb_media_service._update_adds_card_by_links(
+                nm_id=target_wb_card.nm_id,
+                account=target_wb_client.account_name,
+            )
         except Exception as e:
             logger.exception(f"Ошибка во время синхронизации медиа [{target_wb_client.account_name}:{target_wb_card.nm_id}]: {e}")
 

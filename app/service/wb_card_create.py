@@ -96,16 +96,12 @@ class WBCardCreateService:
         logger.info(f"Карточка vendor_code={card.vendor_code} успешно создана, nm_id={card.nm_id}.")
 
         try:
-            async with asyncio.TaskGroup() as group:
-                group.create_task(self._wb_media_service.update_card_media_links(data=CardWBMediaLinksUpdate(
-                    photos=[],
-                    nm_id=card.nm_id,
-                    account=wb_client.account_name,
-                    user_id=user_id,
-                )))
-
+            await self._wb_media_service._update_adds_card_by_links(
+                nm_id=card.nm_id,
+                account=wb_client.account_name,
+            )
         except Exception as e:
-            logger.exception(f"Ошибка во время создания краточки {card.nm_id}: {e}")
+            logger.exception(f"Ошибка во время загрузки допников карточки {card.nm_id}: {e}")
 
         return card.nm_id
 

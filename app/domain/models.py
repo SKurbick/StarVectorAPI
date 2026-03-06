@@ -1993,7 +1993,6 @@ class ProductWBSpecificationResponse(BaseModel):
     subject_id: Optional[int] = Field(None, description="id предмета")
     brand: Optional[str] = Field(None, description="Бренд товара на ВБ.")
     dimensions: ProductWBDimensionsResponse = Field(..., description="Габариты товара на WB")
-    media: WBMedia = Field(..., description="Ссылки на медиа общие для всех карточек на WB")
     characteristics: list[ProductCharcInfo] = Field(..., description="Список характеристик товара")
 
 

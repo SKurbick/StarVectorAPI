@@ -6,6 +6,8 @@ from app.domain.models import (
     ProductWBCardInfo,
     ProductWBCards,
     ProductWBSpecificationResponse,
+    WBMedia,
+    WBPhoto,
 )
 from app.repository.product import ProductRepository
 from app.repository.products_data import ProducsDataRepository
@@ -52,7 +54,9 @@ class ProductService:
         account_vat_map = {acc.account_name.capitalize(): acc.vat_rate for acc in seller_accounts}
         wb_cards: list[ProductWBCardInfo] = []
         for item in product_wb_cards:
-            media = await self._wb_media_repo.get_media_by_article(item.nm_id)
+            video = await self._wb_media_repo.get_video_url_of_card(item.nm_id)
+            cover = await self._wb_media_repo.get_cover_url_of_card(item.nm_id)
+            media = WBMedia(video=video, photos=[cover] if cover else [])
             vat = account_vat_map.get(item.account.capitalize())
             card = ProductWBCardInfo(
                 nm_id=item.nm_id,
@@ -103,7 +107,6 @@ class ProductService:
             weight_brutto=products_data.wb_weight_brutto or 0,
             volume=products_data.wb_volume or 0,
         )
-        media = await self._wb_media_repo.get_media_by_product(product_id)
 
         return ProductWBSpecificationResponse(
             id=product_id,
@@ -111,9 +114,11 @@ class ProductService:
             subject_id=subject_id,
             brand=brand,
             dimensions=dimensions,
-            media=media,
             characteristics=characteristics_info,
         )
+    
+    async def get_product_additionals(self, product_id: str) -> list[WBPhoto]:
+        return await self._wb_media_repo.get_product_additionals(product_id)
 
     async def set_subject_id(self, product_id: str, subject_id: int, user_id: Optional[int] = None):
         """Присвоить предмет WB для товара."""

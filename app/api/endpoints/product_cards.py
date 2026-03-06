@@ -23,7 +23,6 @@ from app.domain.models import (
     WBCardSpecificationUpdateRequest,
     WBCardUploadRequest,
     CardOperationResponse,
-    CardWBMediaLinksUpdate,
 )
 from app.service.product_cards import WildberriesCardsService
 from app.service.wb_media import WBMediaService
@@ -162,52 +161,6 @@ async def upload_wb_card(
 
 
 @router.post(
-    "/wb/media/links",
-    status_code=status.HTTP_202_ACCEPTED,
-    description="""
-    **Обновление медиа карточки товара на WB по ссылкам.**
-
-    Нужно передавать как старые, так и новые ссылки.
-    Новые медиа полностью заменяют старые.
-    Требования:
-        - Максимум 5 уникальных изображений для карточки
-        - Максимум 1 видео
-        - Ссылки должны вести напрямую на файлы
-    """,
-    deprecated=True
-)
-async def update_media_by_links(
-    data: CardWBMediaLinksUpdate,
-    service: WBMediaService = Depends(get_wb_media_service),
-    user: UserPermissions = Depends(get_info_from_token),
-) -> CardOperationResponse:
-    if not user.viewing:
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
-
-    task_id = f"media_links_{uuid.uuid4().hex}"
-    try:
-        pass
-        # await service.update_card_media_links(data, user_id=user.user_id)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except RuntimeError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e))
-    except Exception as e:
-        logger.exception(f"Ошибка во время обновления медиа: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error.")
-
-    return CardOperationResponse(
-        task_id=task_id,
-        status="completed",
-        message="Медиа успешно обновлены",
-        account=data.account,
-        product_id="None",
-        nm_id=int(data.nm_id),
-        created_at=datetime.now()
-    )
-
-
-@router.post(
     "/wb/media/file/add",
     status_code=status.HTTP_202_ACCEPTED,
     description="""
@@ -220,7 +173,7 @@ async def update_media_by_links(
         - Размер видео: до 50 Мб
     """,
 )
-async def upload_media_files(
+async def upload_media_file(
     nm_id: int = Header(..., description="Артикул WB"),
     file: UploadFile = File(..., description="Файл для загрузки"),
     service: WBMediaService = Depends(get_wb_media_service),
@@ -248,13 +201,12 @@ async def upload_media_files(
     task_id = f"media_files_{uuid.uuid4().hex}"
 
     try:
-        account = await service.upload_card_media_file(
+        account = await service.upload_card_uniq_attrs(
             nm_id=nm_id,
-            account=None,
             is_video=is_video,
             file=file,
+            account=None,
             user_id=user.user_id,
-            display_order=1,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

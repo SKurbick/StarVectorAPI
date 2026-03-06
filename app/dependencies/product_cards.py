@@ -13,7 +13,7 @@ from app.dependencies.wb_specifications import get_wb_charc_repository
 from app.dependencies.seller_account import get_seller_account_repository
 from app.dependencies.price_discount import PriceDiscountService, get_price_discount_service
 from app.dependencies.stocks_quantity import StocksQuantityService, get_stocks_quantity_service
-from app.dependencies.wb_media import get_wb_media_service
+from app.dependencies.wb_media import get_wb_media_service, get_wb_media_repository
 from app.service.product_cards import WildberriesCardsService
 from app.service.wb_media import WBMediaService
 from app.service.wb_card_create import WBCardCreateService
@@ -21,6 +21,7 @@ from app.service.wb_card_update import WBCardUpdateService
 from app.repository.seller_account import SellerAccountRepository
 from app.repository.wb_charcs import WBCharcRepository
 from app.repository.products_data import ProducsDataRepository
+from app.repository.wb_media import WBMediaRepository
 
 
 def get_wb_cards_service(
@@ -30,6 +31,8 @@ def get_wb_cards_service(
     price_discount_service: PriceDiscountService = Depends(get_price_discount_service),
     stock_quantity_service: StocksQuantityService = Depends(get_stocks_quantity_service),
     seller_account_repo: SellerAccountRepository = Depends(get_seller_account_repository),
+    wb_media_repo: WBMediaRepository = Depends(get_wb_media_repository),
+    wb_media_service: WBMediaService = Depends(get_wb_media_service),
     pool: Pool = Depends(get_pool),
 ) -> WildberriesCardsService:
     """Получить сервис для работы с карточками WB."""
@@ -40,6 +43,8 @@ def get_wb_cards_service(
         price_discount_service=price_discount_service,
         stock_quantity_service=stock_quantity_service,
         seller_account_repo=seller_account_repo,
+        wb_media_repo=wb_media_repo,
+        wb_media_service=wb_media_service,
         pool=pool,
     )
 
