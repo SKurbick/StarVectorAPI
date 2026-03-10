@@ -277,7 +277,7 @@ class WBMediaService:
             account = item["account"]
             wb_client = CardsWBAPI(session=self._session, account_name=account)
             card = await wb_client.get_card(nm_id)
-            cover = self._wb_media_repo.get_cover_url_of_card(nm_id)
+            cover = await self._wb_media_repo.get_cover_url_of_card(nm_id)
             card_adds = [ph["big"] for ph in card.photos[(1 if cover else 0):]]
 
             if len(card_adds) != len(product_additionals):
@@ -326,8 +326,8 @@ class WBMediaService:
         if not product_additionals:
             product_additionals = await self._wb_media_repo.get_product_additionals(product_id)
 
-        cover = self._wb_media_repo.get_cover_url_of_card(nm_id)
-        video = self._wb_media_repo.get_cover_url_of_card(nm_id)
+        cover = await self._wb_media_repo.get_cover_url_of_card(nm_id)
+        video = await self._wb_media_repo.get_cover_url_of_card(nm_id)
         adds = [ph.url for ph in product_additionals]
 
         all_links = [cover, *adds] if cover else [*adds]
