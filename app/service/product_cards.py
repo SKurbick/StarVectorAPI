@@ -1033,8 +1033,8 @@ class WildberriesCardsService:
             logger.info(f"Синхронизация медиа [{source_wb_client.account_name}{source_wb_card.nm_id}]->[{target_wb_client.account_name}{target_wb_card.nm_id}]...")
             unic_attrs = []
 
-            cover = self._wb_media_repo.get_cover_url_of_card(source_wb_card.nm_id)
-            video = self._wb_media_repo.get_video_url_of_card(source_wb_card.nm_id)
+            cover = await self._wb_media_repo.get_cover_url_of_card(source_wb_card.nm_id)
+            video = await self._wb_media_repo.get_video_url_of_card(source_wb_card.nm_id)
             
             if cover:
                 unic_attrs.append(cover)
