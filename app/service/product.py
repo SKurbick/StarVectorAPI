@@ -56,7 +56,7 @@ class ProductService:
         for item in product_wb_cards:
             video = await self._wb_media_repo.get_video_url_of_card(item.nm_id)
             cover = await self._wb_media_repo.get_cover_url_of_card(item.nm_id)
-            media = WBMedia(video=video, photos=[cover] if cover else [])
+            media = WBMedia(video=video, photos=([WBPhoto(url=cover, display_order=1)] if cover else []))
             vat = account_vat_map.get(item.account.capitalize())
             card = ProductWBCardInfo(
                 nm_id=item.nm_id,
