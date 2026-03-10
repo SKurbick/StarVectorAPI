@@ -232,7 +232,6 @@ class WBMediaService:
             url = ph.url,
             display_order=ph.display_order,
         ) for ph in data.photos]
-
         update_tasks = []
 
         for item in articles:
@@ -327,7 +326,7 @@ class WBMediaService:
             product_additionals = await self._wb_media_repo.get_product_additionals(product_id)
 
         cover = await self._wb_media_repo.get_cover_url_of_card(nm_id)
-        video = await self._wb_media_repo.get_cover_url_of_card(nm_id)
+        video = await self._wb_media_repo.get_video_url_of_card(nm_id)
         adds = [ph.url for ph in product_additionals]
 
         all_links = [cover, *adds] if cover else [*adds]
