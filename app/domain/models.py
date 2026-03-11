@@ -1607,7 +1607,6 @@ class BaseDuplicateProductCard(BaseModel):
     """Базовая модель для запроса на создание дубликата карточки."""
     nm_id: int = Field(..., description="Артикул WB исходной карточки")
     source_account: str = Field(..., description="Аккаунт")
-    sync_stocks: bool = Field(..., description="Сихнронизировать виртуальные остатки или нет")
 
 
 class DuplicateWBProductCardRequest(BaseDuplicateProductCard):

@@ -212,10 +212,18 @@ class ArticleRepository:
             params.extend(local_vendor_codes)
             param_idx += len(local_vendor_codes)
 
-        query = "SELECT nm_id, account, local_vendor_code FROM article"
+        query = """
+            SELECT
+                nm_id, account, local_vendor_code 
+            FROM article
+            WHERE nm_id NOT IN (
+                SELECT nm_id
+                FROM banned_products
+            )
+        """
 
         if where_clauses:
-            query += " WHERE " + " ".join(where_clauses)
+            query += " AND (" + " ".join(where_clauses) + ")"
 
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(query, *params)

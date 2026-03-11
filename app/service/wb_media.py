@@ -276,6 +276,10 @@ class WBMediaService:
             account = item["account"]
             wb_client = CardsWBAPI(session=self._session, account_name=account)
             card = await wb_client.get_card(nm_id)
+
+            if not card:
+                continue
+
             cover = await self._wb_media_repo.get_cover_url_of_card(nm_id)
             card_adds = [ph["big"] for ph in card.photos[(1 if cover else 0):]]
 

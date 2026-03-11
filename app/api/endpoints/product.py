@@ -140,7 +140,7 @@ async def update_product_wb_specifications(
 
     task_id = f"update_{uuid.uuid4().hex}"
     try:
-        updated_cards = await service.update_product_specifications(data, user.user_id)
+        updated_cards, errors = await service.update_product_specifications(data, user.user_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except RuntimeError as e:
@@ -163,7 +163,7 @@ async def update_product_wb_specifications(
     ]
 
     return ProductUpdateSpecificationsResponse(
-        message="Спецификации товара успешно обновлены.",
+        message=f"Спецификации товара обновлены. Обновлено {len(cards)} карточек. Ошибки во время обновления: [{"; ".join(errors) if errors else "Нет."}]",
         product_id=data.id,
         cards_for_update=cards,
     )

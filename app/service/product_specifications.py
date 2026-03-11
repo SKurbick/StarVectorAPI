@@ -49,7 +49,7 @@ class ProductWBSpecificationsUpdateService:
         self._wb_cards_service = wb_cards_service
         self._session = session
 
-    async def update_product_specifications(self, data: ProductWBSpecificationUpdate, user_id: Optional[int] = None) -> list[dict]:
+    async def update_product_specifications(self, data: ProductWBSpecificationUpdate, user_id: Optional[int] = None) -> tuple[list[dict], list[str]]:
         """
         Обновить спецификации товара и все его карточки на WB.
         Возвращает список nm_id обновлённых карточек.
@@ -108,6 +108,7 @@ class ProductWBSpecificationsUpdateService:
                 wb_card = await wb_client.get_card(nm_id=nm_id)
 
                 if not wb_card:
+                    logger.warning(f"Карточка nm_id={nm_id} не найдена в аккаунте {account}.")
                     errors.append(f"Карточка nm_id={nm_id} не найдена в аккаунте {account}.")
                     continue
 
@@ -156,16 +157,13 @@ class ProductWBSpecificationsUpdateService:
                 )
                 errors.extend(result.errors)
 
-        if errors:
-            raise RuntimeError("; ".join(errors))
-
         await self._update_card_data_dimensions(
             [item["nm_id"] for item in updated_cards],
             data,
             user_id,
         )
 
-        return updated_cards
+        return updated_cards, errors
 
     async def _update_card_data_dimensions(
         self,

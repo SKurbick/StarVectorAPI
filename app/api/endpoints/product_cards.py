@@ -51,7 +51,6 @@ async def duplicate_wb_card(
         result = await service.duplicate_card(
             wb_client=source_wb_client,
             source_nm_id=data.nm_id,
-            sync_stocks=data.sync_stocks,
             close_old=data.close_old_card,
             user_id=user.user_id,
         )
@@ -91,7 +90,6 @@ async def duplicate_wb_card_to_accounts(
         result = await service.duplicate_card_to_accounts(
             source_wb_client=source_wb_client,
             target_wb_clients=target_wb_clients,
-            sync_stocks=data.sync_stocks,
             source_nm_id=data.nm_id,
             user_id=user.user_id,
         )

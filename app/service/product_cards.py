@@ -78,7 +78,6 @@ class WildberriesCardsService:
         self,
         wb_client: CardsWBAPI,
         source_nm_id: int,
-        sync_stocks: bool,
         close_old: bool = False,
         user_id: Optional[int] = None,
     ) -> DuplicateWBProductCardResponse:
@@ -93,7 +92,7 @@ class WildberriesCardsService:
             source_wb_card=original_card,
             source_wb_client=wb_client,
             target_wb_client=wb_client,
-            sync_stocks=sync_stocks,
+            sync_stocks=False,
             close_old=close_old,
             user_id=user_id,
         )
@@ -102,7 +101,6 @@ class WildberriesCardsService:
         self,
         source_wb_client: CardsWBAPI,
         target_wb_clients: list[CardsWBAPI],
-        sync_stocks: bool,
         source_nm_id: int,
         user_id: Optional[int] = None,
     ) -> DuplicateCardToAccountsResponse:
@@ -116,7 +114,7 @@ class WildberriesCardsService:
                 source_wb_card=original_card,
                 source_wb_client=source_wb_client,
                 target_wb_client=target_client,
-                sync_stocks=sync_stocks,
+                sync_stocks=False,
                 close_old=False,
                 user_id=user_id,
             )
@@ -163,7 +161,7 @@ class WildberriesCardsService:
         source_wb_card: WbCard,
         source_wb_client: CardsWBAPI,
         target_wb_client: CardsWBAPI,
-        sync_stocks: bool,
+        sync_stocks: bool = False,
         close_old: bool = False,
         user_id: Optional[int] = None,
     ) -> dict[str, any]:
@@ -640,7 +638,7 @@ class WildberriesCardsService:
                 last_error_batch_id=last_error_batch_id
             )
             if errors_message:
-                logger.info(f"При обновлении карточки [{wb_client.account_name}:{update_data.nm_id}] получена ошибка: {errors_message}.")
+                logger.warning(f"При обновлении карточки [{wb_client.account_name}:{update_data.nm_id}] получена ошибка: {errors_message}.")
                 result["error"] = errors_message
                 return result
 
