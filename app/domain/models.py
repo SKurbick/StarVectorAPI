@@ -47,6 +47,11 @@ class ArticleBase(BaseModel):
 class AccountBase(BaseModel):
     account: str = field_configs['account']
 
+    @field_validator("account", mode="after")
+    @classmethod
+    def upper_name(cls, v: str):
+        return v.upper()
+
 
 class ArticleInDB(ArticleBase, AccountBase):
     vendor_code: str = field_configs['vendor_code']
@@ -1621,8 +1626,7 @@ class DuplicateCardToAccountsRequest(BaseDuplicateProductCard):
     target_accounts: list[str] = Field(None, description="Список аккаунтов для заведения новой карточки")
 
 
-class AccountProductCard(BaseModel):
-    account: str
+class AccountProductCard(AccountBase):
     nm_id: int
     vendor_code: str
 
@@ -1658,18 +1662,16 @@ class CardInfoRequest(BaseModel):
     vendor_code: Optional[str] = Field(None, description="Артикул продавца")
 
 
-class UploadWBCardsResponse(BaseModel):
+class UploadWBCardsResponse(AccountBase):
     """Ответ на создание карточек."""
 
-    account: str = Field(..., description="Аккаунт", examples=["main_ru"])
     created: list[int] = Field(..., description="Список созданных nm_id")
     errors: list[str] = Field(..., description="Список ошибок")
 
 
-class UpdateWBCardsResponse(BaseModel):
+class UpdateWBCardsResponse(AccountBase):
     """Ответ на обновление карточек."""
 
-    account: str = Field(..., description="Аккаунт")
     updated: list[int] = Field(..., description="Список обновлённых nm_id")
     errors: list[str] = Field(..., description="Список ошибок")
 
@@ -1802,6 +1804,11 @@ class SellerAccount(BaseModel):
     is_active: bool = Field(..., description="Рабочий аккаунт")
     inn: int = Field(..., description="ИНН аккаунта")
     vat_rate: Optional[int] = Field(None, description="Ставка НДС")
+
+    @field_validator("account_name", mode="after")
+    @classmethod
+    def upper_name(cls, v: str):
+        return v.upper()
 
 
 class SalesManagementSharesGoodWithMargin(SalesManagementSharesGood):
@@ -1948,11 +1955,10 @@ class WBBrand(BaseModel):
     logo_url: Optional[str] = Field(None, description="Ссылка на лого")
 
 
-class ProductWBCard(BaseModel):
+class ProductWBCard(AccountBase):
     """Модель карточки товара на WB."""
 
     nm_id: int = Field(..., description="Артикул WB")
-    account: str = Field(..., description="Аккаунт продавца")
     vendor_code: str = Field(..., description="Артикул продавца")
     local_vendor_code: str = Field(..., description="Локальный артикул товара")
     
@@ -2019,13 +2025,12 @@ class WBCardSpecificationUpdateRequest(WBCardUploadRequest):
     nm_id: int = Field(..., description="Артикул WB")
 
 
-class CardOperationResponse(BaseModel):
+class CardOperationResponse(AccountBase):
     """Ответ на операцию с карточкой (создание/обновление)."""
     
     task_id: str = Field(..., description="ID задачи обработки")
     status: str = Field(default="queued", description="Статус задачи")
     message: str = Field(..., description="Сообщение о результате")
-    account: str = Field(..., description="Аккаунт продавца")
     product_id: str = Field(..., description="Локальный артикул товара")
     nm_id: Optional[int] = Field(None, description="Артикул WB.")
     created_at: datetime = Field(default_factory=datetime.now, description="Время создания задачи")
@@ -2091,11 +2096,10 @@ class ProductWBMediaLinksUpdate(WBMediaLinksUpdate):
         return self
 
 
-class CardWBMediaLinksUpdate(WBMediaLinksUpdate):
+class CardWBMediaLinksUpdate(WBMediaLinksUpdate, AccountBase):
     """Обновление медиа по ссылкам для карточки товара на WB."""
 
     nm_id: int = Field(..., description="Артикул WB")
-    account: str = Field(..., description="Аккаунт продавца")
 
     @field_validator("photos", mode="after")
     @classmethod
