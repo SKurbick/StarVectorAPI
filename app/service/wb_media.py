@@ -317,7 +317,7 @@ class WBMediaService:
             account = await self._get_account_by_nm_id(nm_id)
 
         if not product_id:
-            product_id = await self._get_product_id(nm_id)
+            product_id = await self._get_product_id(nm_id=nm_id, account=account)
 
         wb_client = CardsWBAPI(session=self._session, account_name=account)
         card = await wb_client.get_card(nm_id)
