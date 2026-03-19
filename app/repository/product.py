@@ -194,268 +194,98 @@ class ProductRepository:
             self,
             params: ProductWBHealthQueryParams
     ) -> list[ProductAccountWBHealthDTO]:
+        
         query_params = []
         param_counter = 1
+        where_clauses = ["1=1"]
 
-        filtered_accounts_clauses = ""
         if params.account_ids:
-            filtered_accounts_clauses = f"AND sa.id = ANY(${param_counter})"
+            where_clauses.append(f"account_id = ANY(${param_counter})")
             param_counter += 1
             query_params.append(params.account_ids)
 
-        filtered_accounts_cte = f"""
-            filtered_accounts AS (
-                SELECT 
-                    sa.id AS account_id,
-                    sa.account_name,
-                    sa.vat_rate AS account_vat
-                FROM seller_account sa
-                WHERE sa.is_active = TRUE {filtered_accounts_clauses}
-                ORDER BY sa.account_name ASC
-            )
-        """
-
-        filtered_products_clauses = ""
         if params.search:
-            filtered_products_clauses = f"""
-                AND (p.id ILIKE '%' || ${param_counter} || '%'
-                    OR p.name ILIKE '%' || ${param_counter} || '%')
-            """
+            where_clauses.append(f"(product_id ILIKE ${param_counter} OR product_name ILIKE ${param_counter})")
             param_counter += 1
-            query_params.append(params.search)
+            query_params.append(f"%{params.search}%")
 
-        filtered_products_cte = f"""
-            filtered_products AS (
-                SELECT
-                    p.id AS product_id,
-                    p.name AS product_name
-                FROM products p
-                WHERE p.is_active = TRUE {filtered_products_clauses}
-            )
-        """
-
-        cards_with_stocks_cte = """
-            cards_with_stocks AS (
-                SELECT 
-                    csq.article_id AS nm_id,
-                    a.local_vendor_code,
-                    a.account AS account_name
-                FROM current_stocks_quantity csq
-                INNER JOIN article a ON a.nm_id = csq.article_id
-                INNER JOIN filtered_accounts fa ON a.account = fa.account_name
-                INNER JOIN filtered_products fp ON a.local_vendor_code = fp.product_id
-                GROUP BY csq.article_id, a.local_vendor_code, a.account
-                HAVING SUM(csq.quantity) > 0
-            )
-        """
-
-        prices_cte = """
-            prices AS (
-                SELECT DISTINCT ON (cws.local_vendor_code, cws.nm_id)
-                    cws.nm_id,
-                    sh.spp_price AS price
-                FROM cards_with_stocks cws
-                LEFT JOIN spp_history sh ON cws.nm_id = sh.nm_id
-                ORDER BY cws.local_vendor_code, cws.nm_id, sh.created_at DESC
-            )
-        """
-
-        ranked_active_cards_cte = """
-            ranked_active_cards AS (
-                SELECT 
-                    cws.nm_id,
-                    cws.local_vendor_code,
-                    cws.account_name,
-                    pr.price,
-                    cd.vat_rate,
-                    cd.rating,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY cws.local_vendor_code, cws.account_name 
-                        ORDER BY cd.rating DESC NULLS LAST, cws.nm_id ASC
-                    ) AS rn,
-                    COUNT(*) OVER (PARTITION BY cws.local_vendor_code, cws.account_name) AS total_active_count
-                FROM cards_with_stocks cws
-                LEFT JOIN prices pr ON cws.nm_id = pr.nm_id
-                LEFT JOIN card_data cd ON cd.article_id = cws.nm_id
-            )
-        """
-
-        product_price_stats_cte = """
-            product_price_stats AS (
-                SELECT 
-                    local_vendor_code,
-                    MIN(price) AS min_price,
-                    MAX(price) AS max_price,
-                    COUNT(*) AS accounts_with_price
-                FROM ranked_active_cards
-                WHERE price IS NOT NULL
-                GROUP BY local_vendor_code
-            )
-        """
-
-        products_metrics_cte = """
-            products_metrics AS (
-                SELECT
-                    fa.account_id,
-                    fa.account_name,
-                    fa.account_vat,
-                    fp.product_id,
-                    fp.product_name,
-                    rac.nm_id,
-                    COALESCE(rac.total_active_count, 0) AS active_cards_count,
-                    rac.vat_rate AS current_vat,
-                    rac.rating AS best_rating,
-                    rac.price AS active_price
-                FROM filtered_products fp
-                CROSS JOIN filtered_accounts fa
-                LEFT JOIN ranked_active_cards rac 
-                    ON rac.local_vendor_code = fp.product_id 
-                    AND rac.account_name = fa.account_name 
-                    AND rac.rn = 1
-            )
-        """
-
-        account_state_cte = f"""
-            account_state AS (
-                SELECT 
-                    pm.account_id,
-                    pm.product_id,
-                    pm.product_name,
-                    (pm.active_cards_count > 1) AS is_error_multiple_cards,
-                    (pm.account_vat IS NOT NULL AND pm.current_vat IS NOT NULL AND pm.account_vat != pm.current_vat) AS is_error_vat_mismatch,
-                    (pm.active_cards_count IS null or pm.active_cards_count < 1) AS is_warning_no_active_cards,
-                    (pm.best_rating IS NOT NULL AND pm.best_rating < {MIN_VALID_RATING}) AS is_warning_low_rating
-                FROM products_metrics pm
-            )
-        """
-
-        product_filters_cte = f"""
-            product_filters AS (
-                SELECT
-                    acst.product_id,
-                    acst.product_name,
-                    MAX(acst.is_error_multiple_cards::int) AS is_error_multiple_cards,
-                    MAX(acst.is_error_vat_mismatch::int) AS is_error_vat_mismatch,
-                    MAX(acst.is_warning_no_active_cards::int) AS is_warning_no_active_cards,
-                    MAX(acst.is_warning_low_rating::int) AS is_warning_low_rating,
-                    MAX((
-                        pps.min_price IS NOT NULL AND pps.min_price > 0
-                        AND ((pps.max_price - pps.min_price) / pps.min_price) > {MAX_PRICE_DEVIATION}
-                    )::int) AS is_warning_price_deviation,
-                    CASE
-                        WHEN MAX(acst.is_error_multiple_cards::int) = 1 
-                            OR MAX(acst.is_error_vat_mismatch::int) = 1 
-                        THEN 'has_error'
-                        WHEN MAX(acst.is_warning_no_active_cards::int) = 1 
-                            OR MAX(acst.is_warning_low_rating::int) = 1 
-                            OR MAX((
-                                pps.min_price IS NOT NULL AND pps.min_price > 0
-                                AND ((pps.max_price - pps.min_price) / pps.min_price) > {MAX_PRICE_DEVIATION}
-                            )::int) = 1 
-                        THEN 'has_warning'
-                        ELSE 'ok'
-                    END AS global_status
-                FROM account_state acst
-                LEFT JOIN product_price_stats pps ON acst.product_id = pps.local_vendor_code
-                GROUP BY acst.product_id, acst.product_name
-            )
-        """
-
-        issue_where_clauses = []
         if params.issue_type:
+            issue_filters = []
             for issue in params.issue_type:
-                issue_where_clauses.append(f" AND {self._get_issue_type_filter_expression(issue)}")
+                col = self._get_issue_type_filter_expression(issue)
+                if col:
+                    issue_filters.append(f"{col} = TRUE")
+            if issue_filters:
+                where_clauses.append(f"({' OR '.join(issue_filters)})")
 
-        status_clause = ""
         if params.status in GlobalProductWBStatus:
-            status_clause = f" AND pf.global_status = ${param_counter}"
+            where_clauses.append(f"global_status = ${param_counter}")
             param_counter += 1
-            query_params.append(params.status)
+            query_params.append(params.status.value)
 
+        sort_expression = self._get_sort_expression(params.sort_by, params.sort_order)
         limit = params.size
         offset = (params.page - 1) * params.size
-        sort_expression = self._get_sort_expression(params.sort_by, params.sort_order)
 
-        paginated_products_cte = f"""
-            paginated_products AS (
-                SELECT
-                    pf.product_id,
-                    COUNT(*) OVER () AS total_count
-                FROM product_filters pf
-                WHERE 1=1
-                {"".join(issue_where_clauses)}
-                {status_clause}
+        query = f"""
+            WITH paginated_products AS (
+                SELECT DISTINCT product_id
+                FROM mv_wb_product_health_analytics
+                WHERE {' AND '.join(where_clauses)}
                 ORDER BY {sort_expression}
                 LIMIT ${param_counter} OFFSET ${param_counter + 1}
+            ),
+            total_count_cte AS (
+                SELECT COUNT(DISTINCT product_id) AS total_count
+                FROM mv_wb_product_health_analytics
+                WHERE {' AND '.join(where_clauses)}
             )
+            SELECT
+                mv.account_id,
+                mv.account_name,
+                mv.account_vat,
+                mv.product_id,
+                mv.product_name,
+                mv.active_cards_count,
+                mv.current_vat,
+                mv.best_rating,
+                mv.active_price,
+                mv.is_error_multiple_cards,
+                mv.is_error_vat_mismatch,
+                mv.is_warning_no_active_cards,
+                mv.is_warning_low_rating,
+                mv.is_warning_price_deviation,
+                mv.global_status,
+                mv.max_price,
+                mv.min_price,
+                tc.total_count
+            FROM mv_wb_product_health_analytics mv
+            JOIN paginated_products pp ON mv.product_id = pp.product_id
+            CROSS JOIN total_count_cte tc
+            ORDER BY {sort_expression}, mv.account_name ASC
         """
 
-        param_counter += 2 
+        param_counter += 2
         query_params.extend((limit, offset))
 
-        all_cte = f"""WITH
-            {filtered_accounts_cte},
-            {filtered_products_cte},
-            {cards_with_stocks_cte},
-            {prices_cte},
-            {ranked_active_cards_cte},
-            {product_price_stats_cte},
-            {products_metrics_cte},
-            {account_state_cte},
-            {product_filters_cte},
-            {paginated_products_cte}
-        """
-
-        final_sort_expression = self._get_sort_expression(params.sort_by, params.sort_order).replace("pf.", "pm.")
-
-        full_query = all_cte + f"""
-            SELECT
-                pm.account_id,
-                pm.account_name,
-                pm.account_vat,
-                pm.product_id,
-                pm.product_name,
-                pm.active_cards_count,
-                pm.current_vat,
-                pm.best_rating,
-                pm.active_price,
-                ac.is_error_multiple_cards,
-                ac.is_error_vat_mismatch,
-                ac.is_warning_no_active_cards,
-                ac.is_warning_low_rating,
-                (pf.is_warning_price_deviation = 1) AS is_warning_price_deviation,
-                pf.global_status,
-                pps.max_price,
-                pps.min_price,
-                pp.total_count
-            FROM paginated_products pp
-            JOIN products_metrics pm ON pp.product_id = pm.product_id
-            JOIN account_state ac ON pm.product_id = ac.product_id AND pm.account_id = ac.account_id
-            JOIN product_filters pf ON pp.product_id = pf.product_id
-            LEFT JOIN product_price_stats pps ON pf.product_id = pps.local_vendor_code
-            ORDER BY {final_sort_expression}, pm.account_name ASC
-        """
-
-        rows = await self.pool.fetch(full_query, *query_params)
+        rows = await self.pool.fetch(query, *query_params)
         return [ProductAccountWBHealthDTO(**row) for row in rows]
 
     def _get_sort_expression(self, sort_by: str, sort_order: str) -> str:
         allowed_columns = {
-            "product_id": "pf.product_id",
-            "product_name": "pf.product_name",
+            "product_id": "product_id",
+            "product_name": "product_name",
         }
-        column = allowed_columns.get(sort_by, "pf.product_id")
+        column = allowed_columns.get(sort_by, "product_id")
         order = "ASC" if sort_order == "asc" else "DESC"
         return f"{column} {order} NULLS LAST"
 
-    def _get_issue_type_filter_expression(self, issue: AccountWBIssueType | ProductWBIssueType) -> str:
+    def _get_issue_type_filter_expression(self, issue) -> str | None:
         allowed_columns = {
-            ProductWBIssueType.PRICE_DEVIATION: "pf.is_warning_price_deviation",
-            AccountWBIssueType.NO_ACTIVE_CARDS: "pf.is_warning_no_active_cards",
-            AccountWBIssueType.MULTIPLE_ACTIVE_CARDS: "pf.is_error_multiple_cards",
-            AccountWBIssueType.VAT_MISMATCH: "pf.is_error_vat_mismatch",
-            AccountWBIssueType.LOW_RATING: "pf.is_warning_low_rating",
+            ProductWBIssueType.PRICE_DEVIATION: "is_warning_price_deviation",
+            AccountWBIssueType.NO_ACTIVE_CARDS: "is_warning_no_active_cards",
+            AccountWBIssueType.MULTIPLE_ACTIVE_CARDS: "is_error_multiple_cards",
+            AccountWBIssueType.VAT_MISMATCH: "is_error_vat_mismatch",
+            AccountWBIssueType.LOW_RATING: "is_warning_low_rating",
         }
-
-        column = allowed_columns.get(issue, 1)
-        return f"{column} = 1"
+        return allowed_columns.get(issue)
