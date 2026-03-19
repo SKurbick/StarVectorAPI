@@ -1,11 +1,10 @@
 from datetime import date, datetime
-from typing import Optional, List, Union, Dict, Literal, Any
+from typing import Optional, List, Union, Dict, Literal, Any, Annotated
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, RootModel
-from fastapi import UploadFile
 
-from app.domain.enums import LossOwnerEnum, CardStatusEnum
+from app.domain.enums import LossOwnerEnum, CardStatusEnum, GlobalProductWBStatus, ProductWBIssueType, AccountWBIssueType, ProductAccountHealthWBStatus
 
 
 # Общий словарь с конфигурациями полей
@@ -2108,3 +2107,112 @@ class CardWBMediaLinksUpdate(WBMediaLinksUpdate, AccountBase):
             raise ValueError("Максимум 5 уникальных изображений для одной карточки")
 
         return v
+
+
+class WBAccountMetrics(BaseModel):
+    """
+    Метрики аккаунта WB по карточкам товара.
+    """
+
+    active_cards_count: int = Field(..., description="Количество активных карточек товара")
+    current_vat: Optional[int] = Field(None, description="Текущее значение НДС активной карточки товара")
+    account_vat: Optional[int] = Field(None, description="Текущее значение НДС, установленное для аккаунта")
+    best_rating: Optional[float] = Field(None, description="Рейтинг активной карточки товара")
+    active_price: Optional[float] = Field(None, description="Цена активной карточки товара")
+
+
+class WBAccountStatus(BaseModel):
+    """
+    Состояние аккаунта по карточкам товара на WB.
+    """
+
+    account_id: int = Field(..., description="ID аккаунта")
+    account_name: str = Field(..., description="Название аккаунта")
+    status: ProductAccountHealthWBStatus = Field(..., description="Состояние по карточкам товара")
+    issues: list[AccountWBIssueType] = Field(..., description="Проблемы по карточкам товара")
+    metrics: WBAccountMetrics = Field(..., description="Метрики по карточкам товара")
+
+
+class ProductWBPriceStats(BaseModel):
+    """
+    Статистика о ценах товара.
+    """
+
+    min_active_price: Optional[float] = Field(None, description="Минимальная цена товара на одном из аккаунтов")
+    max_active_price: Optional[float] = Field(None, description="Максимальная цена товара на одном из аккаунтов")
+    deviation_percent: Optional[float] = Field(None, description="Разброс цен в процентах")
+
+class ProductWBHealth(BaseModel):
+    """
+    Модель товара с информацией о состоянии карточек на WB по аккаунтам.
+    """
+
+    product_id: str = Field(..., description="Артикул товара")
+    product_name: str = Field(..., description="Наименование товара")
+    global_status: GlobalProductWBStatus = Field(..., description="Есть ли проблемы по товару")
+    global_issues: list[ProductWBIssueType] = Field(..., description="Проблемы по товару, которые нельзя привязать только к одному аккаунту")
+    price_stats: Optional[ProductWBPriceStats] = Field(None, description="Разброс цен в карточках товара")
+    accounts: list[WBAccountStatus] = Field(..., description="Список аккаунтов со статистикой по карточкам товара")
+
+
+class ProductWBHealthResponse(BaseModel):
+    """
+    Ответ на запрос статистики состояния карточек товаров на WB.
+    """
+
+    meta: dict
+    data: list[ProductWBHealth] = Field(..., description="Список товаров с информацией о состоянии карточек на WB по аккаунтам")
+
+
+IssueTypeFilter = Annotated[
+    list[Literal[
+        *[i.value for i in ProductWBIssueType],
+        *[a.value for a in AccountWBIssueType]
+    ]] | None, Field(None, description="Фильтр по типам проблем (vat_mismatch, low_rating, etc.)")
+]
+
+
+class ProductWBHealthQueryParams(BaseModel):
+    """
+    Параметры фильтрации и пагинации для запроса состяния карточек товаров.
+    """
+
+    page: int = Field(default=1, ge=1, description="Номер страницы")
+    size: int = Field(default=50, ge=1, le=10000, description="Размер страницы")
+    search: Optional[str] = Field(None, description="Поиск по артикулу или названию")
+    status: Optional[Literal["all", "has_error", "has_warning", "ok"]] = Field(
+        "all", description="Фильтр по общему статусу товара"
+    )
+    issue_type: IssueTypeFilter = Field(
+        None, description="Фильтр по типам проблем (vat_mismatch, low_rating, etc.)"
+    )
+    account_ids: Optional[list[int]] = Field(
+        None, description="Фильтр по ID аккаунтов"
+    )
+    sort_by: Literal["product_id", "product_name"] = Field(default="product_id", description="Поле для сортировки")
+    sort_order: Literal["asc", "desc"] = Field(default="desc", description="Порядок сортировки")
+
+
+class ProductAccountWBHealthDTO(BaseModel):
+    """
+    Модель плоских данных из БД по состоянию карточек товаров на WB.
+    """
+
+    product_id: str
+    product_name: Optional[str]
+    account_id: Optional[int]
+    account_name: Optional[str]
+    account_vat: Optional[int]
+    active_cards_count: int
+    current_vat: Optional[int]
+    best_rating: Optional[float]
+    active_price: Optional[float]
+    is_error_multiple_cards: bool
+    is_error_vat_mismatch: bool
+    is_warning_no_active_cards: bool
+    is_warning_low_rating: bool
+    is_warning_price_deviation: bool
+    max_price: Optional[float]
+    min_price: Optional[float]
+    global_status: GlobalProductWBStatus
+    total_count: int

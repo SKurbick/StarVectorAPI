@@ -1,6 +1,6 @@
 from datetime import datetime
 import logging
-from typing import Annotated
+from typing import Annotated, Optional, Literal
 import uuid
 
 from fastapi import APIRouter, Depends, Query, HTTPException, Path, UploadFile, File, Header, Body
@@ -23,6 +23,9 @@ from app.domain.models import (
     ProductWBMediaLinksUpdate,
     ResponseMessage,
     WBPhoto,
+    ProductWBHealthResponse,
+    ProductWBHealthQueryParams,
+    IssueTypeFilter,
 )
 from app.service.product import ProductService
 from app.service.wb_media import WBMediaService
@@ -306,3 +309,44 @@ async def upload_media_files(
             for nm in nm_ids
         ],
     )
+
+
+@router.get("/wb/health", status_code=status.HTTP_200_OK)
+async def get_product_wb_health(
+    page: int = Query(default=1, ge=1, description="Номер страницы"),
+    size: int = Query(default=50, ge=1, le=10000, description="Размер страницы"),
+    search: Optional[str] = Query(None, description="Поиск по артикулу или названию"),
+    status: Optional[Literal["all", "has_error", "has_warning", "ok"]] = Query(
+        "all", description="Фильтр по общему статусу товара"
+    ),
+    issue_type: IssueTypeFilter = Query(
+        None, description="Фильтр по типам проблем (vat_mismatch, low_rating...)"
+    ),
+    account_id: Optional[list[int]] = Query(
+        None, description="Фильтр по ID аккаунтов"
+    ),
+    sort_by: str = Query(default="product_id", description="Поле для сортировки (product_id или product_name)"),
+    sort_order: Literal["asc", "desc"] = Query(default="desc", description="Порядок сортировки"),
+
+    service: ProductService = Depends(get_product_service),
+    user: UserPermissions = Depends(get_info_from_token),
+) -> ProductWBHealthResponse:
+    """
+    Возвращает список товаров с информацией о состоянии карточек на WB по аккаунтам.
+    Позволяет фильтровать проблемы и пагинировать результат.
+    """
+    if not user.viewing:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+
+    params = ProductWBHealthQueryParams(
+        page=page,
+        size=size,
+        search=search,
+        status=status,
+        issue_type=issue_type,
+        account_ids=account_id,
+        sort_by=sort_by,
+        sort_order=sort_order
+    )
+
+    return await service.get_products_wb_health_analitics(params)

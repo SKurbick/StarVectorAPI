@@ -82,3 +82,48 @@ class CertificationCharсEnum(int, Enum):
     REGISTRATION_DATE = 15001137  # Дата регистрации сертификата/декларации
     DECLARATION_NUMBER = 15001135  # Номер декларации соответствия
     CERTIFICATE_NUMBER = 15001136  # Номер сертификата соответствия
+
+
+class GlobalProductWBStatus(str, Enum):
+    """Статус товара по состоянию карточек на ВБ"""
+
+    OK = "ok"
+    HAS_WARNING = "has_warning"
+    HAS_ERROR = "has_error"
+
+
+class ProductAccountHealthWBStatus(str, Enum):
+    """Статус аккаунта по состоянию карточек на ВБ"""
+
+    OK = "ok"
+    WARNING = "warning"
+    ERROR = "error"
+
+
+class ProductWBIssueType(str, Enum):
+    """
+    Список проблемных состояний товара по карточкам на WB.
+
+    Args:
+        PRICE_DEVIATION: Разброс цен выше порогового значения.
+    """
+
+    PRICE_DEVIATION = "price_deviation"
+
+
+class AccountWBIssueType(str, Enum):
+    """
+    Список проблемных состояний аккаунта по товару карточек на WB.
+    
+    Args:
+        MULTIPLE_ACTIVE_CARDS: Несколько активных карточек товара.
+        VAT_MISMATCH: Расхождение НДС карточки и установленного для аккаунта.
+        LOW_RATING: Рейтинг карточки ниже порогового значения.
+        NO_ACTIVE_CARDS: Нет активных карточек.
+    """
+
+    MULTIPLE_ACTIVE_CARDS = "multiple_active_cards"
+    VAT_MISMATCH = "vat_mismatch"
+    LOW_RATING = "low_rating"
+    NO_ACTIVE_CARDS = "no_active_cards"
+
