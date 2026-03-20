@@ -221,7 +221,7 @@ class ProductRepository:
         if params.status in GlobalProductWBStatus:
             where_clauses.append(f"global_status = ${param_counter}")
             param_counter += 1
-            query_params.append(params.status.value)
+            query_params.append(params.status)
 
         sort_expression = self._get_sort_expression(params.sort_by, params.sort_order)
         limit = params.size
@@ -246,6 +246,7 @@ class ProductRepository:
                 mv.account_vat,
                 mv.product_id,
                 mv.product_name,
+                mv.active_photo_link,
                 mv.active_cards_count,
                 mv.current_vat,
                 mv.best_rating,

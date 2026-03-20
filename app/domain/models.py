@@ -2149,6 +2149,7 @@ class ProductWBHealth(BaseModel):
 
     product_id: str = Field(..., description="Артикул товара")
     product_name: str = Field(..., description="Наименование товара")
+    active_photo_link: Optional[str] = Field(None, description="Обложка активной карточки товара")
     global_status: GlobalProductWBStatus = Field(..., description="Есть ли проблемы по товару")
     global_issues: list[ProductWBIssueType] = Field(..., description="Проблемы по товару, которые нельзя привязать только к одному аккаунту")
     price_stats: Optional[ProductWBPriceStats] = Field(None, description="Разброс цен в карточках товара")
@@ -2200,6 +2201,7 @@ class ProductAccountWBHealthDTO(BaseModel):
 
     product_id: str
     product_name: Optional[str]
+    active_photo_link: Optional[str]
     account_id: Optional[int]
     account_name: Optional[str]
     account_vat: Optional[int]

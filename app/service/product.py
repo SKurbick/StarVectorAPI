@@ -198,6 +198,7 @@ class ProductService:
         global_status = GlobalProductWBStatus.OK
 
         global_stats_source = rows[0]
+        active_photo_link = None
         max_price = global_stats_source.max_price
         min_price = global_stats_source.min_price
         deviation_percent = round((max_price - min_price) / min_price * 100, 0) if max_price is not None and min_price is not None else None
@@ -213,6 +214,9 @@ class ProductService:
             global_status = GlobalProductWBStatus.HAS_ERROR
 
         for row in rows:
+            if not active_photo_link:
+                active_photo_link = global_stats_source.active_photo_link
+
             issues = []
             status = ProductAccountHealthWBStatus.OK
 
@@ -255,6 +259,7 @@ class ProductService:
         return ProductWBHealth(
             product_id=global_stats_source.product_id,
             product_name=global_stats_source.product_name,
+            active_photo_link=active_photo_link,
             global_status=global_status,
             global_issues=global_issues,
             price_stats=price_stats,
