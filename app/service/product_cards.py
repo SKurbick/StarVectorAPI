@@ -496,56 +496,57 @@ class WildberriesCardsService:
     def _is_wb_card_updated_correctly(self, card: WbCard, update: WBCardUpdate) -> bool:
         """Проверить, что данные карточки соответствую переданным на обновление."""
         if card.nm_id != update.nm_id:
-            print(0)
+            logger.debug("Проверка обновления карты: несоответствие nm_id.")
             return False
 
         if card.vendor_code != update.vendor_code:
-            print(1)
+            logger.debug("Проверка обновления карты: несоответствие vendor_code.")
             return False
 
         if update.brand:
             if card.brand != update.brand:
-                print(2)
+                logger.debug("Проверка обновления карты: несоответствие brand.")
                 return False
         else:
             if card.brand:
-                print(3)
+                logger.debug("Проверка обновления карты: brand должен быть пустым.")
                 return False
 
-
-        if  (card.title or update.title) and card.title != update.title:
-            print(4)
+        if (card.title or update.title) and card.title != update.title:
+            logger.debug("Проверка обновления карты: несоответствие title.")
             return False
 
         if (card.description or update.description) and card.description != update.description:
-            print(5)
-            print(f"{card.description}:{update.description}")
+            logger.debug("Проверка обновления карты: несоответствие description.")
+            logger.debug(
+                "Проверка обновления карты: description values. card='{card.description}' update='{update.description}'"
+            )
             return False
 
         if (
-            card.dimensions.width != update.dimensions.width or
-            card.dimensions.height != update.dimensions.height or
-            card.dimensions.length != update.dimensions.length or
-            abs(card.dimensions.weight_brutto - update.dimensions.weight_brutto) > 1e-6
+            card.dimensions.width != update.dimensions.width
+            or card.dimensions.height != update.dimensions.height
+            or card.dimensions.length != update.dimensions.length
+            or abs(card.dimensions.weight_brutto - update.dimensions.weight_brutto) > 1e-6
         ):
-            print(6)
+            logger.debug("Проверка обновления карты: несоответствие dimensions.")
             return False
 
         if len(card.characteristics) != len(update.characteristics):
-            print(7)
+            logger.debug("Проверка обновления карты: несоответствие кол-ва characteristics.")
             return False
 
         card_charcs_by_id = {c.id: c for c in card.characteristics}
 
         for upd_char in update.characteristics:
             if upd_char.id not in card_charcs_by_id:
-                print(8)
+                logger.debug("Проверка обновления карты: не найден characteristic id.")
                 return False
 
             card_char = card_charcs_by_id[upd_char.id]
 
             if card_char.value != upd_char.value:
-                print(9)
+                logger.debug("Проверка обновления карты: несоответствие значения characteristic.")
                 return False
 
         card_sizes = card.sizes
@@ -562,23 +563,23 @@ class WildberriesCardsService:
             elif isinstance(sz, SizeCreate):
                 size_creates.append(sz)
             else:
-                print(10)
+                logger.debug("Проверка обновления карты: неизвестный тип size.")
                 return False
 
         for upd in size_updates:
             if upd.chrt_id not in card_by_chrt:
-                print(11)
+                logger.debug("Проверка обновления карты: не найден size chrt_id.")
                 return False
 
             card_sz = card_by_chrt[upd.chrt_id]
 
             if (
-                card_sz.tech_size != upd.tech_size or
-                card_sz.wb_size != upd.wb_size or
-                card_sz.price != upd.price or
-                set(card_sz.skus) != set(upd.skus)
+                card_sz.tech_size != upd.tech_size
+                or card_sz.wb_size != upd.wb_size
+                or card_sz.price != upd.price
+                or set(card_sz.skus) != set(upd.skus)
             ):
-                print(12)
+                logger.debug("Проверка обновления карты: несоответствие значения size.")
                 return False
 
         card_by_tech_wb = set()
@@ -591,11 +592,11 @@ class WildberriesCardsService:
             key = (create.tech_size, create.wb_size)
 
             if key not in card_by_tech_wb:
-                print(13)
+                logger.debug("Проверка обновления карты: size create не найден.")
                 return False
 
         if len(card_sizes) != len(size_updates) + len(size_creates):
-            print(14)
+            logger.debug("Проверка обновления карты: несоответствие кол-ва sizes.")
             return False
 
         return True
