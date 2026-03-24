@@ -194,88 +194,180 @@ class ProductRepository:
             self,
             params: ProductWBHealthQueryParams
     ) -> list[ProductAccountWBHealthDTO]:
-        
         query_params = []
         param_counter = 1
-        where_clauses = ["1=1"]
+        products_accounts_where_clauses = ["1=1"]
 
         if params.account_ids:
-            where_clauses.append(f"account_id = ANY(${param_counter})")
+            products_accounts_where_clauses.append(f"account_id = ANY(${param_counter})")
             param_counter += 1
             query_params.append(params.account_ids)
 
         if params.search:
-            where_clauses.append(f"(product_id ILIKE ${param_counter} OR product_name ILIKE ${param_counter})")
+            products_accounts_where_clauses.append(
+                f"(product_id ILIKE ${param_counter} OR product_name ILIKE ${param_counter})"
+            )
             param_counter += 1
             query_params.append(f"%{params.search}%")
 
+        sort_expression = self._get_sort_expression(params.sort_by, params.sort_order)
+
+        filtered_products_accounts_cte = f"""
+            filtered_products_accounts AS (
+                SELECT
+                    account_id,
+                    account_name,
+                    account_vat,
+                    product_id,
+                    product_name,
+                    real_fbs_stocks_quantity,
+                    product_photo_link,
+                    active_nm_id,
+                    active_rating,
+                    active_price,
+                    active_vat,
+                    active_cards_count,
+                    ready_to_activate_nm_id,
+                    ready_to_activate_cards_count,
+                    is_error_multiple_cards,
+                    is_error_vat_mismatch,
+                    is_warning_no_active_cards,
+                    is_warning_low_rating,
+                    (
+                        is_warning_no_active_cards = TRUE
+                        AND is_warning_ready_to_activate = TRUE
+                    ) AS is_warning_ready_to_activate
+                FROM mv_wb_product_health_analytics_new
+                WHERE {' AND '.join(products_accounts_where_clauses)}
+            )
+        """
+
+        product_state_cte = f"""
+            product_state AS (
+                SELECT
+                    product_id,
+                    product_name,
+                    MIN(active_price) AS min_price,
+                    MAX(active_price) AS max_price,
+                    bool_or(is_error_multiple_cards) AS is_error_multiple_cards,
+                    bool_or(is_error_vat_mismatch) AS is_error_vat_mismatch,
+                    bool_or(is_warning_no_active_cards) AS is_warning_no_active_cards,
+                    bool_or(is_warning_low_rating) AS is_warning_low_rating,
+                    bool_or(is_warning_ready_to_activate) AS is_warning_ready_to_activate,
+                    CASE
+                        WHEN MIN(active_price) IS NOT NULL
+                        AND ((MAX(active_price) - MIN(active_price)) / MIN(active_price)) > 0.2
+                        THEN TRUE
+                        ELSE FALSE
+                    END AS is_warning_price_deviation
+                FROM filtered_products_accounts
+                GROUP BY product_id, product_name
+            )
+        """
+
+        global_products_status_where_clauses = ["1=1"]
+
         if params.issue_type:
             issue_filters = []
+
             for issue in params.issue_type:
                 col = self._get_issue_type_filter_expression(issue)
+
                 if col:
                     issue_filters.append(f"{col} = TRUE")
+
             if issue_filters:
-                where_clauses.append(f"({' OR '.join(issue_filters)})")
+                global_products_status_where_clauses.append(f"({' AND '.join(issue_filters)})")
+
+        global_product_status_cte = f"""
+            global_product_status AS (
+                SELECT
+                    product_id,
+                    product_name,
+                    CASE
+                        WHEN is_error_multiple_cards = TRUE 
+                        OR is_error_vat_mismatch = TRUE 
+                        THEN 'has_error'
+                        WHEN is_warning_no_active_cards = TRUE 
+                        OR is_warning_low_rating = TRUE 
+                        OR is_warning_price_deviation = TRUE
+                        OR is_warning_ready_to_activate = TRUE 
+                        THEN 'has_warning'
+                        ELSE 'ok'
+                    END AS global_status
+                FROM product_state
+                WHERE {' AND '.join(global_products_status_where_clauses)}
+            )
+        """
+
+        main_query_where_clauses = ["1=1"]
 
         if params.status in GlobalProductWBStatus:
-            where_clauses.append(f"global_status = ${param_counter}")
+            main_query_where_clauses.append(f"global_status = ${param_counter}")
             param_counter += 1
             query_params.append(params.status)
 
-        sort_expression = self._get_sort_expression(params.sort_by, params.sort_order)
         limit = params.size
         offset = (params.page - 1) * params.size
 
-        query = f"""
-            WITH paginated_products AS (
-                SELECT DISTINCT product_id
-                FROM mv_wb_product_health_analytics
-                WHERE {' AND '.join(where_clauses)}
+        all_cte = f"""
+            {filtered_products_accounts_cte},
+            {product_state_cte},
+            {global_product_status_cte}
+        """
+
+        main_query = "WITH " + all_cte + f"""
+            SELECT
+                fpa.product_id,
+                fpa.product_name,
+                fpa.product_photo_link,
+                fpa.real_fbs_stocks_quantity,
+                fpa.account_id,
+                fpa.account_name,
+                fpa.account_vat,
+                fpa.active_nm_id,
+                fpa.active_rating,
+                fpa.active_price,
+                fpa.active_vat,
+                fpa.active_cards_count,
+                fpa.ready_to_activate_nm_id,
+                fpa.ready_to_activate_cards_count,
+                fpa.is_error_multiple_cards,
+                fpa.is_error_vat_mismatch,
+                fpa.is_warning_no_active_cards,
+                fpa.is_warning_low_rating,
+                fpa.is_warning_ready_to_activate,
+                ps.min_price,
+                ps.max_price,
+                ps.is_warning_price_deviation,
+                gps.global_status,
+                gps.total_count
+            FROM (
+                SELECT 
+                    product_id,
+                    product_name,
+                    global_status,
+                    COUNT(*) OVER() AS total_count
+                FROM global_product_status gps
+                WHERE {' AND '.join(main_query_where_clauses)}
                 ORDER BY {sort_expression}
                 LIMIT ${param_counter} OFFSET ${param_counter + 1}
-            ),
-            total_count_cte AS (
-                SELECT COUNT(DISTINCT product_id) AS total_count
-                FROM mv_wb_product_health_analytics
-                WHERE {' AND '.join(where_clauses)}
-            )
-            SELECT
-                mv.account_id,
-                mv.account_name,
-                mv.account_vat,
-                mv.product_id,
-                mv.product_name,
-                mv.active_photo_link,
-                mv.active_cards_count,
-                mv.current_vat,
-                mv.best_rating,
-                mv.active_price,
-                mv.is_error_multiple_cards,
-                mv.is_error_vat_mismatch,
-                mv.is_warning_no_active_cards,
-                mv.is_warning_low_rating,
-                mv.is_warning_price_deviation,
-                mv.global_status,
-                mv.max_price,
-                mv.min_price,
-                tc.total_count
-            FROM mv_wb_product_health_analytics mv
-            JOIN paginated_products pp ON mv.product_id = pp.product_id
-            CROSS JOIN total_count_cte tc
-            ORDER BY {sort_expression}, mv.account_name ASC
+            ) gps
+            LEFT JOIN product_state ps ON gps.product_id = ps.product_id
+            LEFT JOIN filtered_products_accounts fpa ON gps.product_id = fpa.product_id
+            ORDER BY {sort_expression}, fpa.account_id ASC
         """
 
         param_counter += 2
         query_params.extend((limit, offset))
-
-        rows = await self.pool.fetch(query, *query_params)
+        print(main_query)
+        rows = await self.pool.fetch(main_query, *query_params)
         return [ProductAccountWBHealthDTO(**row) for row in rows]
 
     def _get_sort_expression(self, sort_by: str, sort_order: str) -> str:
         allowed_columns = {
-            "product_id": "product_id",
-            "product_name": "product_name",
+            "product_id": "gps.product_id",
+            "product_name": "gps.product_name",
         }
         column = allowed_columns.get(sort_by, "product_id")
         order = "ASC" if sort_order == "asc" else "DESC"
@@ -288,5 +380,6 @@ class ProductRepository:
             AccountWBIssueType.MULTIPLE_ACTIVE_CARDS: "is_error_multiple_cards",
             AccountWBIssueType.VAT_MISMATCH: "is_error_vat_mismatch",
             AccountWBIssueType.LOW_RATING: "is_warning_low_rating",
+            AccountWBIssueType.READY_TO_ACTIVATE: "is_warning_ready_to_activate",
         }
         return allowed_columns.get(issue)

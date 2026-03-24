@@ -18,7 +18,6 @@ from app.domain.models import (
     ProductWBPriceStats,
 )
 from app.domain.enums import (
-    GlobalProductWBStatus,
     ProductAccountHealthWBStatus,
     ProductWBIssueType,
     AccountWBIssueType,
@@ -176,10 +175,10 @@ class ProductService:
             product_ids.append(row.product_id)
 
         items = []
-        for product_id, rows in products_map.items():
+        for _, rows in products_map.items():
             product_item = self._build_product_stats(rows)
             items.append(product_item)
-        
+
         return ProductWBHealthResponse(
             meta={
                 "total": total,
@@ -195,13 +194,17 @@ class ProductService:
     ) -> ProductWBHealth:
         accounts = []
         global_issues = []
-        global_status = GlobalProductWBStatus.OK
 
         global_stats_source = rows[0]
-        active_photo_link = None
+        product_id = global_stats_source.product_id
+        product_name = global_stats_source.product_name
+        product_photo_link = global_stats_source.product_photo_link
+        real_fbs_stocks_quantity = global_stats_source.real_fbs_stocks_quantity
         max_price = global_stats_source.max_price
         min_price = global_stats_source.min_price
-        deviation_percent = round((max_price - min_price) / min_price * 100, 0) if max_price is not None and min_price is not None else None
+        is_warning_price_deviation = global_stats_source.is_warning_price_deviation
+        global_status = global_stats_source.global_status
+        deviation_percent = round((max_price - min_price) / min_price * 100, 0) if min_price else None
 
         price_stats = ProductWBPriceStats(
             max_active_price=max_price,
@@ -209,13 +212,12 @@ class ProductService:
             deviation_percent=deviation_percent,
         )
 
-        if global_stats_source.is_warning_price_deviation:
+        if is_warning_price_deviation:
             global_issues.append(ProductWBIssueType.PRICE_DEVIATION)
-            global_status = GlobalProductWBStatus.HAS_ERROR
 
         for row in rows:
-            if not active_photo_link:
-                active_photo_link = global_stats_source.active_photo_link
+            if not product_photo_link:
+                product_photo_link = row.product_photo_link
 
             issues = []
             status = ProductAccountHealthWBStatus.OK
@@ -224,7 +226,15 @@ class ProductService:
                 issues.append(AccountWBIssueType.NO_ACTIVE_CARDS)
                 status = ProductAccountHealthWBStatus.WARNING
 
-            if row.best_rating is not None and row.best_rating < MIN_VALID_RATING:
+            if row.is_warning_no_active_cards and row.is_warning_ready_to_activate:
+                issues.append(AccountWBIssueType.READY_TO_ACTIVATE)
+                status = ProductAccountHealthWBStatus.WARNING
+
+            if (
+                row.active_rating is not None
+                and row.active_rating > 0 
+                and row.active_rating < MIN_VALID_RATING
+            ):
                 issues.append(AccountWBIssueType.LOW_RATING)
                 status = ProductAccountHealthWBStatus.WARNING
 
@@ -236,32 +246,30 @@ class ProductService:
                 issues.append(AccountWBIssueType.VAT_MISMATCH)
                 status = ProductAccountHealthWBStatus.ERROR
 
-            if status == ProductAccountHealthWBStatus.WARNING and global_status != GlobalProductWBStatus.HAS_ERROR:
-                global_status = GlobalProductWBStatus.HAS_WARNING
-
-            if status == ProductAccountHealthWBStatus.ERROR:
-                global_status = GlobalProductWBStatus.HAS_ERROR
-
             accounts.append(WBAccountStatus(
                 account_id=row.account_id,
                 account_name=row.account_name,
                 status=status,
                 issues=issues,
                 metrics=WBAccountMetrics(
+                    active_nm_id=row.active_nm_id,
                     active_cards_count=row.active_cards_count,
-                    current_vat=row.current_vat,
+                    ready_to_activate_nm_id=row.ready_to_activate_nm_id,
+                    ready_to_activate_cards_count=row.ready_to_activate_cards_count,
+                    current_vat=row.active_vat,
                     account_vat=row.account_vat,
-                    best_rating=row.best_rating,
+                    best_rating=row.active_rating,
                     active_price=row.active_price
                 )
             ))
 
         return ProductWBHealth(
-            product_id=global_stats_source.product_id,
-            product_name=global_stats_source.product_name,
-            active_photo_link=active_photo_link,
+            product_id=product_id,
+            product_name=product_name,
+            active_photo_link=product_photo_link,
             global_status=global_status,
             global_issues=global_issues,
             price_stats=price_stats,
+            real_fbs_stocks_quantity=real_fbs_stocks_quantity,
             accounts=accounts
         )

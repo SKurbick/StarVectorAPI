@@ -2114,12 +2114,14 @@ class WBAccountMetrics(BaseModel):
     Метрики аккаунта WB по карточкам товара.
     """
 
+    active_nm_id: Optional[int] = Field(None, description="Текущая активная карточка товара")
     active_cards_count: int = Field(..., description="Количество активных карточек товара")
+    ready_to_activate_nm_id: Optional[int] = Field(None, description="Карточка товара, готовая стать активной")
+    ready_to_activate_cards_count: int = Field(..., description="Количество карточек товара, готовых стать активными")
     current_vat: Optional[int] = Field(None, description="Текущее значение НДС активной карточки товара")
     account_vat: Optional[int] = Field(None, description="Текущее значение НДС, установленное для аккаунта")
     best_rating: Optional[float] = Field(None, description="Рейтинг активной карточки товара")
     active_price: Optional[float] = Field(None, description="Цена активной карточки товара")
-
 
 class WBAccountStatus(BaseModel):
     """
@@ -2153,6 +2155,7 @@ class ProductWBHealth(BaseModel):
     global_status: GlobalProductWBStatus = Field(..., description="Есть ли проблемы по товару")
     global_issues: list[ProductWBIssueType] = Field(..., description="Проблемы по товару, которые нельзя привязать только к одному аккаунту")
     price_stats: Optional[ProductWBPriceStats] = Field(None, description="Разброс цен в карточках товара")
+    real_fbs_stocks_quantity: Optional[int] = Field(None, description="Физические остатки товара")
     accounts: list[WBAccountStatus] = Field(..., description="Список аккаунтов со статистикой по карточкам товара")
 
 
@@ -2198,23 +2201,29 @@ class ProductAccountWBHealthDTO(BaseModel):
     """
     Модель плоских данных из БД по состоянию карточек товаров на WB.
     """
+    total_count: int
 
     product_id: str
     product_name: Optional[str]
-    active_photo_link: Optional[str]
+    product_photo_link: Optional[str]
+    real_fbs_stocks_quantity: Optional[int]
+    is_warning_price_deviation: bool
+    max_price: Optional[float]
+    min_price: Optional[float]
+    global_status: GlobalProductWBStatus
+
     account_id: Optional[int]
     account_name: Optional[str]
     account_vat: Optional[int]
+    active_nm_id: Optional[int]
     active_cards_count: int
-    current_vat: Optional[int]
-    best_rating: Optional[float]
+    ready_to_activate_nm_id: Optional[int]
+    ready_to_activate_cards_count: int
+    active_vat: Optional[int]
+    active_rating: Optional[float]
     active_price: Optional[float]
     is_error_multiple_cards: bool
     is_error_vat_mismatch: bool
     is_warning_no_active_cards: bool
     is_warning_low_rating: bool
-    is_warning_price_deviation: bool
-    max_price: Optional[float]
-    min_price: Optional[float]
-    global_status: GlobalProductWBStatus
-    total_count: int
+    is_warning_ready_to_activate: bool

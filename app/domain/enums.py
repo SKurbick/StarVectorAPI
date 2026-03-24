@@ -120,10 +120,11 @@ class AccountWBIssueType(str, Enum):
         VAT_MISMATCH: Расхождение НДС карточки и установленного для аккаунта.
         LOW_RATING: Рейтинг карточки ниже порогового значения.
         NO_ACTIVE_CARDS: Нет активных карточек.
+        READY_TO_ACTIVATE: Есть карточки, готовые стать активными.
     """
 
     MULTIPLE_ACTIVE_CARDS = "multiple_active_cards"
     VAT_MISMATCH = "vat_mismatch"
     LOW_RATING = "low_rating"
     NO_ACTIVE_CARDS = "no_active_cards"
-
+    READY_TO_ACTIVATE = "ready_to_activate"
