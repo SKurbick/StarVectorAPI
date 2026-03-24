@@ -237,7 +237,7 @@ class ProductRepository:
                         is_warning_no_active_cards = TRUE
                         AND is_warning_ready_to_activate = TRUE
                     ) AS is_warning_ready_to_activate
-                FROM mv_wb_product_health_analytics_new
+                FROM mv_wb_product_health_analytics
                 WHERE {' AND '.join(products_accounts_where_clauses)}
             )
         """
