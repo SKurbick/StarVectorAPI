@@ -12,6 +12,7 @@ from app.domain.models import (
     WBCardUpdate,
     DimensionsUpdate,
     SizeUpdate,
+    WBCharc,
 )
 from app.infrastructure.API.wildberries.content.wb_cards import CardsWBAPI
 from app.repository.article import ArticleRepository
@@ -65,8 +66,9 @@ class ProductWBSpecificationsUpdateService:
             await self._products_data_repo.create(data.id)
             product_data = await self._products_data_repo.get(data.id)
 
-        current_charcs = await self._wb_charc_service.get_product_charcs(data.id)
-        final_charcs = self._build_final_charcs(current_charcs, data.characteristics)
+        subject_with_actual_charcs = await self._wb_charc_service.get_charcs_by_subject_id(product_data.wb_subject_id)
+        actual_chars = subject_with_actual_charcs.charcs
+        final_charcs = self._build_final_charcs(actual_chars, data.characteristics)
 
         await self._products_data_repo.update_wb_specifications(
             product_id=data.id,
@@ -204,42 +206,35 @@ class ProductWBSpecificationsUpdateService:
 
     def _build_final_charcs(
         self,
-        current_charcs: list[ProductCharcInfo],
+        subject_charcs: list[WBCharc],
         updates: list[CardCharcsUpdate],
     ) -> list[CardCharcsUpdate]:
         updates_map = {c.id: c.value for c in updates}
-        available_ids = {c.id for c in current_charcs}
+        available_ids = {c.id for c in subject_charcs}
 
         unknown_ids = [c.id for c in updates if c.id not in available_ids]
 
         if unknown_ids:
-            raise ValueError(f"Переданы неизвестные характеристики: {unknown_ids}")
+            raise ValueError(f"Переданы невалидные для предмета характеристики: {unknown_ids}")
 
         result: list[CardCharcsUpdate] = []
 
-        for charc in current_charcs:
+        for charc in subject_charcs:
             if charc.id in updates_map:
                 value = updates_map[charc.id]
                 self._validate_value(charc, value)
                 result.append(CardCharcsUpdate(id=charc.id, value=value))
                 continue
 
-            if charc.status == "invalid":
+            if charc.required:
                 raise ValueError(
-                    f"Характеристика '{charc.name}' некорректна и не исправлена."
+                    f"Обязательная характеристика '{charc.name}' не заполнена."
                 )
-
-            if charc.status == "empty":
-                if charc.required:
-                    raise ValueError(
-                        f"Обязательная характеристика '{charc.name}' не заполнена."
-                    )
-                continue
 
         return result
 
     @staticmethod
-    def _validate_value(charc: ProductCharcInfo, value):
+    def _validate_value(charc: WBCharc, value):
         if value is None or value == "":
             if charc.required:
                 raise ValueError(
