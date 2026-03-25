@@ -220,7 +220,7 @@ class ProductRepository:
                     account_vat,
                     product_id,
                     product_name,
-                    real_fbs_stocks_quantity,
+                    current_physical_quantity,
                     product_photo_link,
                     active_nm_id,
                     active_rating,
@@ -247,6 +247,7 @@ class ProductRepository:
                 SELECT
                     product_id,
                     product_name,
+                    current_physical_quantity,
                     MIN(active_price) AS min_price,
                     MAX(active_price) AS max_price,
                     bool_or(is_error_multiple_cards) AS is_error_multiple_cards,
@@ -261,7 +262,7 @@ class ProductRepository:
                         ELSE FALSE
                     END AS is_warning_price_deviation
                 FROM filtered_products_accounts
-                GROUP BY product_id, product_name
+                GROUP BY product_id, product_name, current_physical_quantity
             )
         """
 
@@ -284,6 +285,7 @@ class ProductRepository:
                 SELECT
                     product_id,
                     product_name,
+                    current_physical_quantity,
                     CASE
                         WHEN is_error_multiple_cards = TRUE 
                         OR is_error_vat_mismatch = TRUE 
@@ -321,7 +323,7 @@ class ProductRepository:
                 fpa.product_id,
                 fpa.product_name,
                 fpa.product_photo_link,
-                fpa.real_fbs_stocks_quantity,
+                fpa.current_physical_quantity,
                 fpa.account_id,
                 fpa.account_name,
                 fpa.account_vat,
@@ -346,6 +348,7 @@ class ProductRepository:
                 SELECT 
                     product_id,
                     product_name,
+                    current_physical_quantity,
                     global_status,
                     COUNT(*) OVER() AS total_count
                 FROM global_product_status gps
@@ -367,6 +370,7 @@ class ProductRepository:
         allowed_columns = {
             "product_id": "gps.product_id",
             "product_name": "gps.product_name",
+            "current_physical_quantity": "gps.current_physical_quantity",
         }
         column = allowed_columns.get(sort_by, "product_id")
         order = "ASC" if sort_order == "asc" else "DESC"

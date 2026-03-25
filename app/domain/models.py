@@ -2155,7 +2155,7 @@ class ProductWBHealth(BaseModel):
     global_status: GlobalProductWBStatus = Field(..., description="Есть ли проблемы по товару")
     global_issues: list[ProductWBIssueType] = Field(..., description="Проблемы по товару, которые нельзя привязать только к одному аккаунту")
     price_stats: Optional[ProductWBPriceStats] = Field(None, description="Разброс цен в карточках товара")
-    real_fbs_stocks_quantity: Optional[int] = Field(None, description="Физические остатки товара")
+    current_physical_quantity: Optional[int] = Field(None, description="Физические остатки товара")
     accounts: list[WBAccountStatus] = Field(..., description="Список аккаунтов со статистикой по карточкам товара")
 
 
@@ -2176,6 +2176,8 @@ IssueTypeFilter = Annotated[
 ]
 
 
+SortByParam = Literal["product_id", "product_name", "current_physical_quantity"]
+
 class ProductWBHealthQueryParams(BaseModel):
     """
     Параметры фильтрации и пагинации для запроса состяния карточек товаров.
@@ -2193,7 +2195,7 @@ class ProductWBHealthQueryParams(BaseModel):
     account_ids: Optional[list[int]] = Field(
         None, description="Фильтр по ID аккаунтов"
     )
-    sort_by: Literal["product_id", "product_name"] = Field(default="product_id", description="Поле для сортировки")
+    sort_by: SortByParam = Field(default="product_id", description="Поле для сортировки")
     sort_order: Literal["asc", "desc"] = Field(default="desc", description="Порядок сортировки")
 
 
@@ -2206,7 +2208,7 @@ class ProductAccountWBHealthDTO(BaseModel):
     product_id: str
     product_name: Optional[str]
     product_photo_link: Optional[str]
-    real_fbs_stocks_quantity: Optional[int]
+    current_physical_quantity: Optional[int]
     is_warning_price_deviation: bool
     max_price: Optional[float]
     min_price: Optional[float]

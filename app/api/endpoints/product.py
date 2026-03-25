@@ -26,6 +26,7 @@ from app.domain.models import (
     ProductWBHealthResponse,
     ProductWBHealthQueryParams,
     IssueTypeFilter,
+    SortByParam,
 )
 from app.service.product import ProductService
 from app.service.wb_media import WBMediaService
@@ -325,7 +326,7 @@ async def get_product_wb_health(
     account_id: Optional[list[int]] = Query(
         None, description="Фильтр по ID аккаунтов"
     ),
-    sort_by: str = Query(default="product_id", description="Поле для сортировки (product_id или product_name)"),
+    sort_by: SortByParam = Query(default="product_id", description="Поле для сортировки"),
     sort_order: Literal["asc", "desc"] = Query(default="desc", description="Порядок сортировки"),
 
     service: ProductService = Depends(get_product_service),

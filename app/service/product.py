@@ -199,7 +199,7 @@ class ProductService:
         product_id = global_stats_source.product_id
         product_name = global_stats_source.product_name
         product_photo_link = global_stats_source.product_photo_link
-        real_fbs_stocks_quantity = global_stats_source.real_fbs_stocks_quantity
+        current_physical_quantity = global_stats_source.current_physical_quantity
         max_price = global_stats_source.max_price
         min_price = global_stats_source.min_price
         is_warning_price_deviation = global_stats_source.is_warning_price_deviation
@@ -270,6 +270,6 @@ class ProductService:
             global_status=global_status,
             global_issues=global_issues,
             price_stats=price_stats,
-            real_fbs_stocks_quantity=real_fbs_stocks_quantity,
+            current_physical_quantity=current_physical_quantity,
             accounts=accounts
         )
