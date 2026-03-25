@@ -360,7 +360,6 @@ class ProductRepository:
 
         param_counter += 2
         query_params.extend((limit, offset))
-        print(main_query)
         rows = await self.pool.fetch(main_query, *query_params)
         return [ProductAccountWBHealthDTO(**row) for row in rows]
 
