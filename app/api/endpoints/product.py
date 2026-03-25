@@ -146,6 +146,7 @@ async def update_product_wb_specifications(
     try:
         updated_cards, errors = await service.update_product_specifications(data, user.user_id)
     except ValueError as e:
+        logger.exception(f"Ошибка при обновлении спецификаций: {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except RuntimeError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e))
