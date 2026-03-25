@@ -91,7 +91,7 @@ class ProductWBSpecificationsUpdateService:
         )
 
         if not articles:
-            return []
+            return [], []
 
         cards_by_account: dict[str, list[int]] = {}
 
