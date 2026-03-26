@@ -52,39 +52,50 @@ class ResponseHandler:
     ) -> None:
         """Обработать ошибку из ответа."""
         status = response.status
-        
+        error_data = await response.json()
+
         if status == 404:
+            message = f"[{account_name}] Ресурс не найден: {url}"
+            logger.error(message + f" | {error_data=}")
             raise WBNotFoundError(
-                f"[{account_name}] Ресурс не найден: {url}", 
+                message, 
                 status_code=404
             )
 
         elif status == 400:
             try:
-                error_data = await response.json()
                 error_text = error_data.get("errorText", "Неизвестная ошибка")
             except:
                 error_text = "Неизвестная ошибка"
+
+            message = f"[{account_name}] Ошибка клиента: {error_text}"
+            logger.error(message + f" | {error_data=}")
             raise WBClientError(
-                f"[{account_name}] Ошибка клиента: {error_text}", 
+                message, 
                 status_code=400
             )
 
         elif 500 <= status < 600:
+            message = f"[{account_name}] Серверная ошибка {status} на {url}"
+            logger.error(message + f" | {error_data=}")
             raise WBServerError(
-                f"[{account_name}] Серверная ошибка {status} на {url}",
+                message,
                 status_code=status
             )
 
         elif status == 429:
+            message = f"[{account_name}] Превышен лимит запросов на {url}"
+            logger.error(message + f" | {error_data=}")
             raise WBRateLimitError(
-                f"[{account_name}] Превышен лимит запросов на {url}",
+                message,
                 status_code=429
             )
 
         else:
+            message = f"[{account_name}] Неожиданный статус {status} на {url}"
+            logger.error(message + f" | {error_data=}")
             raise WBAPIError(
-                f"[{account_name}] Неожиданный статус {status} на {url}",
+                message,
                 status_code=status
             )
 
@@ -222,7 +233,7 @@ class BaseWBAPIClient(ABC):
             await self._response_handler.handle_error(
                 response, url, self.account_name
             )
-    
+
     async def _handle_timeout(
         self,
         url: str,
