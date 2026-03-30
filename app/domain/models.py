@@ -48,8 +48,8 @@ class AccountBase(BaseModel):
 
     @field_validator("account", mode="after")
     @classmethod
-    def upper_name(cls, v: str):
-        return v.upper()
+    def capitalize_name(cls, v: str):
+        return v.capitalize()
 
 
 class ArticleInDB(ArticleBase, AccountBase):
