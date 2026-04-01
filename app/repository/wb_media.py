@@ -33,16 +33,19 @@ class WBMediaRepository:
                 AND (article_id = $2 OR ($2 IS NULL AND article_id IS NULL))
         """
 
-        into_cols = "product_id, article_id, media_type, media_url, display_order"
+        into_cols = ["product_id", "article_id", "media_type", "media_url", "display_order"]
         params_placeholders = "$1, $2, $3, $4, $5"
 
         if user_id is not None:
-            into_cols += ", last_modified_by_user_id"
+            into_cols.append("last_modified_by_user_id")
             params_placeholders += ", $6"
 
         insert_query = f"""
-            INSERT INTO wb_media ({into_cols})
+            INSERT INTO wb_media ({", ".join(into_cols)})
             VALUES ({params_placeholders})
+            ON CONFLICT (article_id, media_type) DO UPDATE
+            SET
+                {", ".join(f"{col} = EXCLUDED.{col}" for col in into_cols if col not in ("article_id", "media_type"))}
         """
 
         async with self.pool.acquire() as conn:
