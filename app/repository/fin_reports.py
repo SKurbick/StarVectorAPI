@@ -277,6 +277,7 @@ class FinReportsRepository:
                 SUM(f.storage_fee) AS storage_fee,
                 SUM(f.deduction) AS deductions,
                 SUM(f.acceptance) AS paid_acceptance,
+                SUM(f.acquiring_fee) AS acquiring_fee,
                 SUM(CASE WHEN f.bonus_type_name ILIKE '%кредит%' THEN f.deduction ELSE 0 END) AS credit_transfers,
                 SUM(CASE WHEN f.bonus_type_name = 'К клиенту при отмене' THEN f.delivery_rub ELSE 0 END) AS to_client_cancel,
                 SUM(CASE WHEN f.bonus_type_name = 'От клиента при отмене' THEN f.delivery_rub ELSE 0 END) AS from_client_cancel,
@@ -324,7 +325,8 @@ class FinReportsRepository:
                     4) * 100
                 ELSE 0
                 END AS gp_after_wb_pct,
-                f.account
+                f.account,
+                f.acquiring_fee
             FROM financials f
             LEFT JOIN purchase_cost_by_date p
                 ON f.date_from = p.date_from
@@ -351,6 +353,7 @@ class FinReportsRepository:
                 purchase_cost_total = EXCLUDED.purchase_cost_total,
                 margin_before_cost_pct = EXCLUDED.margin_before_cost_pct,
                 gp_after_wb = EXCLUDED.gp_after_wb,
+                acquiring_fee = EXCLUDED.acquiring_fee,
                 gp_after_wb_pct = EXCLUDED.gp_after_wb_pct;
         """
 
