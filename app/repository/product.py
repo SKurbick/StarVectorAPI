@@ -10,6 +10,7 @@ from app.domain.models import  (
     ProductWBCard,
     ProductWBHealthQueryParams,
     ProductAccountWBHealthDTO,
+    ProductBase,
 )
 from app.domain.enums import GlobalProductWBStatus, ProductWBIssueType, AccountWBIssueType
 
@@ -386,3 +387,31 @@ class ProductRepository:
             AccountWBIssueType.READY_TO_ACTIVATE: "is_warning_ready_to_activate",
         }
         return allowed_columns.get(issue)
+
+    async def get_products_by_wb_subject(
+            self,
+            subject_id: int,
+    ) -> list[ProductBase]:
+        """Получить список товаров по предметам."""
+        query = """
+            SELECT
+                p.id AS product_id,
+                p.name AS product_name,
+                mvph.product_photo_link
+            FROM products p
+            LEFT JOIN products_data pd ON p.id = pd.product_id
+            JOIN (
+                SELECT
+                    product_id,
+                    product_name,
+                    MAX(product_photo_link) AS product_photo_link
+                FROM mv_wb_product_health_analytics
+                GROUP BY product_id, product_name
+            ) mvph ON p.id = mvph.product_id
+            WHERE pd.wb_subject_id = $1
+            ORDER BY p.id
+        """
+
+        rows = await self.pool.fetch(query, subject_id)
+
+        return [ProductBase(**row) for row in rows]

@@ -2229,3 +2229,23 @@ class ProductAccountWBHealthDTO(BaseModel):
     is_warning_no_active_cards: bool
     is_warning_low_rating: bool
     is_warning_ready_to_activate: bool
+
+
+class ProductBase(BaseModel):
+    """
+    Базовая информация о товаре.
+    """
+    product_id: str = Field(..., description="Артикул товара")
+    product_name: str = Field(..., description="Наименование товара")
+    product_photo_link: str | None = Field(None, description="Обложка одной из активных карточек.")
+
+
+class JoinProductsToWBGroupRequest(BaseModel):
+    """Данные для объединения товаров в одну WB-группу."""
+    target_product_id: str = Field(..., description="Артикул товара из целевой группы")
+    products: list[str] = Field(..., description="Список товаров для присоединения к группе.")
+
+
+class SplitProductsFromWBGroupRequest(BaseModel):
+    """Данные для объединения товаров в отдельную WB-группу."""
+    products: list[str] = Field(..., description="Список товаров для объединения в отдельную группу.")

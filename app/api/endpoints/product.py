@@ -27,6 +27,9 @@ from app.domain.models import (
     ProductWBHealthQueryParams,
     IssueTypeFilter,
     SortByParam,
+    ProductBase,
+    JoinProductsToWBGroupRequest,
+    SplitProductsFromWBGroupRequest,
 )
 from app.service.product import ProductService
 from app.service.wb_media import WBMediaService
@@ -53,26 +56,23 @@ async def get_products_grouped_by_subjects(
     )
 
 
-@router.get("/{id}/cards", status_code=status.HTTP_200_OK, description="""
-    **Получить все карточки товара**\n   
-    id: локальный артикул товара (wild).
+@router.get("/wb/{subject_id}", status_code=status.HTTP_200_OK, description="""
+    **Получить список товаров по предмету WB.**
+    subject_id: id предмета.
 """)
-async def get_product_cards(
-        id: str = Path(..., description="Локальный артикул товара."),
-        user: UserPermissions = Depends(get_info_from_token),
-        service: ProductService = Depends(get_product_service),
-) -> ProductWBCards:
+async def get_products_by_wb_subject(
+    subject_id: int = Path(..., description="ID предмета"),
+    service: ProductService = Depends(get_product_service),
+    user: UserPermissions = Depends(get_info_from_token),
+) -> list[ProductBase]:
+    """
+    Получить список товаров по предмету WB.
+    """
     if not user.viewing:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
-    try:
-        return await service.get_poduct_cards(product_id=id)
-    except Exception as e:
-        logger.exception(f"Ошибка во время получения карточек товара: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error."
-        )
-    
+
+    return await service.get_products_by_wb_subject(subject_id)
+
 
 @router.post("/subject", status_code=status.HTTP_200_OK, description="""
     **Присвоить предмет WB для товара.**
@@ -103,6 +103,109 @@ async def set_subject_id(
         )
 
 
+@router.get("/{id}/wb/group", status_code=status.HTTP_200_OK, description="""
+    **Получить объединенные товары.**
+    id: локальный артикул товара (wild).
+""")
+async def get_product_wb_group(
+    id: str = Path(..., description="Артикул товара."),
+    user: UserPermissions = Depends(get_info_from_token),
+    service: ProductService = Depends(get_product_service),
+) -> list[ProductBase]:
+    if not user.viewing:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+    try:
+        return await service.get_product_wb_group(product_id=id)
+    except ValueError as e:
+        logger.exception(f"Ошибка во время получения группы объединенных товаров: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.exception(f"Ошибка во время получения группы объединенных товаров: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error."
+        )
+
+
+@router.post("/wb/groups/join", status_code=status.HTTP_200_OK, description="""
+    **Объединить товары в группу для склеивания карточек на WB.**
+""")
+async def join_products_to_wb_group(
+    data: JoinProductsToWBGroupRequest,
+    user: UserPermissions = Depends(get_info_from_token),
+    service: ProductService = Depends(get_product_service),
+):
+    if not user.viewing:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+    try:
+        return await service.join_to_wb_group(
+            target=data.target_product_id,
+            product_ids=data.products
+        )
+    except ValueError as e:
+        logger.exception(f"Ошибка во время объединения товаров в группу: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.exception(f"Ошибка во время объединения товаров в группу: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error."
+        )
+
+
+@router.post("/wb/groups/split", status_code=status.HTTP_200_OK, description="""
+    **Отделить товары из группы для склеивания карточек на WB.**
+""")
+async def split_products_from_wb_group(
+    data: SplitProductsFromWBGroupRequest,
+    user: UserPermissions = Depends(get_info_from_token),
+    service: ProductService = Depends(get_product_service),
+):
+    if not user.viewing:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+    try:
+        return await service.split_from_wb_group(data.products)
+    except ValueError as e:
+        logger.exception(f"Ошибка во время отделения товаров из группы: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.exception(f"Ошибка во время отделения товаров из группы: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error."
+        )
+
+
+@router.get("/{id}/cards", status_code=status.HTTP_200_OK, description="""
+    **Получить все карточки товара**\n   
+    id: локальный артикул товара (wild).
+""")
+async def get_product_cards(
+        id: str = Path(..., description="Локальный артикул товара."),
+        user: UserPermissions = Depends(get_info_from_token),
+        service: ProductService = Depends(get_product_service),
+) -> ProductWBCards:
+    if not user.viewing:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+    try:
+        return await service.get_poduct_cards(product_id=id)
+    except Exception as e:
+        logger.exception(f"Ошибка во время получения карточек товара: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error."
+        )
+
+
 @router.get("/{id}/wb/specifications", status_code=status.HTTP_200_OK, description="""
     **Получить спецификации товара.**
     id: локальный артикул товара (wild).
@@ -122,7 +225,7 @@ async def get_product_wb_specifications(
             detail=str(e)
         )
     except Exception as e:
-        logger.exception("Ошибка во время получения спецификаций товара: {e}")
+        logger.exception(f"Ошибка во время получения спецификаций товара: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error."

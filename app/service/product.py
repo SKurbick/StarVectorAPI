@@ -16,6 +16,8 @@ from app.domain.models import (
     WBAccountMetrics,
     ProductAccountWBHealthDTO,
     ProductWBPriceStats,
+    ProductBase,
+    ProductBase,
 )
 from app.domain.enums import (
     ProductAccountHealthWBStatus,
@@ -62,6 +64,74 @@ class ProductService:
     ) -> list[SubjectDataWithProductsResponse]:
         """Получить товары, сгруппированные по предметам."""
         return await self._product_repo.get_products_grouped_by_subjects(limit, offset)
+
+    async def get_product_wb_group(self, product_id) -> list[ProductBase]:
+        """Получить группу объединенных товаров."""
+        return await self._products_data_repo.get_product_group_items(product_id)
+    
+    async def join_to_wb_group(self, target: str, product_ids: list[str]):
+        """Добавить товары в группу для склейки карточек на ВБ."""
+        if not product_ids:
+            raise ValueError(f"Передан пустой список товаров.")
+
+        target_product_data = await self._products_data_repo.get(target)
+
+        if not target_product_data:
+            product_is_exists = await self._product_repo.check_product_exists(target)
+
+            if not product_is_exists:
+                raise ValueError(f"Товар с id={target} не найден.")
+
+            raise ValueError(f"Товару {target} не присвоен предмет.")
+
+        if not target_product_data.wb_subject_id:
+            raise ValueError(f"Товару {target} не присвоен предмет.")
+
+        for p_id in product_ids:
+            product_data = await self._products_data_repo.get(p_id)
+
+            if not product_data:
+                product_is_exists = await self._product_repo.check_product_exists(p_id)
+
+                if not product_is_exists:
+                    raise ValueError(f"Товар с id={p_id} не найден.")
+
+                raise ValueError(f"Товару {p_id} не присвоен предмет.")
+
+            if not product_data.wb_subject_id:
+                raise ValueError(f"Товару {p_id} не присвоен предмет.")
+
+            if target_product_data.wb_subject_id != product_data.wb_subject_id:
+                raise ValueError(f"Предмет товара с id={p_id} не соответсвует предмету группы.")
+            
+        await self._products_data_repo.join_to_wb_group(target, product_ids)
+
+    async def split_from_wb_group(self, product_ids: list[str]):
+        """Отсоединить товары из группы для склейки карточек на ВБ."""
+        current_subject = None
+
+        for p_id in product_ids:
+            product_data = await self._products_data_repo.get(p_id)
+
+            if not product_data:
+                product_is_exists = await self._product_repo.check_product_exists(p_id)
+
+                if not product_is_exists:
+                    raise ValueError(f"Товар с id={p_id} не найден.")
+
+                raise ValueError(f"Товару {p_id} не присвоен предмет.")
+
+            if not product_data.wb_subject_id:
+                raise ValueError(f"Товару {p_id} не присвоен предмет.")
+            
+            if current_subject is None:
+                current_subject = product_data.wb_subject_id
+                continue
+
+            if product_data.wb_subject_id != current_subject:
+                raise ValueError(f"Предметы товаров отличаются для объединения в группу.")
+
+        await self._products_data_repo.split_from_wb_group(product_ids)
 
     async def get_poduct_cards(self, product_id: str) -> ProductWBCards:
         """Получить карточки товара."""
@@ -273,3 +343,7 @@ class ProductService:
             current_physical_quantity=current_physical_quantity,
             accounts=accounts
         )
+
+    async def get_products_by_wb_subject(self, subject_id: int) -> list[ProductBase]:
+        """Получить товары по предмету WB."""
+        return await self._product_repo.get_products_by_wb_subject(subject_id)
