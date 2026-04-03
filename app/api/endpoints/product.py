@@ -56,7 +56,7 @@ async def get_products_grouped_by_subjects(
     )
 
 
-@router.get("/wb/{subject_id}", status_code=status.HTTP_200_OK, description="""
+@router.get("/wb/subjects/{subject_id}", status_code=status.HTTP_200_OK, description="""
     **Получить список товаров по предмету WB.**
     subject_id: id предмета.
 """)
