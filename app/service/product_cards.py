@@ -478,6 +478,9 @@ class WildberriesCardsService:
             last_errors_vcs = await wb_client.get_uncreated_cards(all_vc_to_update)
 
             for update_data in update_cards:
+                if update_data.nm_id not in all_nm_ids:
+                    continue
+
                 logger.info(f"Проверка обновления карточки [{wb_client.account_name}:{update_data.nm_id}].")
                 old_vc_errors = errors_before_update_operation.get(update_data.vendor_code)
                 last_error_batch_id = old_vc_errors[0]["uuid"] if old_vc_errors else None
@@ -525,6 +528,7 @@ class WildberriesCardsService:
             )
             logger.warning(error_message)
             yield error_message
+
 
     async def get_card_info(
         self,
