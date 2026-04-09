@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime
 from typing import Optional
@@ -101,64 +102,92 @@ class ProductWBSpecificationsUpdateService:
         updated_cards: list[dict] = []
         errors: list[str] = []
 
+        update_tasks = []
         for account, nm_ids in cards_by_account.items():
-            wb_client = CardsWBAPI(account_name=account, session=self._session)
-            vat_charc = await self._get_vat_charc(account)
-            update_cards: list[WBCardUpdate] = []
+            update_tasks.append(asyncio.create_task(self._update_cards_on_account(
+                account=account,
+                nm_ids=nm_ids,
+                data=data,
+                common_charcs=final_charcs,
+                user_id=user_id,
+            )))
 
-            for nm_id in nm_ids:
-                wb_card = await wb_client.get_card(nm_id=nm_id)
+        results = await asyncio.gather(*update_tasks)
 
-                if not wb_card:
-                    logger.warning(f"Карточка nm_id={nm_id} не найдена в аккаунте {account}.")
-                    errors.append(f"Карточка nm_id={nm_id} не найдена в аккаунте {account}.")
-                    continue
+        for (res_updated, res_errors) in results:
+            updated_cards.extend(res_updated)
+            errors.extend(res_errors)
 
-                certificate_charcs = self._get_certificate_chars(wb_card.characteristics)
-                sizes = [
-                    SizeUpdate(
-                        chrt_id=size.chrt_id,
-                        tech_size=size.tech_size,
-                        wb_size=size.wb_size,
-                        price=size.price,
-                        skus=size.skus,
-                    )
-                    for size in wb_card.sizes
-                ]
+        return updated_cards, errors
 
-                update_cards.append(
-                    WBCardUpdate(
-                        nm_id=wb_card.nm_id,
-                        vendor_code=wb_card.vendor_code,
-                        brand=data.brand or "",
-                        title=wb_card.title or "",
-                        description=wb_card.description or "",
-                        dimensions=DimensionsUpdate(
-                            width=data.dimensions.width,
-                            height=data.dimensions.height,
-                            length=data.dimensions.length,
-                            weight_brutto=data.dimensions.weight_brutto,
-                        ),
-                        characteristics=[
-                            *final_charcs,
-                            *certificate_charcs,
-                            vat_charc,
-                        ],
-                        sizes=sizes,
-                    )
+    async def _update_cards_on_account(
+        self, 
+        account: str,
+        nm_ids: list[int],
+        data: ProductWBSpecificationUpdate,
+        common_charcs: list[CardCharcsUpdate],
+        user_id: Optional[int] = None,
+    ):
+        errors: list[str] = []
+        updated_cards: list[dict] = []
+
+        wb_client = CardsWBAPI(account_name=account, session=self._session)
+        vat_charc = await self._get_vat_charc(account)
+        update_cards: list[WBCardUpdate] = []
+
+        for nm_id in nm_ids:
+            wb_card = await wb_client.get_card(nm_id=nm_id)
+
+            if not wb_card:
+                logger.warning(f"Карточка nm_id={nm_id} не найдена в аккаунте {account}.")
+                errors.append(f"Карточка nm_id={nm_id} не найдена в аккаунте {account}.")
+                continue
+
+            certificate_charcs = self._get_certificate_chars(wb_card.characteristics)
+            sizes = [
+                SizeUpdate(
+                    chrt_id=size.chrt_id,
+                    tech_size=size.tech_size,
+                    wb_size=size.wb_size,
+                    price=size.price,
+                    skus=size.skus,
                 )
+                for size in wb_card.sizes
+            ]
 
-            if update_cards:
-                result = await self._wb_cards_service.update_cards_from_request(
-                    wb_client=wb_client,
-                    update_cards=update_cards,
-                    user_id=user_id,
+            update_cards.append(
+                WBCardUpdate(
+                    nm_id=wb_card.nm_id,
+                    vendor_code=wb_card.vendor_code,
+                    brand=data.brand or "",
+                    title=wb_card.title or "",
+                    description=wb_card.description or "",
+                    dimensions=DimensionsUpdate(
+                        width=data.dimensions.width,
+                        height=data.dimensions.height,
+                        length=data.dimensions.length,
+                        weight_brutto=data.dimensions.weight_brutto,
+                    ),
+                    characteristics=[
+                        *common_charcs,
+                        *certificate_charcs,
+                        vat_charc,
+                    ],
+                    sizes=sizes,
                 )
-                updated_cards.extend(
-                    [{"account": account, "nm_id": nm_id} for nm_id in result.updated]
-                )
-                errors.extend(result.errors)
-
+            )
+        
+        if update_cards:
+            result = await self._wb_cards_service.update_cards_from_request(
+                wb_client=wb_client,
+                update_cards=update_cards,
+                user_id=user_id,
+            )
+            updated_cards.extend(
+                [{"account": account, "nm_id": nm_id} for nm_id in result.updated]
+            )
+            errors.extend(result.errors)
+        
         await self._update_card_data_dimensions(
             [item["nm_id"] for item in updated_cards],
             data,
