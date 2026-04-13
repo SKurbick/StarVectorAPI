@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime
 import logging
-from typing import Optional
+from typing import Optional, Any, AsyncGenerator
 import re
 
 from asyncpg import Pool
@@ -37,7 +37,7 @@ from app.service.price_discount import PriceDiscountService
 from app.service.stocks_quantity import StocksQuantityService
 from app.service.wb_media import WBMediaService
 from app.use_cases.card_use_cases.close_card_use_case import CloseCardUseCase
-from app.infrastructure.API.wildberries.content.wb_cards import CardsWBAPI
+from app.infrastructure.API.wildberries.content.wb_cards import CardsWBAPI, Card
 from app.infrastructure.API.wildberries.content.schemes.card_upload import CardCreate, CardVariant
 from app.infrastructure.API.wildberries.content.schemes.card_update import CardUpdate
 from app.infrastructure.API.wildberries.content.schemes.card_media import CardMediaUploadByLinks
@@ -436,30 +436,21 @@ class WildberriesCardsService:
             found_errors = await wb_client.get_uncreated_cards(all_vc_to_update)
             await wb_client.update_cards([CardUpdate(**item.model_dump()) for item in update_cards])
 
-            for update_data in update_cards:
-                all_vc_errors = found_errors.get(update_data.vendor_code)
-                last_error_batch_id = None
-
-                if all_vc_errors:
-                    last_error_batch_id = all_vc_errors[0]["uuid"]
-
-                updated_result = await self._wait_for_card_updated(
-                    wb_client,
-                    update_data,
-                    last_error_batch_id,
-                    )
-
-                updated_card = updated_result["card"]
-
-                if updated_card:
-                    updated_cards.append(updated_card)
+            async for update_result in self._fetch_updated_result(
+                wb_client=wb_client,
+                update_cards=update_cards,
+                errors_before_update_operation=found_errors,
+            ):
+                if isinstance(update_result, (WbCard, Card)):
+                    updated_cards.append(update_result)
                     await self.article_repo.update_article(
-                        nm_id=updated_card.nm_id,
+                        nm_id=update_result.nm_id,
                         account=wb_client.account_name,
-                        vendor_code=updated_card.vendor_code
+                        vendor_code=update_result.vendor_code
                     )
-                else:
-                    errors.append(updated_result["error"])
+                elif isinstance(update_result, str):
+                    errors.append(update_result)
+
             if updated_cards:
                 await self._update_card_data_in_db(updated_cards, user_id=user_id)
         except Exception as e:
@@ -472,6 +463,72 @@ class WildberriesCardsService:
             updated=[card.nm_id for card in updated_cards],
             errors=errors,
         )
+
+    async def _fetch_updated_result(
+        self,
+        wb_client: CardsWBAPI,
+        update_cards: list[WBCardUpdate],
+        errors_before_update_operation: dict[str, Any],
+    ) -> AsyncGenerator[str | WbCard | Card, None]:
+        all_vc_to_update = {card.vendor_code for card in update_cards}
+        all_nm_ids = {card.nm_id for card in update_cards}
+        last_mismatch_map = {}
+
+        for _ in range(20):
+            last_errors_vcs = await wb_client.get_uncreated_cards(all_vc_to_update)
+
+            for update_data in update_cards:
+                if update_data.nm_id not in all_nm_ids:
+                    continue
+
+                logger.info(f"Проверка обновления карточки [{wb_client.account_name}:{update_data.nm_id}].")
+                old_vc_errors = errors_before_update_operation.get(update_data.vendor_code)
+                last_error_batch_id = old_vc_errors[0]["uuid"] if old_vc_errors else None
+
+                card = await wb_client.get_card(nm_id=update_data.nm_id)
+
+                if not card or not card.updated_at:
+                    not_card_error = f"Карточки [{wb_client.account_name}:{update_data.nm_id}] нет в ЛК."
+                    yield not_card_error
+                    all_nm_ids.remove(update_data.nm_id)
+                    continue
+
+                check_update_message = self._is_wb_card_updated_correctly(
+                    card=card,
+                    update=update_data,
+                )
+
+                if check_update_message is None:
+                    logger.info(f"Карточка [{wb_client.account_name}:{card.nm_id}] обновлена.")
+                    yield card
+                    all_nm_ids.remove(update_data.nm_id)
+                    continue
+                else:
+                    logger.info(f"Карточка [{wb_client.account_name}:{card.nm_id}] не обновлена.")
+                    last_mismatch_map[update_data.nm_id] = check_update_message
+
+                error_data = last_errors_vcs.get(card.vendor_code)
+
+                if error_data:
+                    last_errors = error_data[0]
+                    
+                    if last_error_batch_id and last_error_batch_id != last_errors["uuid"] or last_error_batch_id is None:
+                        errors_message = "\n".join(last_errors["errors"])
+                        logger.warning(f"При обновлении карточки [{wb_client.account_name}:{update_data.nm_id}] получена ошибка: {errors_message}.")
+                        yield errors_message
+                        all_nm_ids.remove(update_data.nm_id)
+                        continue
+
+                logger.info(f"При обновлении карточки [{wb_client.account_name}:{card.nm_id}] ошибок не найдено.")
+
+        if all_nm_ids:
+            error_message = (
+                "Закончились попытки проверить обновление карточек "
+                f"[{wb_client.account_name}:\n{";\n".join(f"{nm} - {last_mismatch_map.get(nm, "нет сообщения.")}" for nm in all_nm_ids)}]"
+            )
+            logger.warning(error_message)
+            yield error_message
+
 
     async def get_card_info(
         self,
@@ -493,35 +550,38 @@ class WildberriesCardsService:
         logger.info(f"Поиск карточки товара {nm_id=}, {vendor_code=} в корзине аккаунта {wb_client.account_name}...")
         return await wb_client.get_trashed_card(nm_id=nm_id, vendor_code=vendor_code)
 
-    def _is_wb_card_updated_correctly(self, card: WbCard, update: WBCardUpdate) -> bool:
+    def _is_wb_card_updated_correctly(self, card: WbCard, update: WBCardUpdate) -> str | None:
         """Проверить, что данные карточки соответствую переданным на обновление."""
         if card.nm_id != update.nm_id:
-            logger.debug("Проверка обновления карты: несоответствие nm_id.")
-            return False
+            message = "Проверка обновления карты: несоответствие nm_id."
+            logger.debug(message)
+            return message
 
         if card.vendor_code != update.vendor_code:
-            logger.debug("Проверка обновления карты: несоответствие vendor_code.")
-            return False
+            message = "Проверка обновления карты: несоответствие vendor_code."
+            logger.debug(message)
+            return message
 
         if update.brand:
             if card.brand != update.brand:
-                logger.debug("Проверка обновления карты: несоответствие brand.")
-                return False
+                message = "Проверка обновления карты: несоответствие brand."
+                logger.debug(message)
+                return message
         else:
             if card.brand:
-                logger.debug("Проверка обновления карты: brand должен быть пустым.")
-                return False
+                message = "Проверка обновления карты: brand должен быть пустым."
+                logger.debug(message)
+                return message
 
         if (card.title or update.title) and card.title != update.title:
-            logger.debug("Проверка обновления карты: несоответствие title.")
-            return False
+            message = "Проверка обновления карты: несоответствие title."
+            logger.debug(message)
+            return message
 
         if (card.description or update.description) and card.description != update.description:
-            logger.debug("Проверка обновления карты: несоответствие description.")
-            logger.debug(
-                "Проверка обновления карты: description values. card='{card.description}' update='{update.description}'"
-            )
-            return False
+            message = "Проверка обновления карты: несоответствие description."
+            logger.debug(message)
+            return message
 
         if (
             card.dimensions.width != update.dimensions.width
@@ -529,25 +589,29 @@ class WildberriesCardsService:
             or card.dimensions.length != update.dimensions.length
             or abs(card.dimensions.weight_brutto - update.dimensions.weight_brutto) > 1e-6
         ):
-            logger.debug("Проверка обновления карты: несоответствие dimensions.")
-            return False
+            message = "Проверка обновления карты: несоответствие dimensions."
+            logger.debug(message)
+            return message
 
         if len(card.characteristics) != len(update.characteristics):
-            logger.debug("Проверка обновления карты: несоответствие кол-ва characteristics.")
-            return False
+            message = "Проверка обновления карты: несоответствие кол-ва characteristics."
+            logger.debug(message)
+            return message
 
         card_charcs_by_id = {c.id: c for c in card.characteristics}
 
         for upd_char in update.characteristics:
             if upd_char.id not in card_charcs_by_id:
-                logger.debug("Проверка обновления карты: не найден characteristic id.")
-                return False
+                message = "Проверка обновления карты: не найден characteristic id."
+                logger.debug(message)
+                return message
 
             card_char = card_charcs_by_id[upd_char.id]
 
             if card_char.value != upd_char.value:
-                logger.debug("Проверка обновления карты: несоответствие значения characteristic.")
-                return False
+                message = "Проверка обновления карты: несоответствие значения characteristic."
+                logger.debug(message)
+                return message
 
         card_sizes = card.sizes
         update_sizes = update.sizes
@@ -563,13 +627,15 @@ class WildberriesCardsService:
             elif isinstance(sz, SizeCreate):
                 size_creates.append(sz)
             else:
-                logger.debug("Проверка обновления карты: неизвестный тип size.")
-                return False
+                message = "Проверка обновления карты: неизвестный тип size."
+                logger.debug(message)
+                return message
 
         for upd in size_updates:
             if upd.chrt_id not in card_by_chrt:
-                logger.debug("Проверка обновления карты: не найден size chrt_id.")
-                return False
+                message = "Проверка обновления карты: не найден size chrt_id."
+                logger.debug(message)
+                return message
 
             card_sz = card_by_chrt[upd.chrt_id]
 
@@ -579,8 +645,9 @@ class WildberriesCardsService:
                 or card_sz.price != upd.price
                 or set(card_sz.skus) != set(upd.skus)
             ):
-                logger.debug("Проверка обновления карты: несоответствие значения size.")
-                return False
+                message = "Проверка обновления карты: несоответствие значения size."
+                logger.debug(message)
+                return message
 
         card_by_tech_wb = set()
 
@@ -592,66 +659,14 @@ class WildberriesCardsService:
             key = (create.tech_size, create.wb_size)
 
             if key not in card_by_tech_wb:
-                logger.debug("Проверка обновления карты: size create не найден.")
-                return False
+                message = "Проверка обновления карты: size create не найден."
+                logger.debug(message)
+                return message
 
         if len(card_sizes) != len(size_updates) + len(size_creates):
-            logger.debug("Проверка обновления карты: несоответствие кол-ва sizes.")
-            return False
-
-        return True
-
-    async def _wait_for_card_updated(
-        self,
-        wb_client: CardsWBAPI,
-        update_data: WBCardUpdate,
-        last_error_batch_id: Optional[str] = None,
-    ) -> dict[str, any]:
-        """Проверить, обновилась ли карточка."""
-        result = {
-            "card": None,
-            "error": None
-        }
-
-        for _ in range(20):
-            logger.info(f"Проверка обновления карточки [{wb_client.account_name}:{update_data.nm_id}].")
-            card = await wb_client.get_card(nm_id=update_data.nm_id)
-
-            if not card or not card.updated_at:
-                not_card_error = f"Карточки [{wb_client.account_name}:{update_data.nm_id}] нет в ЛК."
-                result["error"] = not_card_error
-                return result
-
-            is_updated = self._is_wb_card_updated_correctly(
-                card=card,
-                update=update_data,
-            )
-
-            if is_updated:
-                logger.info(f"Карточка [{wb_client.account_name}:{card.nm_id}] обновлена.")
-                result["card"] = card
-                return result
-            
-            logger.info(f"Карточка [{wb_client.account_name}:{card.nm_id}] не обновлена.")
-            errors_message = await self._check_uncrated_card(
-                wb_client=wb_client,
-                vendor_code=update_data.vendor_code,
-                last_error_batch_id=last_error_batch_id
-            )
-            if errors_message:
-                logger.warning(f"При обновлении карточки [{wb_client.account_name}:{update_data.nm_id}] получена ошибка: {errors_message}.")
-                result["error"] = errors_message
-                return result
-
-            logger.info(f"При обновлении карточки [{wb_client.account_name}:{card.nm_id}] ошибок не найдено.")
-
-            await asyncio.sleep(3)
-
-        error_message = f"Закончились попытки проверить обновление карточки [{wb_client.account_name}:{update_data.nm_id}]"
-        logger.warning(error_message)
-        result["error"] = error_message
-
-        return result
+            message = "Проверка обновления карты: несоответствие кол-ва sizes."
+            logger.debug(message)
+            return message
 
     async def _wait_for_card_creation(
         self,
