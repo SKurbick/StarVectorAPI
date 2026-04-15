@@ -44,22 +44,18 @@ class ArticleRepository:
                 lcp.purchase_price,
                 lcp.status_by_lvc,
                 a.local_vendor_code,
-                -- Явно перечисляем нужные поля из card_data вместо cd.*
                 cd.article_id,
                 cd.barcode,
-                cd.article_id,
                 cd.subject_name,
                 cd.photo_link,
                 cd.length,
                 cd.width,
                 cd.height,
-                cd.barcode,
                 cd.rating,
                 COALESCE(fc.reviews_count, 0) AS reviews_count,
                 cd.manager,
                 cd.local_card_name,
                 cd.chrt_id,
-                -- Добавляем остальные нужные поля из card_data...
                 crfs.stocks_quantity,
                 pn.note
             FROM
