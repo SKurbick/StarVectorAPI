@@ -410,7 +410,21 @@ class WBMediaService:
                 expected_count=expected_count,
             )
 
-            card = await wb_client.get_card(nm_id)
+            is_updated = False
+
+            for i in range(3):
+                card = await wb_client.get_card(nm_id)
+                if not card.photos or len(card.photos) != expected_count:
+                    logger.warning(f"У карточки [{wb_client.account_name}:{card.nm_id}] нет фото после обновления. Попытка: {i + 1}")
+                    await asyncio.sleep(3)
+                    continue
+
+                is_updated = True
+                break
+
+            if not is_updated:
+                raise RuntimeError(f"После обновления не удалось получить фото обложки.")
+
             video = card.video
             cover = card.photos[-1]["big"]
             adds = [ph["big"] for ph in card.photos[:-1]]

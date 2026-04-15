@@ -8,7 +8,6 @@ from aiohttp import ClientSession
 from app.domain.enums import PredefinedWBCharcEnum, CertificationCharсEnum
 from app.domain.models import (
     ProductWBSpecificationUpdate,
-    ProductCharcInfo,
     CardCharcsUpdate,
     WBCardUpdate,
     DimensionsUpdate,

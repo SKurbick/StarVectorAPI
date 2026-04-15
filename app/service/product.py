@@ -103,7 +103,7 @@ class ProductService:
 
             if target_product_data.wb_subject_id != product_data.wb_subject_id:
                 raise ValueError(f"Предмет товара с id={p_id} не соответсвует предмету группы.")
-            
+
         await self._products_data_repo.join_to_wb_group(target, product_ids)
 
     async def split_from_wb_group(self, product_ids: list[str]):
@@ -228,7 +228,7 @@ class ProductService:
         if not product_data:
             await self._products_data_repo.create(product_id, user_id)
 
-        await self._products_data_repo.update_wb_specifications(product_id, subject_id=subject_id, user_id=user_id)
+        await self._products_data_repo.update_wb_subject(product_id, subject_id=subject_id, user_id=user_id)
 
     async def get_products_wb_health_analitics(self, params: ProductWBHealthQueryParams):
         db_result: list[ProductAccountWBHealthDTO] = await self._product_repo.get_products_wb_health_analitics(params)

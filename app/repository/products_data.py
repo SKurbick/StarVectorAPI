@@ -108,6 +108,42 @@ class ProducsDataRepository:
             async with conn.transaction():
                 await conn.execute(query, product_id, *params)
 
+    async def update_wb_subject(
+        self,
+        product_id: str,
+        *,
+        subject_id: int | None = None,
+        user_id: int | None = None,
+    ) -> None:
+        """Обновить WB-спецификации товара в products_data."""
+        query = """
+            UPDATE products_data
+            SET
+        """
+
+        params = []
+        set_conditions = []
+
+        if subject_id is None:
+            return
+
+        set_conditions.append(f"wb_subject_id = ${len(params) + 2}, wb_group_id = id")
+        params.append(subject_id)
+
+        if user_id is not None:
+            set_conditions.append(f"last_modified_by_user_id = ${len(params) + 2}")
+            params.append(user_id)
+
+        query += " " + ", ".join(set_conditions)
+        query += " WHERE product_id = $1"
+
+        if not params:
+            return
+
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute(query, product_id, *params)
+
     async def create(self, product_id: str, user_id: Optional[int] = None):
         into_cols = "product_id"
         params_placeholders = "$1"
