@@ -125,6 +125,7 @@ class CostPrice(BaseModel):
 class ArticleDetails(AccountBase, CostPrice, CardData):
     stocks_quantity: Union[int, None]
     note: str | None
+    reviews_count: int = 0
 
     class Config:
         json_schema_extra = {
@@ -147,6 +148,7 @@ class ArticleDetails(AccountBase, CostPrice, CardData):
                  # "logistic_from_wb_wh_to_opp": 123.12,
                  # "commission_wb": 12.12,
                  "rating": 4.99,
+                 "reviews_count" : 9,
                  "stocks_quantity": 123,
                  "note": "Какая-то заметка"
                  },

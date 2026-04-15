@@ -32,27 +32,30 @@ class ArticleRepository:
                     FROM cost_price
                 ) t
                 WHERE rn = 1
+            ), FeedbackCounts AS (
+                SELECT
+                    nmid AS article_id,
+                    COUNT(*) AS reviews_count
+                FROM wb_feedbacks
+                GROUP BY nmid
             )
             SELECT
                 a.account,
                 lcp.purchase_price,
                 lcp.status_by_lvc,
                 a.local_vendor_code,
-                -- Явно перечисляем нужные поля из card_data вместо cd.*
                 cd.article_id,
                 cd.barcode,
-                cd.article_id,
                 cd.subject_name,
                 cd.photo_link,
                 cd.length,
                 cd.width,
                 cd.height,
-                cd.barcode,
                 cd.rating,
+                COALESCE(fc.reviews_count, 0) AS reviews_count,
                 cd.manager,
                 cd.local_card_name,
                 cd.chrt_id,
-                -- Добавляем остальные нужные поля из card_data...
                 crfs.stocks_quantity,
                 pn.note
             FROM
@@ -67,7 +70,9 @@ class ArticleRepository:
                 current_real_fbs_stocks_qty crfs
                 ON a.local_vendor_code = crfs.local_vendor_code
             LEFT JOIN product_notes pn
-            	on a.nm_id = pn.nm_id and a.account = pn.account and a.local_vendor_code = pn.local_vendor_code;
+            	on a.nm_id = pn.nm_id and a.account = pn.account and a.local_vendor_code = pn.local_vendor_code
+            LEFT JOIN FeedbackCounts fc
+                ON fc.article_id = a.nm_id;
                             """
             rows = await conn.fetch(query)
             result = []
