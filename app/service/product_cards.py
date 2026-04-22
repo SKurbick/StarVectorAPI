@@ -1045,86 +1045,82 @@ class WildberriesCardsService:
         """Синхронизировать медиа между двумя карточками."""
         try:
             logger.info(f"Синхронизация медиа [{source_wb_client.account_name}{source_wb_card.nm_id}]->[{target_wb_client.account_name}{target_wb_card.nm_id}]...")
-            unic_attrs = []
 
-            cover = await self._wb_media_repo.get_cover_url_of_card(source_wb_card.nm_id)
-            video = await self._wb_media_repo.get_video_url_of_card(source_wb_card.nm_id)
+            source_cover = await self._wb_media_repo.get_cover_url_of_card(source_wb_card.nm_id)
+            source_video = source_wb_card.video
+            source_photos = source_wb_card.photos or []
 
-            if cover:
-                logger.debug(f"Добавляем обложку при дублировании карточки: [{source_wb_card.nm_id=}:{target_wb_card.nm_id}]")
-                unic_attrs.append(cover)
-            
-            if video:
-                logger.debug(f"Добавляем видео при дублировании карточки: [{source_wb_card.nm_id=}:{target_wb_card.nm_id}]")
-                unic_attrs.append(video)
+            all_links = []
+            all_links.extend((ph["big"] for ph in source_photos))
 
-            if unic_attrs:
+            if source_video:
+                all_links.append(source_video)
+
+            if all_links:
                 data_to_upload = CardMediaUploadByLinks(
                     nm_id=target_wb_card.nm_id,
-                    data=unic_attrs,
+                    data=all_links,
                 )
+
                 await self._add_media_from_links(
                     nm_id=target_wb_card.nm_id,
                     wb_client=target_wb_client,
                     links=data_to_upload,
                 )
-            
+
                 try:
                     async with asyncio.TaskGroup() as group:
                         if cover:
                             group.create_task(self._wb_media_service._ensure_card_photo_count(
                                 wb_client=target_wb_client,
                                 nm_id=target_wb_card.nm_id,
-                                expected_count=1
+                                expected_count=len(source_photos)
                             ))
 
-                        if video:
+                        if source_video:
                             group.create_task(self._wb_media_service._ensure_card_video_state(
                                 wb_client=target_wb_client,
                                 nm_id=target_wb_card.nm_id,
                                 has_video=True
                             ))
                 except Exception as e:
-                    logger.exception(f"Ошибка во время обновления обложки и видео дублированной карточки: {target_wb_card.nm_id} | {e}")
+                    logger.exception(f"Ошибка во время проверки обновления обложки и видео дублированной карточки: [{target_wb_client.account_name}:{target_wb_card.nm_id}] | {e}")
+                
+                is_updated = False
 
-            is_updated = False
+                for i in range(3):
+                    updated_card = await target_wb_client.get_card(target_wb_card.nm_id)
 
-            for i in range(3):
-                updated_card = await target_wb_client.get_card(target_wb_card.nm_id)
+                    if source_video and not updated_card.video:
+                        logger.warning(f"При дублировании не обновлено видео. Попытка {i + 1}. [{target_wb_client.account_name}:{target_wb_card.nm_id}]")
+                        await asyncio.sleep(5)
+                        continue
 
-                if video and not updated_card.video:
-                    logger.warning(f"При дублировании не обновлено видео. Попытка {i + 1}. [{target_wb_client.account_name}:{target_wb_card.nm_id}]")
-                    await asyncio.sleep(3)
-                    continue
+                    if source_photos and not updated_card.photos:
+                        logger.warning(f"При дублировании не обновлены фото. Попытка {i + 1}. [{target_wb_client.account_name}:{target_wb_card.nm_id}]")
+                        await asyncio.sleep(5)
+                        continue
 
-                if cover and not updated_card.photos:
-                    logger.warning(f"При дублировании не обновлено видео. Попытка {i + 1}. [{target_wb_client.account_name}:{target_wb_card.nm_id}]")
-                    await asyncio.sleep(3)
-                    continue
+                    logger.debug(f"Медиа атрибуты карточки обновлены: {target_wb_card.nm_id}")
+                    is_updated = True
+                    break
 
-                logger.debug(f"Медиа атрибуты карточки обновлены: {target_wb_card.nm_id}")
-                is_updated = True
-                break
+                if is_updated:
+                    if source_video:
+                        video = updated_card.video
+                        await self._wb_media_repo.update_video_of_card(
+                            article_id=updated_card.nm_id,
+                            media_url=video
+                        )
 
-            if is_updated:
-                if video:
-                    video = updated_card.video
-                    await self._wb_media_repo.update_video_of_card(
-                        article_id=updated_card.nm_id,
-                        media_url=video
-                    )
+                    if source_cover and updated_card.photos:
+                        cover = next((ph["big"] for ph in (updated_card.photos)), None)
 
-                if cover:
-                    cover = next((ph["big"] for ph in (updated_card.photos or [])), None)
-                    await self._wb_media_repo.update_cover_of_card(
-                        article_id=updated_card.nm_id,
-                        media_url=cover
-                    )
-
-            await self._wb_media_service._update_adds_card_by_links(
-                nm_id=target_wb_card.nm_id,
-                account=target_wb_client.account_name,
-            )
+                        if cover:
+                            await self._wb_media_repo.update_cover_of_card(
+                                article_id=updated_card.nm_id,
+                                media_url=cover
+                            )
         except Exception as e:
             logger.exception(f"Ошибка во время синхронизации медиа [{target_wb_client.account_name}:{target_wb_card.nm_id}]: {e}")
 
