@@ -173,6 +173,7 @@ class ProductRepository:
                 ON cd.article_id = pc.nm_id 
             LEFT JOIN stocks s
                 ON s.article_id = pc.nm_id
+            WHERE cs.status != 'deleted'
             ORDER BY pc.account, pc.vendor_code
         """
 
