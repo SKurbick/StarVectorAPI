@@ -343,7 +343,7 @@ async def update_media_by_links(
     ]
 
     return ProductUpdateSpecificationsResponse(
-        message=f"Обновлены медия в {len(updated_nm_ids)} карточек товара",
+        message=f"Обновлены медиа в {len(updated_nm_ids)} карточек товара",
         product_id=data.product_id,
         cards_for_update=cards,
     )
