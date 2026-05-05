@@ -1860,7 +1860,7 @@ class WBCharc(BaseModel):
     ))
     popular: bool = Field(..., description="Характеристика популярна у пользователей (true - да, false - нет)")
     charc_type: str = Field(..., description="Тип данных характеристики")
-    has_filter: bool = Field(..., description="Значимая ли характеристика для предмета")
+    has_filter: bool = Field(False, description="Значимая ли характеристика для предмета")
 
 class WBSubjectWithCharcs(WBSubject):
     """Модель для списка характеристик, сгруппированных по предмету."""
