@@ -92,7 +92,11 @@ class WBCharcService:
             charcs=[
                 WBCharc.model_validate(ch.model_dump())
                 for ch in characteristics
-                if ch.id != PredefinedWBCharcEnum.VAT and ch.id not in CertificationCharсEnum
+                if (
+                    not ch.exist_named_field
+                    and ch.id != PredefinedWBCharcEnum.VAT 
+                    and ch.id not in CertificationCharсEnum
+                )
             ]
         )
 
@@ -173,7 +177,6 @@ class WBCharcService:
         current_charcs_dict = {c.id: c for c in current_charcs}
         available_charc_ids = {c.id for c in all_subject_charcs}
         results_charcs_info: list[ProductCharcInfo] = []
-
         for subject_charc in all_subject_charcs:
             current = current_charcs_dict.get(subject_charc.id)
             is_valid, messages, suggestions = self._validate_characteristic(
@@ -194,13 +197,13 @@ class WBCharcService:
                     status = "invalid"
                 else:
                     status = "empty"
-
             charc_info = ProductCharcInfo(
                 id=subject_charc.id,
                 name=subject_charc.name,
                 unit_name=subject_charc.unit_name,
                 max_count=subject_charc.max_count,
                 required=subject_charc.required,
+                has_filter=subject_charc.has_filter,
                 popular=subject_charc.popular,
                 charc_type=subject_charc.charc_type,
                 value=current.value if current else None,
@@ -265,7 +268,7 @@ class WBCharcService:
                     f"Заполните характеристику '{subject_charc.name}'"
                 ]
             return True, [], []
-        
+
         messages = []
         suggestions = []
         is_valid = True

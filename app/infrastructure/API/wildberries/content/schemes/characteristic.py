@@ -15,6 +15,9 @@ class Characteristic(BaseModel):
     max_count: int = Field(..., validation_alias="maxCount")
     popular: bool
     charc_type: str = Field(..., validation_alias="charcType")
+    is_variable: bool = Field(..., validation_alias="isVariable")
+    has_filter: bool = Field(..., validation_alias="hasFilter")
+    exist_named_field: bool = Field(..., validation_alias="existNamedField")
 
     @field_validator("charc_type", mode="before")
     @classmethod
