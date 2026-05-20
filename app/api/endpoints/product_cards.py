@@ -3,7 +3,7 @@ import logging
 import uuid
 
 from aiohttp import ClientSession
-from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, File, Path
 from starlette import status
 
 from app.dependencies import (
@@ -218,6 +218,49 @@ async def upload_media_file(
         task_id=task_id,
         status="completed",
         message="Медиафайл успешно загружен.",
+        account=account,
+        product_id="None",
+        nm_id=nm_id,
+        created_at=datetime.now()
+    )
+
+
+@router.delete(
+    "/wb/{nm_id}/media/video/remove",
+    status_code=status.HTTP_202_ACCEPTED,
+    description="""
+    **Удалить видео для карточки товара на WB.**
+    """,
+)
+async def remove_video_file(
+    nm_id: int = Path(..., description="Артикул карточки товара на WB"),
+    service: WBMediaService = Depends(get_wb_media_service),
+    user: UserPermissions = Depends(get_info_from_token),
+) -> CardOperationResponse:
+    if not user.viewing:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+
+    task_id = f"media_files_{uuid.uuid4().hex}"
+
+    try:
+        account = await service.remove_card_video(
+            nm_id=nm_id,
+            user_id=user.user_id,
+        )
+    except ValueError as e:
+        logger.exception(f"Ошибка во время удаления видео из карточки {nm_id}: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except RuntimeError as e:
+        logger.exception(f"Ошибка во время удаления видео из карточки {nm_id}: {e}")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e))
+    except Exception as e:
+        logger.exception(f"Ошибка во время удаления видео из карточки {nm_id}: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error.")
+
+    return CardOperationResponse(
+        task_id=task_id,
+        status="completed",
+        message="Запрос на удаление видео отправлен.",
         account=account,
         product_id="None",
         nm_id=nm_id,

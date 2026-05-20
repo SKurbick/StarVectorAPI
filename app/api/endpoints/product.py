@@ -415,6 +415,76 @@ async def upload_media_files(
         ],
     )
 
+@router.post(
+    "/wb/media/video/add",
+    status_code=status.HTTP_202_ACCEPTED,
+    description="""
+    **Загрузка видео для карточек товара на WB.**
+
+    Требования:
+        - формат видео (MP4, MOV)
+        - Размер видео: до 50 Мб
+    """,
+)
+async def upload_default_video_file(
+    product_id: str = Header(..., description="Локальный артикул товара"),
+    force_upload = Header(False, description="True - загрузить видео на все карточки, False - загрузить только на те, где нет видео."),
+    file: UploadFile = File(..., description="Файл для загрузки"),
+    user: UserPermissions = Depends(get_info_from_token),
+    service: WBMediaService = Depends(get_wb_media_service),
+) -> ProductUpdateSpecificationsResponse:
+    if not user.viewing:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+
+    allowed_video_ext = (".mp4", ".mov")
+    filename = file.filename.lower()
+    is_video = any(filename.endswith(ext) for ext in allowed_video_ext)
+
+    if not is_video:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Недопустимый формат файла: {file.filename}. "
+                f"Видео: {', '.join(allowed_video_ext)}"
+            )
+        )
+
+    task_id = f"media_files_{uuid.uuid4().hex}"
+
+    try:
+        nm_ids = await service.upload_video_to_product_cards(
+            product_id=product_id,
+            file=file,
+            force_upload=force_upload,
+            user_id=user.user_id,
+        )
+    except ValueError as e:
+        logger.exception(f"Ошибка во время загрузки видео из файла: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except RuntimeError as e:
+        logger.exception(f"Ошибка во время загрузки видео из файла: {e}")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e))
+    except Exception as e:
+        logger.exception(f"Ошибка во время загрузки видео из файла: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error.")
+
+    return ProductUpdateSpecificationsResponse(
+        message=f"Запрос на обновление медиа файлов принят в обработку",
+        product_id=product_id,
+        cards_for_update=[
+            CardOperationResponse(
+                task_id=task_id,
+                status="queued",
+                message="Запрос на обновление медиа по ссылкам принят в обработку",
+                account="account",
+                product_id=product_id,
+                nm_id=nm,
+                created_at=datetime.now(),
+            )
+            for nm in nm_ids
+        ],
+    )
+
 
 @router.get("/wb/health", status_code=status.HTTP_200_OK)
 async def get_product_wb_health(

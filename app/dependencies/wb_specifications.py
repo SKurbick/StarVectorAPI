@@ -2,14 +2,13 @@ from aiohttp import ClientSession
 from asyncpg import Pool
 from fastapi import Depends
 
+from app.dependencies.repositories.products_data_repo import ProducsDataRepository, get_products_data_repository
 from app.dependencies.http_session import get_wb_http_session
 from app.dependencies.database import get_pool
-from app.dependencies.products_data import get_products_data_repository
 from app.service.wb_specifications import WBCharcService, WBParentCategoryService, WBSubjectService
 from app.repository.wb_parent_categories import WBParentCategoryRepository
 from app.repository.wb_subjects import WBSubjectRepository
 from app.repository.wb_charcs import WBCharcRepository
-from app.repository.products_data import ProducsDataRepository
 
 
 def get_wb_parent_category_repository(

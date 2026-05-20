@@ -34,7 +34,10 @@ class ProducsDataRepository:
                 pd.wb_volume,
                 pd.wb_weight_brutto,
                 pd.wb_subject_id,
-                pd.wb_brand
+                pd.wb_brand,
+                pd.wb_default_title,
+                pd.wb_default_description,
+                pd.wb_adds_source_card
             FROM products_data pd
             JOIN (
                 SELECT
@@ -59,6 +62,9 @@ class ProducsDataRepository:
         weight_brutto: float | None = None,
         brand: str | None = None,
         subject_id: int | None = None,
+        default_title: str | None = None,
+        default_description: str | None = None,
+        adds_source_card: int | None = None,
         user_id: int | None = None,
     ) -> None:
         """Обновить WB-спецификации товара в products_data."""
@@ -93,6 +99,18 @@ class ProducsDataRepository:
         if subject_id is not None:
             set_conditions.append(f"wb_subject_id = ${len(params) + 2}")
             params.append(subject_id)
+        
+        if default_title is not None:
+            set_conditions.append(f"wb_default_title = ${len(params) + 2}")
+            params.append(default_title)
+        
+        if default_description is not None:
+            set_conditions.append(f"wb_default_description = ${len(params) + 2}")
+            params.append(default_description)
+        
+        if adds_source_card is not None:
+            set_conditions.append(f"wb_adds_source_card = ${len(params) + 2}")
+            params.append(adds_source_card)
 
         if user_id is not None:
             set_conditions.append(f"last_modified_by_user_id = ${len(params) + 2}")

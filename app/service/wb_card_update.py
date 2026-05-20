@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from typing import Optional
 
@@ -50,12 +49,19 @@ class WBCardUpdateService:
         charcs = await self._wb_charc_repo.get_charcs_by_product_id(data.product_id) or []
 
         wb_client = CardsWBAPI(session=self._session, account_name=data.account)
-        card = await wb_client.get_card(nm_id=data.nm_id)
+
+        card = None
+
+        for _ in range(3):
+            card = await wb_client.get_card(nm_id=data.nm_id)
+
+            if card:
+                break
 
         if not card:
-            raise ValueError(
-                f"Карточка nm_id={data.nm_id} не найдена в аккаунте {data.account}."
-            )
+            message = f"Карточка nm_id={data.nm_id} не найдена в аккаунте {data.account}."
+            logger.error(message)
+            raise ValueError(message)
 
         dimensions = self._build_dimensions(product_data)
         sizes = [
@@ -99,12 +105,22 @@ class WBCardUpdateService:
         card_nm_id = next((item for item in update_result.updated), None)
 
         if not card_nm_id:
-            raise RuntimeError(f"Не удалось обновить карточку на WB. errors: {update_result.errors}")
+            message = f"Не удалось обновить карточку на WB. errors: {update_result.errors}"
+            logger.error(message)
+            raise RuntimeError(message)
 
-        card = await wb_client.get_card(card_nm_id)
+        card = None
+
+        for _ in range(3):
+            card = await wb_client.get_card(card_nm_id)
+
+            if card:
+                break
 
         if not card:
-            raise RuntimeError("Не удалось получить обновленную карточку из WB.")
+            message = f"Не удалось получить обновленную карточку c WB. [{data.account}|{data.nm_id}]."
+            logger.error(message)
+            raise RuntimeError(message)
 
         logger.info(f"Карточка nm_id={data.nm_id} в аккаунте {data.account} успешно обновлена.")
         return card.nm_id

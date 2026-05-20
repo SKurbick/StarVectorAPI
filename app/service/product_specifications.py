@@ -5,7 +5,7 @@ from typing import Optional
 
 from aiohttp import ClientSession
 
-from app.domain.enums import PredefinedWBCharcEnum, CertificationCharсEnum
+from app.domain.enums import PredefinedWBCharcEnum, CertificationCharсEnum, CardStatusEnum
 from app.domain.models import (
     ProductWBSpecificationUpdate,
     CardCharcsUpdate,
@@ -14,14 +14,16 @@ from app.domain.models import (
     SizeUpdate,
     WBCharc,
 )
-from app.infrastructure.API.wildberries.content.wb_cards import CardsWBAPI
+from app.infrastructure.API.wildberries.content.wb_cards import CardsWBAPI, Card
 from app.repository.article import ArticleRepository
 from app.repository.card_data import CardDataRepository
 from app.repository.products_data import ProducsDataRepository
 from app.repository.seller_account import SellerAccountRepository
+from app.repository.product import ProductRepository
 from app.repository.wb_charcs import WBCharcRepository
 from app.service.product_cards import WildberriesCardsService
 from app.service.wb_specifications import WBCharcService
+from app.service.card_status import CardStatusService
 
 
 logger = logging.getLogger(__name__)
@@ -32,6 +34,7 @@ class ProductWBSpecificationsUpdateService:
 
     def __init__(
         self,
+        products_repo: ProductRepository,
         products_data_repo: ProducsDataRepository,
         wb_charc_repo: WBCharcRepository,
         seller_account_repo: SellerAccountRepository,
@@ -39,6 +42,7 @@ class ProductWBSpecificationsUpdateService:
         card_data_repo: CardDataRepository,
         wb_charc_service: WBCharcService,
         wb_cards_service: WildberriesCardsService,
+        wb_card_status_service: CardStatusService,
         session: ClientSession,
     ):
         self._products_data_repo = products_data_repo
@@ -48,6 +52,8 @@ class ProductWBSpecificationsUpdateService:
         self._card_data_repo = card_data_repo
         self._wb_charc_service = wb_charc_service
         self._wb_cards_service = wb_cards_service
+        self._wb_card_status_service = wb_card_status_service
+        self._products_repo = products_repo
         self._session = session
 
     async def update_product_specifications(self, data: ProductWBSpecificationUpdate, user_id: Optional[int] = None) -> tuple[list[dict], list[str]]:
@@ -58,7 +64,7 @@ class ProductWBSpecificationsUpdateService:
         product_data = await self._products_data_repo.get(data.id)
 
         if not product_data:
-            product_is_exists = await self._product_repo.check_product_exists(data.id)
+            product_is_exists = await self._products_repo.check_product_exists(data.id)
 
             if not product_is_exists:
                 raise ValueError(f"Товар с id={data.id} не найден.")
@@ -77,6 +83,8 @@ class ProductWBSpecificationsUpdateService:
             length=data.dimensions.length,
             weight_brutto=data.dimensions.weight_brutto,
             brand=data.brand or None,
+            default_title=data.default_values.values.card_title or None,
+            default_description=data.default_values.values.card_description or None,
             user_id=user_id,
         )
 
@@ -134,15 +142,17 @@ class ProductWBSpecificationsUpdateService:
         vat_charc = await self._get_vat_charc(account)
         update_cards: list[WBCardUpdate] = []
 
-        for nm_id in nm_ids:
-            wb_card = await wb_client.get_card(nm_id=nm_id)
+        force_update_uniq_attrs = data.default_values.force_update
+        default_values_for_uniq_attrs = data.default_values.values
 
-            if not wb_card:
-                logger.warning(f"Карточка nm_id={nm_id} не найдена в аккаунте {account}.")
-                errors.append(f"Карточка nm_id={nm_id} не найдена в аккаунте {account}.")
-                continue
+        exists_cards_for_update = await self._try_get_exists_cards(
+            nm_ids=nm_ids,
+            wb_client=wb_client
+        )
 
-            certificate_charcs = self._get_certificate_chars(wb_card.characteristics)
+
+        for card in exists_cards_for_update:
+            certificate_charcs = self._get_certificate_chars(card.characteristics)
             sizes = [
                 SizeUpdate(
                     chrt_id=size.chrt_id,
@@ -151,16 +161,28 @@ class ProductWBSpecificationsUpdateService:
                     price=size.price,
                     skus=size.skus,
                 )
-                for size in wb_card.sizes
+                for size in card.sizes
             ]
+
+            title = card.title or ""
+            description = card.description or ""
+
+            normilize_title = title.strip()
+            normilize_description = description.strip()
+
+            if not normilize_title or (normilize_title and force_update_uniq_attrs):
+                normilize_title = default_values_for_uniq_attrs.card_title
+            
+            if not normilize_description or (normilize_description and force_update_uniq_attrs):
+                normilize_description = default_values_for_uniq_attrs.card_description
 
             update_cards.append(
                 WBCardUpdate(
-                    nm_id=wb_card.nm_id,
-                    vendor_code=wb_card.vendor_code,
+                    nm_id=card.nm_id,
+                    vendor_code=card.vendor_code,
                     brand=data.brand or "",
-                    title=wb_card.title or "",
-                    description=wb_card.description or "",
+                    title=normilize_title or "",
+                    description=normilize_description or "",
                     dimensions=DimensionsUpdate(
                         width=data.dimensions.width,
                         height=data.dimensions.height,
@@ -175,7 +197,7 @@ class ProductWBSpecificationsUpdateService:
                     sizes=sizes,
                 )
             )
-        
+
         if update_cards:
             result = await self._wb_cards_service.update_cards_from_request(
                 wb_client=wb_client,
@@ -186,7 +208,7 @@ class ProductWBSpecificationsUpdateService:
                 [{"account": account, "nm_id": nm_id} for nm_id in result.updated]
             )
             errors.extend(result.errors)
-        
+
         await self._update_card_data_dimensions(
             [item["nm_id"] for item in updated_cards],
             data,
@@ -194,6 +216,68 @@ class ProductWBSpecificationsUpdateService:
         )
 
         return updated_cards, errors
+
+    async def _try_get_exists_cards(
+        self,
+        nm_ids: list[int],
+        wb_client: CardsWBAPI,
+    ) -> list[Card]:
+        """
+        Получить существующие карточки товара с маркетплейса.
+        """
+        statuses_of_cards = await self._wb_card_status_service.get_status_by_nm_ids(nm_ids=nm_ids)
+        tasks = []
+        
+        for nm_id in nm_ids:
+            card_status = statuses_of_cards.get(nm_id)
+            if card_status in {CardStatusEnum.deleted, CardStatusEnum.trashed}:
+                logger.debug(f"Статус карточки [{nm_id=}|{card_status=}]. Пропускаем.")
+                continue
+
+            tasks.append(asyncio.create_task(self._try_get_card_fron_wb(
+                nm_id=nm_id,
+                wb_client=wb_client,
+            )))
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        valid_cards = []
+
+        for res in results:
+            if isinstance(res, Exception):
+                logger.exception(f"Ошибка во время попытки получить карточку с ВБ: {res}")
+                continue
+
+            if res is not None:
+                valid_cards.append(res)
+
+        logger.debug(f"Найдено карточек: [{wb_client.account_name}|{len(valid_cards)}/{len(tasks)}]")
+        return valid_cards
+
+    @staticmethod
+    async def _try_get_card_fron_wb(
+        nm_id: int,
+        wb_client: CardsWBAPI
+    ) -> Card | None:
+        """
+        Получить карточку с маркетплейса с несколькими попытками.
+        """
+        wb_card = None
+        attemp_count = 3
+
+        for i in range(attemp_count):
+            logger.debug(f"Пробуем получить карточку: [{wb_client.account_name}|{nm_id=}|attemp={i + 1}/{attemp_count}]...")
+            wb_card = await wb_client.get_card(nm_id=nm_id)
+
+            if wb_card:
+                logger.debug(f"Карточка найдена: [{wb_client.account_name}|{nm_id=}|attemp={i + 1}/{attemp_count}].")
+                break
+
+            logger.debug(f"Карточка не найдена: [{wb_client.account_name}|{nm_id=}|attemp={i + 1}/{attemp_count}].")
+            if i < attemp_count - 1:
+                await asyncio.sleep(1)
+
+        return wb_card
 
     async def _update_card_data_dimensions(
         self,

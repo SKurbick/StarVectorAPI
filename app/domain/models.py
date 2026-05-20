@@ -1896,6 +1896,9 @@ class ProductData(BaseModel):
     wb_subject_id: Optional[int] = None
     wb_weight_brutto: Optional[float] = None
     wb_brand: Optional[str] = None
+    wb_default_title: Optional[str] = None
+    wb_default_description: Optional[str] = None
+    wb_adds_source_card: Optional[int] = None
 
 
 class ProductWBCharc(WBCharc):
@@ -1999,7 +2002,36 @@ class ProductWBSpecificationResponse(BaseModel):
     subject_id: Optional[int] = Field(None, description="id предмета")
     brand: Optional[str] = Field(None, description="Бренд товара на ВБ.")
     dimensions: ProductWBDimensionsResponse = Field(..., description="Габариты товара на WB")
+    default_cards_name: Optional[str] = Field(None, description="Название товара в карточках на маркетплейсе по-умолчанию")
+    default_cards_description: Optional[str] = Field(None, description="Описание товара в карточках на маркетплейсе по-умолчанию")
     characteristics: list[ProductCharcInfo] = Field(..., description="Список характеристик товара")
+
+
+class DefaultValuesUniqueCardsAttrs(BaseModel):
+    """
+    Значения по-умолчанию для уникальных атрибутов карточек товара на маркетплейсе.
+    """
+
+    card_title: Optional[str] = Field(None, description="Название в карточке товара на маркетплейсе")
+    card_description: Optional[str] = Field(None, description="Описание товара в карточке на маркетплейсе")
+
+
+class UpdateDefaultValuesUniqueCardsAttrs(BaseModel):
+    """
+    Модель обновления значений по умолчанию для уникальных атрибутов карточек товара на маркетплейсе.
+    """
+
+    values: DefaultValuesUniqueCardsAttrs = Field(
+        ...,
+        description="Значения атрибутов для обновления"
+    )
+    force_update: bool = Field(
+        False, 
+        description=(
+            "True - обновить значениями по-умолчанию все карточки товара. (Заменить уже заполненные)\n\n"
+            "False - обновить значениями по-умолчанию только карточки, в которых атрибуты не заполнены."
+        )
+    )
 
 
 class ProductWBSpecificationUpdate(BaseModel):
@@ -2008,6 +2040,7 @@ class ProductWBSpecificationUpdate(BaseModel):
     id: str = Field(..., description="Локальный артикул товара")
     brand: str = Field("", description="Бренд товара на ВБ.")
     dimensions: ProductWBDimensions = Field(..., description="Габариты товара")
+    default_values: UpdateDefaultValuesUniqueCardsAttrs = Field(..., description="Значения по-умолчанию для уникальных атрибутов карточек товара.")
     characteristics: list[CardCharcsUpdate] = Field(..., description="Список характеристик для обновления")
 
 

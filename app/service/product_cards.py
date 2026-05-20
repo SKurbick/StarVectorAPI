@@ -485,7 +485,13 @@ class WildberriesCardsService:
                 old_vc_errors = errors_before_update_operation.get(update_data.vendor_code)
                 last_error_batch_id = old_vc_errors[0]["uuid"] if old_vc_errors else None
 
-                card = await wb_client.get_card(nm_id=update_data.nm_id)
+                card: Card | None = None
+
+                for _ in range(3):
+                    card = await wb_client.get_card(nm_id=update_data.nm_id)
+
+                    if card:
+                        break
 
                 if not card or not card.updated_at:
                     not_card_error = f"Карточки [{wb_client.account_name}:{update_data.nm_id}] нет в ЛК."
@@ -1049,8 +1055,15 @@ class WildberriesCardsService:
             source_cover = await self._wb_media_repo.get_cover_url_of_card(source_wb_card.nm_id)
             source_video = source_wb_card.video
             source_photos = source_wb_card.photos or []
+            excpected_photo_count = len(source_photos)
 
-            all_links = []
+            if not source_cover:
+                source_cover = "https://i.pinimg.com/736x/41/94/df/4194dfa48d2b9ceeb5b0ecc0174691f3.jpg"
+                excpected_photo_count += 1
+                all_links = [source_cover]
+            else:
+                all_links = []
+
             all_links.extend((ph["big"] for ph in source_photos))
 
             if source_video:
@@ -1070,7 +1083,7 @@ class WildberriesCardsService:
 
                 try:
                     async with asyncio.TaskGroup() as group:
-                        if cover:
+                        if source_cover:
                             group.create_task(self._wb_media_service._ensure_card_photo_count(
                                 wb_client=target_wb_client,
                                 nm_id=target_wb_card.nm_id,
@@ -1089,7 +1102,16 @@ class WildberriesCardsService:
                 is_updated = False
 
                 for i in range(3):
-                    updated_card = await target_wb_client.get_card(target_wb_card.nm_id)
+                    updated_card = None
+                    
+                    for _ in range(3):
+                        updated_card = await target_wb_client.get_card(target_wb_card.nm_id)
+
+                        if updated_card:
+                            break
+                    
+                    if not updated_card:
+                        continue
 
                     if source_video and not updated_card.video:
                         logger.warning(f"При дублировании не обновлено видео. Попытка {i + 1}. [{target_wb_client.account_name}:{target_wb_card.nm_id}]")

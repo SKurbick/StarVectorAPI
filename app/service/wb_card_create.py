@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from typing import Optional
 
@@ -9,7 +8,6 @@ from app.domain.models import (
     WBCardUploadRequest,
     WBCardCreateRequest,
     WBCardVariantLocal,
-    CardWBMediaLinksUpdate,
     DimensionsCreate,
     CardCharcsCreate,
 )
@@ -68,8 +66,8 @@ class WBCardCreateService:
             subject_id=product_data.wb_subject_id,
             variants=[WBCardVariantLocal(
                 brand=product_data.wb_brand or "",
-                title=data.name or product_data.name,
-                description=data.description or "",
+                title=data.name or product_data.wb_default_title or "",
+                description=data.description or product_data.wb_default_description or "",
                 dimensions=dimensions,
                 characteristics=characteristics,
                 local_vendor_code=data.product_id,
@@ -86,12 +84,22 @@ class WBCardCreateService:
         new_card_nm_id = next((item for item in upload_result.created), None)
 
         if not new_card_nm_id:
-            raise RuntimeError(f"Не удалось создать карточку на WB. errors: {upload_result.errors}")
+            message = f"Не удалось создать карточку на WB. errors: {upload_result.errors}"
+            logger.error(message)
+            raise RuntimeError(message)
 
-        card = await wb_client.get_card(new_card_nm_id)
+        card = None
+
+        for _ in range(3):
+            card = await wb_client.get_card(new_card_nm_id)
+
+            if card:
+                break
 
         if not card:
-            raise RuntimeError("Не удалось получить созданную карточку из WB.")
+            message = f"Не удалось получить созданную карточку {new_card_nm_id} c WB."
+            logger.error(message)
+            raise RuntimeError(message)
 
         logger.info(f"Карточка vendor_code={card.vendor_code} успешно создана, nm_id={card.nm_id}.")
 

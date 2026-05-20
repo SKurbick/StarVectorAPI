@@ -186,6 +186,8 @@ class ProductService:
         characteristics_info = await self._wb_charc_service.get_product_charcs(product_id)
         name = products_data.name
         brand = products_data.wb_brand
+        default_cards_name = products_data.wb_default_title
+        default_cards_description = products_data.wb_default_description
         dimensions = ProductWBDimensionsResponse(
             width=products_data.wb_width or 0,
             height=products_data.wb_height or 0,
@@ -200,6 +202,8 @@ class ProductService:
             subject_id=subject_id,
             brand=brand,
             dimensions=dimensions,
+            default_cards_name=default_cards_name,
+            default_cards_description=default_cards_description,
             characteristics=characteristics_info,
         )
     
