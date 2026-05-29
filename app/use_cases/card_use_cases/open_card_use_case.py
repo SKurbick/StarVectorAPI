@@ -1,6 +1,6 @@
 import logging
 
-from app.domain.models import OpenCardsRequest
+from app.infrastructure.marketplace_card_manager.schemas import OpenCardsRequest
 from app.domain.enums import CardStatusEnum
 from app.repository.card_status import CardStatusRepository
 from app.use_cases.card_use_cases.base import BaseCardUseCase

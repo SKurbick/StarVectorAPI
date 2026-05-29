@@ -34,6 +34,7 @@ from app.domain.models import (
 from app.service.product import ProductService
 from app.service.wb_media import WBMediaService
 from app.service.product_specifications import ProductWBSpecificationsUpdateService
+from app.dependencies.marketplace_cards import get_mcm_service, MarketplaceCardsService
 
 
 logger = logging.getLogger(__name__)
@@ -213,12 +214,14 @@ async def get_product_cards(
 async def get_product_wb_specifications(
     id: str = Path(..., description="Локальный артикул товара."),
     user: UserPermissions = Depends(get_info_from_token),
-    service: ProductService = Depends(get_product_service),
+    service: MarketplaceCardsService = Depends(get_mcm_service),
 ) -> ProductWBSpecificationResponse:
     if not user.viewing:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     try:
-        return await service.get_product_wb_specifications(id)
+        return await service.get_product_wb_specifications(product_id=id)
+    except HTTPException as e:
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

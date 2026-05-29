@@ -9,6 +9,7 @@ import uvicorn
 from app.infrastructure.API.rate_limiters.wb import global_wb_rate_limiter
 from app.infrastructure.redis_client import redis_client
 from app.infrastructure.http_client import init_client_session, close_client_session
+from app.infrastructure.marketplace_card_manager import MCMClient
 from app.infrastructure.database import (
     init_postgres_db,
     close_postgres_db,
@@ -63,14 +64,16 @@ async def lifespan(app: FastAPI):
         postgres_task = task_group.create_task(init_postgres_db())
         clickhouse_task = task_group.create_task(init_clickhouse_client())
         wb_session = task_group.create_task(init_client_session())
+        mcm_session = task_group.create_task(init_client_session(timeout=settings.MCM_TIMEOUT))
         task_group.create_task(redis_client.connect())
         tokens = task_group.create_task(get_wb_tokens())
-    
+
     # Добавление доступных аккаунтов WB в рейт-лимитер
     global_wb_rate_limiter.set_active_accounts(accounts=list(tokens.result().keys()))
     app.state.pool = postgres_task.result()
     app.state.clickhouse_client = clickhouse_task.result()
     app.state.wb_session = wb_session.result()
+    app.state.mcm_client = MCMClient(session=mcm_session.result(), base_url=settings.MCM_BASE_URL)
     yield
     # Закрытие соединений c базами данных при завершении работы приложения
     async with asyncio.TaskGroup() as task_group:
@@ -78,6 +81,7 @@ async def lifespan(app: FastAPI):
         task_group.create_task(close_clickhouse_client(app.state.clickhouse_client))
         task_group.create_task(redis_client.disconnect())
         task_group.create_task(close_client_session(app.state.wb_session))
+        task_group.create_task(close_client_session(mcm_session.result()))
 
 
 # Создаем экземпляр FastAPI с использованием lifespan

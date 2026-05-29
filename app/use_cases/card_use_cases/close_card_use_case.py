@@ -1,12 +1,14 @@
 from datetime import datetime
 import logging
 
-from app.domain.models import CloseOperationResponse, ClosedCardResult
 from app.domain.enums import CardStatusEnum
 from app.repository.card_status import CardStatusRepository
 from app.use_cases.card_use_cases.base import BaseCardUseCase
 from app.infrastructure.celery_app import celery_client
-
+from app.infrastructure.marketplace_card_manager.schemas import (
+    CloseOperationResponse,
+    ClosedCardResult,
+)
 
 logger = logging.getLogger(__name__)
 

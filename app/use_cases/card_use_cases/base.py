@@ -1,10 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import Optional
 
 from asyncpg import Pool
 
 from app.repository.article import ArticleRepository
-from app.domain.models import CardDataByAccountRequest
+from app.infrastructure.marketplace_card_manager.schemas import CardDataByAccountRequest
 
 
 class BaseCardUseCase(ABC):
