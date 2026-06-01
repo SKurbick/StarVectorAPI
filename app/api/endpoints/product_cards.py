@@ -274,9 +274,13 @@ async def remove_video_file(
     **Получить список забаненых карточек на WB.**
 """)
 async def get_banned_product(
+    user: UserPermissions = Depends(get_info_from_token),
     service: BannedCardService = Depends(get_banned_card_service),
 ) -> list[BannedWBCardScheme]:
     """
     Получить список забаненых карточек на WB.
     """
+    if not user.viewing:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
+
     return await service.get_list()
