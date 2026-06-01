@@ -2284,3 +2284,39 @@ class JoinProductsToWBGroupRequest(BaseModel):
 class SplitProductsFromWBGroupRequest(BaseModel):
     """Данные для объединения товаров в отдельную WB-группу."""
     products: list[str] = Field(..., description="Список товаров для объединения в отдельную группу.")
+
+
+class BannedWBCardModel(BaseModel):
+    """
+    Модель в БД забаненой карточки товара на WB.
+    """
+
+    id: int
+    wb_account: str
+    nm_id: int
+    vendor_code: str
+    brand: str | None = None
+    title: str | None = None
+    reason: str | None = None
+    created_at: date
+
+    @field_validator("wb_account", mode="after")
+    def validate_account(value):
+        if isinstance(value, str):
+            return value.capitalize()
+        
+        return value
+
+
+class BannedWBCardScheme(BaseModel):
+    """
+    Схема забаненной карточки товара на WB.
+    """
+
+    account: str = Field(..., description="Аккаунт WB")
+    nm_id: int = Field(..., description="Артикул карточки на WB")
+    vendor_code: str = Field(..., description="Артикул продавца")
+    brand: str | None = Field(None, description="Бренд товара")
+    title: str | None = Field(None, description="Название товара в карточке")
+    reason: str | None = Field(None, description="Причина блокировки карточки")
+    banned_date: date = Field(..., description="Дата блокировки карточки")

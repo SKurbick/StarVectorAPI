@@ -23,7 +23,9 @@ from app.domain.models import (
     WBCardSpecificationUpdateRequest,
     WBCardUploadRequest,
     CardOperationResponse,
+    BannedWBCardScheme,
 )
+from app.dependencies.banned_cards import BannedCardService, get_banned_card_service
 from app.service.product_cards import WildberriesCardsService
 from app.service.wb_media import WBMediaService
 from app.service.wb_card_create import WBCardCreateService
@@ -266,3 +268,15 @@ async def remove_video_file(
         nm_id=nm_id,
         created_at=datetime.now()
     )
+
+
+@router.get("/banned", status_code=status.HTTP_200_OK, description="""
+    **Получить список забаненых карточек на WB.**
+""")
+async def get_banned_product(
+    service: BannedCardService = Depends(get_banned_card_service),
+) -> list[BannedWBCardScheme]:
+    """
+    Получить список забаненых карточек на WB.
+    """
+    return await service.get_list()
