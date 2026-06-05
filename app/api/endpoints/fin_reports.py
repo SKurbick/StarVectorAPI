@@ -94,3 +94,51 @@ async def update_daily_fin_reports_deductions(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error while updating daily financial reports deductions: {e}",
         )
+
+from app.infrastructure.API.wildberries.finance.wb_sales_reports import SalesReportsWBAPI
+from fastapi import Request
+from app.service.fin_reports import SalesReportsService, SalesReportRepository
+
+
+@router.get("/test-daily-finn-list")
+async def test_dayly_fin_reports_endpoint(
+        request: Request,
+        date_from: date | None = None,
+        date_to: date | None = None,
+):
+    session = request.app.state.wb_session
+    pool = request.app.state.pool
+    repo = SalesReportRepository(pool=pool)
+    service = SalesReportsService(
+        session=session,
+        sales_report_repo=repo,
+    )
+
+    result = await service.fetch_sales_reports(
+        date_from=date_from,
+        date_to=date_to,
+        period="daily"
+    )
+    return result
+
+
+@router.get("/test-weekly-finn-list")
+async def test_weekly_fin_reports_endpoint(
+        request: Request,
+        date_from: date | None = None,
+        date_to: date | None = None,
+):
+    session = request.app.state.wb_session
+    pool = request.app.state.pool
+    repo = SalesReportRepository(pool=pool)
+    service = SalesReportsService(
+        session=session,
+        sales_report_repo=repo,
+    )
+
+    result = await service.fetch_sales_reports(
+        date_from=date_from,
+        date_to=date_to,
+        period="weekly"
+    )
+    return result
