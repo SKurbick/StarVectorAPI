@@ -1,149 +1,21 @@
 import asyncio
-from datetime import date, timedelta
+from datetime import date
 import logging
-from typing import Optional
+from typing import AsyncGenerator, Literal
 
 import aiohttp
-from fastapi import HTTPException
+import asyncpg
 
 from app.config.settings import get_wb_tokens
-from app.domain.models import WeeklyFinReportsAggregated, PeriodRequestModel
-from app.infrastructure.WildberriesAPI.fin_reports import WBFinReportFetcher
-from app.repository.fin_reports import FinReportsRepository
-
-
-class FinReportsService:
-    def __init__(
-        self,
-        repository: FinReportsRepository,
-    ):
-        self.repository = repository
-
-    async def get_fin_reports_aggregated(
-        self,
-        period: PeriodRequestModel,
-        number_of_last_weeks: Optional[int],
-    ) -> list[WeeklyFinReportsAggregated]:
-        return await self.repository.get_fin_reports_aggregated(period, number_of_last_weeks)
-
-    async def fetch_daily_fin_reports(
-        self, date_from: Optional[str] = None,
-        date_to: Optional[str] = None,
-        empty_acc: bool = False
-    ):
-        yesterday = (date.today() - timedelta(days=1)).isoformat()
-
-        date_from = date_from or yesterday
-        date_to = date_to or yesterday
-
-        tokens = await get_wb_tokens()
-        
-        if not tokens:
-            raise HTTPException(status_code=422, detail="No WB accounts configured")
-
-        try:
-            timeout = aiohttp.ClientTimeout(
-                total=120, connect=30, sock_read=60, sock_connect=15
-            )
-
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                tasks = [
-                    self._process_account_reports(
-                        date_from=date_from, 
-                        date_to=date_to, 
-                        session=session,
-                        account=account,
-                        token=token)
-                    for account, token in tokens.items()
-                ]
-
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-
-                safe_results = {}
-                errors = []
-
-                for (account, _), result in zip(tokens.items(), results):
-                    if isinstance(result, Exception):
-                        error_msg = f"Failed to process account '{account}': {result}"
-                        logging.error(error_msg)
-                        errors.append(error_msg)
-                        safe_results[account] = None
-                        continue
-
-                    account_name, record_count = result
-                    if not empty_acc and record_count == 0:
-                        error_msg = f"Account '{account_name}' returned 0 records"
-                        logging.error(error_msg)
-                        errors.append(error_msg)
-                        safe_results[account] = 0
-                        continue
-
-                    safe_results[account] = record_count
-
-                if errors:
-                    raise HTTPException(
-                        status_code=422,
-                        detail="One or more accounts failed: " + "; ".join(errors)
-                    )
-
-                return safe_results
-
-        except Exception as e:
-            raise HTTPException(
-                status_code=422,
-                detail=f"{e}"
-            )
-
-    async def _process_account_reports(
-        self,
-        date_from: str,
-        date_to: str,
-        session: aiohttp.ClientSession,
-        account: str,
-        token: str,
-    ) -> list:
-        """
-        Получает, нормализует и валидирует финансовые отчёты для одного аккаунта.
-        """
-        try:
-            fetcher = WBFinReportFetcher(
-                account=account,
-                api_token=token,
-                session=session,
-            )
-            all_records_count = 0
-
-            async for raw_records in fetcher.fetch(date_from, date_to, limit=30000):
-                if not raw_records:
-                    logging.info(f"{account} | Нет данных за период {date_from}–{date_to}")
-
-                count_saved_records = await self.repository.save_daily_fin_reports(raw_records, account)
-                logging.info(f"{account} | Сохранено {count_saved_records} записей")
-                all_records_count += count_saved_records
-
-            return (account, all_records_count)
-
-        except Exception as e:
-            logging.exception(f"Критическая ошибка при обработке аккаунта {account}: {e}")
-            raise Exception(e)
-
-    async def update_daily_fin_reports_agg(self, number_of_last_days: int = 1):
-        """
-        Обновить таблицу для сводных данных.
-        """
-        return await self.repository.update_daily_fin_reports_agg(number_of_last_days)
-
-    async def update_daily_fin_reports_deduction(self, number_of_last_days: int = 1):
-        """
-        Обновить таблицу с удержаниями из ежедневных финансовых отчетов."
-        """
-        return await self.repository.update_daily_fin_reports_deductions(number_of_last_days)
-
-from typing import AsyncGenerator, Literal
+from app.domain.models import (
+    WeeklyFinReportsAggregated, 
+    PeriodRequestModel,
+    SalesReportResultStats,
+    SalesReportResultStatsByAccount,
+)
 from app.infrastructure.API.wildberries.finance.schemes.sales_report import SalesReportRow
 from app.infrastructure.API.wildberries.finance.wb_sales_reports import SalesReportsWBAPI
 from app.repository.sales_reports import SalesReportRepository
-import asyncpg
 
 
 FETCH_REPORT_LOCK = asyncio.Lock()
@@ -166,31 +38,53 @@ class SalesReportsService:
         self._sales_report_repo = sales_report_repo
         logging.debug(f"{SalesReportsService.__name__} инициализирован.")
 
-    
+    async def get_sales_reports_aggregated(
+        self,
+        period: PeriodRequestModel,
+        number_of_last_weeks: int | None = None,
+    ) -> list[WeeklyFinReportsAggregated]:
+        """
+        Получить аггрегированные данные по отчетам продаж за период.
+        """
+        return await self._sales_report_repo.get_sales_reports_aggregated(period, number_of_last_weeks)
+
+    async def update_daily_fin_reports_agg(self, number_of_last_days: int = 1):
+        """
+        Обновить таблицу для сводных данных.
+        """
+        return await self._sales_report_repo.update_daily_fin_reports_agg(number_of_last_days)
+
+    async def update_daily_fin_reports_deduction(self, number_of_last_days: int = 1):
+        """
+        Обновить таблицу с удержаниями из ежедневных финансовых отчетов."
+        """
+        return await self._sales_report_repo.update_daily_fin_reports_deductions(number_of_last_days)
+
     async def fetch_sales_reports(
             self,
             date_from: date,
             date_to: date,
             period: Literal["daily", "weekly"],
-    ):
+    ) -> SalesReportResultStats:
         """
         Получить отчеты о продажах по реализации для всех аккаунтов.
         """
         async with FETCH_REPORT_LOCK:
             try:
-                logging.info(f"Старт получения отчетов со всех аккаунтов. [date_from={date_from}|date_to={date_to}|{period=}]")
+                logging.info(f"Старт получения отчетов со всех аккаунтов. [date_from={str(date_from)}|date_to={str(date_to)}|{period=}]")
                 async with self._sales_report_repo.transaction() as conn:
-                    await self._execute_fetch_sales_reports_from_all_accounts(
+                    result = await self._execute_fetch_sales_reports_from_all_accounts(
                         date_from=date_from,
                         date_to=date_to,
                         period=period,
                         db_conn=conn,
                     )
+                    return result
             except Exception as e:
-                logging.exception(f"Необработанное исключение во обновления отчетов - [{date_from=}|{date_to=}|{period=}] - {e=}")
+                logging.exception(f"Необработанное исключение во обновления отчетов - [date_from={str(date_from)}|date_to={str(date_to)}|{period=}] - {e=}")
                 raise
 
-        logging.info(f"Получение отчетов со всех аккаунтов завершено. [{date_from=}|{date_to=}|{period=}]")
+        logging.info(f"Получение отчетов со всех аккаунтов завершено. [date_from={str(date_from)}|date_to={str(date_to)}|{period=}]")
     
     async def _execute_fetch_sales_reports_from_all_accounts(
             self,
@@ -198,7 +92,7 @@ class SalesReportsService:
             date_to: date,
             period: Literal["daily", "weekly"],
             db_conn: asyncpg.Connection,
-    ):
+    ) -> SalesReportResultStats:
         # получить аккаунты
         accounts = await self._get_all_accounts()
 
@@ -223,34 +117,47 @@ class SalesReportsService:
             batch_insert_lock=batch_insert_lock,
         )) for account in accounts]
 
+        # ожидаем выгрузки данных со всех отчетов во временную таблицу
         results = await asyncio.gather(*tasks, return_exceptions=True)
         logging.debug(f"Обработка всех аккаунтов завершена.")
-        valid_results = []
+        valid_results: list[SalesReportResultStatsByAccount] = []
+        exceptions = []
         for acc, res in zip(accounts, results):
             if isinstance(res, Exception):
                 logging.exception(f"Обработка аккаунта '{acc}' завершена ошибкой: {res}")
+                exceptions.append({
+                    "account": acc,
+                    "error": str(res),
+                })
                 continue
 
-            valid_results.append((acc, *res))
-            
-        for acc, batch_size, saved_size in valid_results:
-            logging.info(f"Выполнено успешно: {acc=}|{batch_size=}|{saved_size=}")
+            valid_results.append(res)
+
+        for valid_res in valid_results:
+            logging.info(f"Выполнено успешно: account={valid_res.account}|rows_count={valid_res.report_rows_count}")
 
         if len(valid_results) != len(results):
-            raise RuntimeError("Во время обработки аккаунтов не все были завершены корректно.")
-        
-        logging.debug(f"Удаляем данные из {main_table_name} за период: {date_from}-{date_to}...")
+            raise RuntimeError(f"Во время обработки аккаунтов не все были завершены корректно. errors={exceptions}")
+
+        logging.debug(f"Удаляем данные из {main_table_name} за период: {str(date_from)}-{str(date_to)}...")
         await self._sales_report_repo.clean_data_from_table_by_period(
             conn=db_conn,
             table_name=main_table_name,
             date_from=date_from,
             date_to=date_to if period == "weekly" else None,
         )
-        logging.debug(f"Сохраняем данные в {main_table_name} из {tmp_table_name} за период: {date_from}-{date_to}...")
+        logging.debug(f"Сохраняем данные в {main_table_name} из {tmp_table_name} за период: {str(date_from)}-{str(date_to)}...")
         await self._sales_report_repo.merge_tmp_to_main_table(
             conn=db_conn, 
             main_table_name=main_table_name,
             tmp_table_name=tmp_table_name,
+        )
+
+        return SalesReportResultStats(
+            date_from=date_from,
+            date_to=date_to,
+            period=period,
+            accounts_stats=valid_results,
         )
 
     @staticmethod
@@ -280,14 +187,14 @@ class SalesReportsService:
             db_conn: asyncpg.Connection,
             temp_table: str,
             batch_insert_lock: asyncio.Lock,
-    ):
+    ) -> SalesReportResultStatsByAccount:
         """
         Выполнить загрузку и обработку отчетов по реализации для аккаунта.
         """
         sales_report_meta = f"[{account}|date_from={str(date_from)}|date_to={str(date_to)}|{period=}]"
         logging.info(f"Старт загрузки отчетов по реализации: {sales_report_meta}")
         counter_batch_size = 0
-        counter_saved_records = 0
+
         async for batch in self._sales_reports_generator(
             account=account,
             date_from=date_from,
@@ -298,15 +205,18 @@ class SalesReportsService:
             logging.debug(f"Получен батч к сохранению: {sales_report_meta} - count={len(batch)}")
             # сохранить во временную таблицу
             async with batch_insert_lock:
-                saved_count = await self._sales_report_repo.insert_batch(
+                await self._sales_report_repo.insert_batch(
                     conn=db_conn,
                     table_name=temp_table,
                     records=batch
                 )
-            counter_saved_records += saved_count
-            logging.debug(f"Батч сохраненен: {sales_report_meta} - {saved_count=}")
-        logging.info(f"Загрузки отчетов по реализации завершена: {sales_report_meta} - {counter_batch_size=}|{counter_saved_records=}")
-        return counter_saved_records, counter_batch_size
+
+            logging.debug(f"Батч сохраненен: {sales_report_meta}, batch_size={len(batch)}")
+        logging.info(f"Загрузки отчетов по реализации завершена: {sales_report_meta}|{counter_batch_size=}")
+        return SalesReportResultStatsByAccount(
+            account=account, 
+            report_rows_count=counter_batch_size,
+        )
 
     async def _sales_reports_generator(
             self,

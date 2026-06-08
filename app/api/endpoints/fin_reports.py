@@ -1,18 +1,22 @@
 from typing import Optional
-from datetime import date
+from datetime import date, timedelta
+import logging
 
 from fastapi import APIRouter, Depends, Query, HTTPException
 from starlette import status
 
+from app.dependencies.sales_report import get_sales_reports_service, SalesReportsService
 from app.dependencies import (
-    get_fin_reports_service,
     get_dates_period_filter,
     verify_scheduler_api_key,
-    get_info_from_token
+    get_info_from_token,
 )
-from app.domain.models import WeeklyFinReportsAggregated, PeriodRequestModel, UserPermissions
-from app.service.fin_reports import FinReportsService
-
+from app.domain.models import (
+    WeeklyFinReportsAggregated,
+    PeriodRequestModel,
+    UserPermissions,
+    SalesReportFetchResponse,
+)
 
 reports_by_week_description = "1 - текущая неделя или до указанной даты. С повышением числа (2, 3 ...) будут учтены в ответе предыдущие недели"
 
@@ -22,36 +26,65 @@ router = APIRouter(prefix="/fin_reports", tags=["Финансовые отчет
 @router.get("/weekly_aggregated", status_code=status.HTTP_200_OK,
             description="Еженедельные отчеты от WB по всем финансовым оперциям")
 async def get_weekly_fin_reports_agg(
+    user: UserPermissions = Depends(get_info_from_token),
+    service: SalesReportsService = Depends(get_sales_reports_service),
     period: PeriodRequestModel = Depends(get_dates_period_filter),
     number_of_last_weeks: Optional[int] = Query(None, gt=0, example=1, description=reports_by_week_description),
-    user: UserPermissions = Depends(get_info_from_token),
-    service: FinReportsService = Depends(get_fin_reports_service),
 ) -> list[WeeklyFinReportsAggregated]:
     if not user.crm_viewing_unit_economics:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
-    return await service.get_fin_reports_aggregated(period, number_of_last_weeks)
+    return await service.get_sales_reports_aggregated(period, number_of_last_weeks)
 
 
 @router.post("/jobs/fetch_daily_financial_reports", status_code=200, include_in_schema=True)
 async def fetch_daily_fin_reports(
-    date_from: Optional[date] = None,
-    date_to: Optional[date] = None,
-    # user: UserPermissions = Depends(get_info_from_token),
-    service: FinReportsService = Depends(get_fin_reports_service),
-    _: None = Depends(verify_scheduler_api_key)
-):
-    # if not user.viewing:
-    #     raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
-    if date_from:
-        date_from = date_from.isoformat()
-
-    if date_to:
-        date_to = date_to.isoformat()
+    _: None = Depends(verify_scheduler_api_key),
+    service: SalesReportsService = Depends(get_sales_reports_service),
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> SalesReportFetchResponse:
+    """
+    Загрузить ежедневные отчеты о продажах.
+    """
+    yesterday = date.today() - timedelta(days=1)
 
     try:
-        result = await service.fetch_daily_fin_reports(date_from, date_to)
-        return {"message": "Data loaded successfully", "detail": result}
+        result = await service.fetch_sales_reports(
+            date_from=date_from or yesterday,
+            date_to=date_to or yesterday,
+            period="daily",
+        )
+        return {"message": "Data loaded successfully", "details": result}
     except Exception as e:
+        logging.error(f"Исключение во время получения ежедневных отчетов: {e=}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error while loading data: {e}",
+        )
+
+
+@router.post("/jobs/fetch_weekly_financial_reports", status_code=200, include_in_schema=True)
+async def fetch_weekly_fin_reports(
+    _: None = Depends(verify_scheduler_api_key),
+    service: SalesReportsService = Depends(get_sales_reports_service),
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> SalesReportFetchResponse:
+    """
+    Загрузить еженедельные отчеты о продажах
+    """
+    today = date.today()
+    last_sunday = today - timedelta(days=(today.weekday() + 1) % 7)
+
+    try:
+        result = await service.fetch_sales_reports(
+            date_from=date_from or last_sunday,
+            date_to=date_to or today,
+            period="weekly",
+        )
+        return {"message": "Data loaded successfully", "details": result}
+    except Exception as e:
+        logging.error(f"Исключение во время получения еженедельных отчетов: {e=}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error while loading data: {e}",
@@ -61,12 +94,9 @@ async def fetch_daily_fin_reports(
 @router.post("/jobs/update_daily_fin_reports_agg", status_code=200, include_in_schema=True)
 async def update_daily_fin_reports_agg(
     number_of_last_days: int = Query(1, description="1 - за предыдущий день. 2, 3 и далее - количество последних дней"),
-    # user: UserPermissions = Depends(get_info_from_token),
-    service: FinReportsService = Depends(get_fin_reports_service),
+    service: SalesReportsService = Depends(get_sales_reports_service),
     _: None = Depends(verify_scheduler_api_key)
 ):
-    # if not user.viewing:
-    #     raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     try:
         result = await service.update_daily_fin_reports_agg(number_of_last_days)
         return {"message": "Daily financial reports_agg updated successfully", "detail": result}
@@ -80,12 +110,9 @@ async def update_daily_fin_reports_agg(
 @router.post("/jobs/update_daily_fin_reports_deductions", status_code=200, include_in_schema=True)
 async def update_daily_fin_reports_deductions(
     number_of_last_days: int = Query(1, description="1 - за предыдущий день. 2, 3 и далее - количество последних дней"),
-    # user: UserPermissions = Depends(get_info_from_token),
-    service: FinReportsService = Depends(get_fin_reports_service),
+    service: SalesReportsService = Depends(get_sales_reports_service),
     _: None = Depends(verify_scheduler_api_key)
 ):
-    # if not user.viewing:
-    #     raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     try:
         result = await service.update_daily_fin_reports_deduction(number_of_last_days)
         return {"message": "Daily financial reports deductions updated successfully", "detail": result}
@@ -94,51 +121,3 @@ async def update_daily_fin_reports_deductions(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error while updating daily financial reports deductions: {e}",
         )
-
-from app.infrastructure.API.wildberries.finance.wb_sales_reports import SalesReportsWBAPI
-from fastapi import Request
-from app.service.fin_reports import SalesReportsService, SalesReportRepository
-
-
-@router.get("/test-daily-finn-list")
-async def test_dayly_fin_reports_endpoint(
-        request: Request,
-        date_from: date | None = None,
-        date_to: date | None = None,
-):
-    session = request.app.state.wb_session
-    pool = request.app.state.pool
-    repo = SalesReportRepository(pool=pool)
-    service = SalesReportsService(
-        session=session,
-        sales_report_repo=repo,
-    )
-
-    result = await service.fetch_sales_reports(
-        date_from=date_from,
-        date_to=date_to,
-        period="daily"
-    )
-    return result
-
-
-@router.get("/test-weekly-finn-list")
-async def test_weekly_fin_reports_endpoint(
-        request: Request,
-        date_from: date | None = None,
-        date_to: date | None = None,
-):
-    session = request.app.state.wb_session
-    pool = request.app.state.pool
-    repo = SalesReportRepository(pool=pool)
-    service = SalesReportsService(
-        session=session,
-        sales_report_repo=repo,
-    )
-
-    result = await service.fetch_sales_reports(
-        date_from=date_from,
-        date_to=date_to,
-        period="weekly"
-    )
-    return result
