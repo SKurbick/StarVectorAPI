@@ -54,7 +54,15 @@ class ResponseHandler:
         status = response.status
         error_data = await response.json()
 
-        if status == 404:
+        if status == 204:
+            message = f"[{account_name}] 204 No Content: {url}"
+            logger.error(message + f" | {error_data=}")
+            raise WBClientError(
+                message=message,
+                status_code=204
+            )
+
+        elif status == 404:
             message = f"[{account_name}] Ресурс не найден: {url}"
             logger.error(message + f" | {error_data=}")
             raise WBNotFoundError(

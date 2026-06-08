@@ -2320,3 +2320,32 @@ class BannedWBCardScheme(BaseModel):
     title: str | None = Field(None, description="Название товара в карточке")
     reason: str | None = Field(None, description="Причина блокировки карточки")
     banned_date: date = Field(..., description="Дата блокировки карточки")
+
+
+class SalesReportResultStatsByAccount(BaseModel):
+    """
+    Результат выполнения загрузки финансовых отчетов c одного ЛК.
+    """
+
+    account: str = Field(..., description="Наименование ЛК")
+    report_rows_count: int = Field(..., description="Количество строк отчетов, полученых с маркетплейса")
+
+
+class SalesReportResultStats(BaseModel):
+    """
+    Результат выполнения загрузки финансовых отчетов за период.
+    """
+
+    date_from: date = Field(..., description="Дата начала периода отчетных данных")
+    date_to: date = Field(..., description="Дата окончания периода отчетных данных")
+    period: Literal["daily", "weekly"] = Field(..., description="Период отчетных данных по продажам")
+    accounts_stats: list[SalesReportResultStatsByAccount] = Field(..., description="Результаты загрузки отчетов по аккаунтам.")
+
+
+class SalesReportFetchResponse(BaseModel):
+    """
+    Ответ запроса на обновление финансовых отчетов.
+    """
+
+    message: str
+    details: SalesReportResultStats

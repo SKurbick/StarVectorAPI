@@ -1,21 +1,43 @@
-from typing import Any, Optional, Generator
+from contextlib import asynccontextmanager
+from datetime import date
+from typing import Iterable, AsyncGenerator
+import logging
 
-from asyncpg import Pool, UndefinedTableError, Record, PostgresError
-from fastapi import HTTPException, status
+import asyncpg
 
-from app.domain.models import WeeklyFinReportsAggregated, FinReportDeduction, PeriodRequestModel
-from app.infrastructure.WildberriesAPI.fin_reports import FIELD_TYPES, normalize_wb_value
+from app.domain.models import WeeklyFinReportsAggregated, PeriodRequestModel, FinReportDeduction
+from app.infrastructure.API.wildberries.finance.schemes.sales_report import SalesReportRow
 
 
-class FinReportsRepository:
-    def __init__(self, pool: Pool):
-        self.pool = pool
+class SalesReportRepository:
+    """
+    Репозиторий для финансовых отчётов по реализации товаров на WB.
+    """
 
-    async def get_fin_reports_aggregated(
+    def __init__(self, pool: asyncpg.Pool):
+        self._pool = pool        
+        self._columns: list[str] | None = None
+        self._columns_sql: str | None = None
+    
+    @asynccontextmanager
+    async def transaction(self) -> AsyncGenerator[asyncpg.Connection, None]:
+        """
+        Получить соединение с БД в рамках транзакции.
+        """
+        async with self._pool.acquire() as conn:
+            async with conn.transaction():
+                logging.debug(f"Открыта транзакция в {SalesReportRepository.__name__}")
+                yield conn
+                logging.debug(f"Закрыта транзакция в {SalesReportRepository.__name__}")
+
+    async def get_sales_reports_aggregated(
         self,
         period: PeriodRequestModel,
-        number_of_last_weeks: Optional[int] = None,
+        number_of_last_weeks: int | None = None,
     ) -> list[WeeklyFinReportsAggregated]:
+        """
+        Получить аггрегированные данные по отчетам продаж.
+        """
         main_query = """
         SELECT
             fram.date_to,
@@ -64,12 +86,11 @@ class FinReportsRepository:
         full_query = main_query.format(subquery=subquery)
 
         try:
-            async with self.pool.acquire() as conn:
+            async with self._pool.acquire() as conn:
                 rows = await conn.fetch(full_query, *params)
-        except UndefinedTableError:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Table or materialized view not found",
+        except asyncpg.UndefinedTableError:
+            raise RuntimeError(
+                "Таблица или мат.представление не найдено.",
             )
 
         reports = {}
@@ -116,65 +137,121 @@ class FinReportsRepository:
             WeeklyFinReportsAggregated(**report) for report in reports.values()
         ]
 
-    async def save_daily_fin_reports(self, records: list, account: str):
-        """Сохраняет батч записей в БД."""
+    async def _ensure_columns_loaded(self, conn: asyncpg.Connection, main_table: str) -> None:
+        """
+        Загрузить актуальный список колонок из основной таблицы БД.
+        """
+        if self._columns is not None:
+            return
+
+        query = """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = $1
+            ORDER BY ordinal_position ASC
+        """
+        rows = await conn.fetch(query, main_table)
+        
+        if not rows:
+            raise ValueError(f"Таблица '{main_table}' не найдена или не имеет колонок.")
+
+        print(self._columns)
+        self._columns = [row["column_name"] for row in rows]
+        self._columns_sql = ", ".join(self._columns)
+
+    async def create_temp_table(
+            self, 
+            conn: asyncpg.Connection, 
+            main_table_name: str, 
+            tmp_table_name: str
+    ) -> str:
+        """
+        Создаёт временную таблицу с той же структурой, что и основная.
+        """
+        if not main_table_name.strip():
+            raise ValueError(f"Передано пустое значение названия основной таблицы.")
+
+        if not tmp_table_name.strip():
+            raise ValueError(f"Передано пустое значение для названия временной таблицы.")
+
+        await self._ensure_columns_loaded(conn, main_table_name)
+
+        query = f"""
+            CREATE TEMPORARY TABLE {tmp_table_name}
+            ON COMMIT DROP
+            AS SELECT * FROM {main_table_name}
+            WITH NO DATA;
+        """
+
+        await conn.execute(query)
+        return tmp_table_name
+
+    async def insert_batch(
+            self, 
+            conn: asyncpg.Connection, 
+            table_name: str, 
+            records: Iterable[SalesReportRow]
+    ) -> int:
+        """
+        Пакетная вставка данных в таблицу через COPY протокол PostgreSQL.
+        """
         if not records:
-            return 0
+            return
 
-        if self.pool is None:
-            raise RuntimeError("Database not connected.")
+        tuples = [tuple(getattr(record, col, None) for col in self._columns) for record in records]
 
-        try:
-            all_columns = list(FIELD_TYPES.keys())
-            unique_columns = "realizationreport_id", "rrd_id"
-            updatable_columns = [col for col in all_columns if col not in unique_columns]
+        result = await conn.copy_records_to_table(
+            table_name=table_name,
+            records=tuples,
+            columns=self._columns
+        )
+        logging.debug(f"Выполнена вставка в БД: [{table_name=}|records-in={len(tuples)}|{result}]")
+        return len(tuples)
 
-            columns_sql = ", ".join(all_columns)
-            placeholders_sql = ", ".join(f"${i + 1}" for i in range(len(all_columns)))
-            unique_columns_sql = ", ".join(unique_columns)
-            set_clause_sql = ", ".join(f"{col} = EXCLUDED.{col}" for col in updatable_columns)
+    async def clean_data_from_table_by_period(
+            self,
+            conn: asyncpg.Connection,
+            table_name: str,
+            date_from: date,
+            date_to: date | None = None,
+    ) -> None:
+        """
+        Удалить данные из таблицы за период.
+        """
 
-            data = self._records_to_list_tuples(records, account, all_columns)
+        params = [date_from]
 
-            upsert_query = f"""
-                INSERT INTO daily_fin_reports_full ({columns_sql})
-                VALUES ({placeholders_sql})
-                ON CONFLICT ({unique_columns_sql})
-                DO UPDATE SET {set_clause_sql};
-            """
+        delete_query = f"""
+            DELETE FROM {table_name}
+            WHERE date_from = $1
+        """
 
-            async with self.pool.acquire() as conn:
-                async with conn.transaction():
-                    await conn.executemany(upsert_query, data)
-        except PostgresError as e:
-            raise PostgresError(f"{account} | Postgres Error: {e}")
-        except Exception as e:
-            raise Exception(f"{account} | Необработанное исключение: {e}")
+        if date_to is not None:
+            delete_query += " AND date_to = $2"
+            params.append(date_to)
 
-        return len(records)
+        await conn.execute(delete_query, *params)
 
-    @staticmethod
-    def _records_to_list_tuples(
-            records: list[Record],
-            account: str,
-            all_columns: list[str]
-        ) -> Generator[tuple, Any, None]:
-        for record in records:
-            row = []
+    async def merge_tmp_to_main_table(
+            self,
+            conn: asyncpg.Connection,
+            main_table_name: str,
+            tmp_table_name: str,
+    ) -> None:
+        """
+        Залить данные из временной таблицы в основную.
+        """
+        update_set_clause = ", ".join([f"{col} = EXCLUDED.{col}" for col in self._columns])
 
-            for field in all_columns:
-                if field == "account":
-                    row.append(account)
-                    continue
+        query = f"""
+            INSERT INTO {main_table_name} ({self._columns_sql})
+            SELECT {self._columns_sql}
+            FROM {tmp_table_name}
+            ON CONFLICT (realizationreport_id, rrd_id) 
+            DO UPDATE SET {update_set_clause};
+        """
 
-                field_type = FIELD_TYPES.get(field)
-
-                if field_type:
-                    row.append(normalize_wb_value(record.get(field), field_type))
-                else:
-                    row.append(record.get(field))
-
-            yield tuple(row)
+        await conn.execute(query)
 
     async def update_daily_fin_reports_agg(self, number_of_last_days: int = 1) -> None:
         """
@@ -358,10 +435,10 @@ class FinReportsRepository:
         """
 
         try:
-            async with self.pool.acquire() as conn:
+            async with self._pool.acquire() as conn:
                 async with conn.transaction():
                     await conn.execute(full_query)
-        except PostgresError as e:
+        except asyncpg.PostgresError as e:
             raise Exception(f"Ошибка при обновлении таблицы daily_fin_reports_agg: {e}")
 
     async def update_daily_fin_reports_deductions(self, number_of_last_days: int = 1) -> None:
@@ -416,8 +493,8 @@ class FinReportsRepository:
         """
 
         try:
-            async with self.pool.acquire() as conn:
+            async with self._pool.acquire() as conn:
                 async with conn.transaction():
                     await conn.execute(query)
-        except PostgresError as e:
+        except asyncpg.PostgresError as e:
             raise Exception(f"Ошибка при обновлении таблицы daily_fin_reports_deductions: {e}")
