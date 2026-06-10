@@ -469,18 +469,21 @@ class WildberriesCardsService:
         wb_client: CardsWBAPI,
         update_cards: list[WBCardUpdate],
         errors_before_update_operation: dict[str, Any],
+        poll_attempts: int = 20,
+        poll_interval_seconds: int = 0,
     ) -> AsyncGenerator[str | WbCard | Card, None]:
-        all_vc_to_update = {card.vendor_code for card in update_cards}
         all_nm_ids = {card.nm_id for card in update_cards}
         last_mismatch_map = {}
 
-        for _ in range(20):
-            last_errors_vcs = await wb_client.get_uncreated_cards(all_vc_to_update)
+        for attempt in range(poll_attempts):
+            if not all_nm_ids:
+                break
 
-            for update_data in update_cards:
-                if update_data.nm_id not in all_nm_ids:
-                    continue
+            remaining_update_cards = [card for card in update_cards if card.nm_id in all_nm_ids]
+            remaining_vc_to_update = {card.vendor_code for card in remaining_update_cards}
+            last_errors_vcs = await wb_client.get_uncreated_cards(remaining_vc_to_update)
 
+            for update_data in remaining_update_cards:
                 logger.info(f"Проверка обновления карточки [{wb_client.account_name}:{update_data.nm_id}].")
                 old_vc_errors = errors_before_update_operation.get(update_data.vendor_code)
                 last_error_batch_id = old_vc_errors[0]["uuid"] if old_vc_errors else None
@@ -517,24 +520,35 @@ class WildberriesCardsService:
 
                 if error_data:
                     last_errors = error_data[0]
-                    
-                    if last_error_batch_id and last_error_batch_id != last_errors["uuid"] or last_error_batch_id is None:
+
+                    if (
+                        last_error_batch_id
+                        and last_error_batch_id != last_errors["uuid"]
+                        or last_error_batch_id is None
+                    ):
                         errors_message = "\n".join(last_errors["errors"])
-                        logger.warning(f"При обновлении карточки [{wb_client.account_name}:{update_data.nm_id}] получена ошибка: {errors_message}.")
+                        logger.warning(
+                            f"При обновлении карточки [{wb_client.account_name}:{update_data.nm_id}] получена ошибка: {errors_message}."
+                        )
                         yield errors_message
                         all_nm_ids.remove(update_data.nm_id)
                         continue
 
                 logger.info(f"При обновлении карточки [{wb_client.account_name}:{card.nm_id}] ошибок не найдено.")
 
+            if not all_nm_ids:
+                break
+
+            if poll_interval_seconds > 0 and attempt < poll_attempts - 1:
+                await asyncio.sleep(poll_interval_seconds)
+
         if all_nm_ids:
             error_message = (
                 "Закончились попытки проверить обновление карточек "
-                f"[{wb_client.account_name}:\n{";\n".join(f"{nm} - {last_mismatch_map.get(nm, "нет сообщения.")}" for nm in all_nm_ids)}]"
+                f"[{wb_client.account_name}:\n{';\n'.join(f'{nm} - {last_mismatch_map.get(nm, "нет сообщения.")}' for nm in all_nm_ids)}]"
             )
             logger.warning(error_message)
             yield error_message
-
 
     async def get_card_info(
         self,
