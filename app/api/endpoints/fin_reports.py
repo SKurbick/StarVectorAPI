@@ -1,5 +1,5 @@
 from typing import Optional
-from datetime import date, timedelta
+from datetime import date
 import logging
 
 from fastapi import APIRouter, Depends, Query, HTTPException
@@ -46,12 +46,10 @@ async def fetch_daily_fin_reports(
     """
     Загрузить ежедневные отчеты о продажах.
     """
-    yesterday = date.today() - timedelta(days=1)
-
     try:
         result = await service.fetch_sales_reports(
-            date_from=date_from or yesterday,
-            date_to=date_to or yesterday,
+            date_from=date_from,
+            date_to=date_to,
             period="daily",
         )
         return {"message": "Data loaded successfully", "details": result}
@@ -73,13 +71,11 @@ async def fetch_weekly_fin_reports(
     """
     Загрузить еженедельные отчеты о продажах
     """
-    today = date.today()
-    last_sunday = today - timedelta(days=(today.weekday() + 1) % 7)
 
     try:
         result = await service.fetch_sales_reports(
-            date_from=date_from or last_sunday,
-            date_to=date_to or today,
+            date_from=date_from,
+            date_to=date_to,
             period="weekly",
         )
         return {"message": "Data loaded successfully", "details": result}

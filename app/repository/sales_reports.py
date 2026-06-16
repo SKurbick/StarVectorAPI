@@ -245,7 +245,7 @@ class SalesReportRepository:
 
         query = f"""
             INSERT INTO {main_table_name} ({self._columns_sql})
-            SELECT {self._columns_sql}
+            SELECT DISTINCT ON (realizationreport_id, rrd_id) {self._columns_sql}
             FROM {tmp_table_name}
             ON CONFLICT (realizationreport_id, rrd_id) 
             DO UPDATE SET {update_set_clause};

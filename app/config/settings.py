@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     POSTGRES_DB: str
     POSTGRES_HOST: str
     POSTGRES_PORT: str
+    POSTGRES_MIN_CONN_COUNT: int = 1
+    POSTGRES_MAX_CONN_COUNT: int = 10
+    POSTGRES_MAX_CONN_INACTIVE_LIFETIME: int = 300
 
     CLICKHOUSE_USER: str
     CLICKHOUSE_PASSWORD: str
@@ -18,6 +21,7 @@ class Settings(BaseSettings):
 
     TOKENS_FILE_NAME: str
 
+    APP_NAME: str = "StarVectorAPI"
     APP_IP_ADDRESS: str
     APP_PORT: int
     FRONTEND_API_ADDRESS: str

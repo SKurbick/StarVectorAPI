@@ -1,5 +1,5 @@
 import asyncio
-from datetime import date
+from datetime import date, timedelta
 import logging
 from typing import AsyncGenerator, Literal
 
@@ -27,7 +27,7 @@ class SalesReportsService:
     """
     Сервис для работы с финансовыми отчетами о продажах по реализации.
     """
-    BATCH_SIZE_LIMIT = 100000
+    BATCH_SIZE_LIMIT = 30000
 
     def __init__(
             self, 
@@ -60,15 +60,45 @@ class SalesReportsService:
         """
         return await self._sales_report_repo.update_daily_fin_reports_deductions(number_of_last_days)
 
+    @staticmethod
+    def validate_dates(
+        period: Literal["daily", "weekly"],
+        date_from: date | None,
+        date_to: date | None,
+    ) -> tuple[date, date]:
+        logging.debug(f"Валидируем диапазон дат для отчетов: [{period=}|date_from={str(date_from)}|date_to={str(date_to)}]...")
+        today = date.today()
+
+        if period == 'daily':
+            yesterday = today - timedelta(days=1)
+
+            date_from = min(date_from, yesterday) if date_from is not None else yesterday
+            date_to = max(date_to, date_from) if date_to is not None else date_from
+        elif period == 'weekly':
+            last_sunday = today - timedelta(days=(today.weekday() + 1) % 7)
+
+            date_to = min(date_to, last_sunday) if date_to is not None else last_sunday
+            sunday_date_to = date_to - timedelta(days=(date_to.weekday() + 1) % 7)
+
+            date_from = min(date_from, sunday_date_to) if date_from is not None else sunday_date_to
+            monday_date_from = date_from - timedelta(days=date_from.weekday())
+
+            date_from = monday_date_from
+            date_to = sunday_date_to
+
+        logging.debug(f"Возвращаем диапазон дат для отчетов: [{period=}|date_from={str(date_from)}|date_to={str(date_to)}]...")
+        return date_from, date_to
+
     async def fetch_sales_reports(
             self,
-            date_from: date,
-            date_to: date,
             period: Literal["daily", "weekly"],
+            date_from: date | None = None,
+            date_to: date | None = None,
     ) -> SalesReportResultStats:
         """
         Получить отчеты о продажах по реализации для всех аккаунтов.
         """
+        date_from, date_to = self.validate_dates(period, date_from, date_to)
         async with FETCH_REPORT_LOCK:
             try:
                 logging.info(f"Старт получения отчетов со всех аккаунтов. [date_from={str(date_from)}|date_to={str(date_to)}|{period=}]")
@@ -94,7 +124,7 @@ class SalesReportsService:
             db_conn: asyncpg.Connection,
     ) -> SalesReportResultStats:
         # получить аккаунты
-        accounts = await self._get_all_accounts()
+        all_accounts = await self._get_all_accounts()
 
         # получить имя временной таблицы для сохранения данных
         main_table_name, tmp_table_name = self._get_table_names(period=period)
@@ -107,36 +137,51 @@ class SalesReportsService:
         logging.debug(f"Создана временная таблица '{tmp_table_name}' на основе '{main_table_name}'")
         batch_insert_lock = asyncio.Lock()
         # приступить к выполнению по аккаунтам
-        tasks = [asyncio.create_task(self.procces_account(
-            account=account,
-            date_from=date_from,
-            date_to=date_to,
-            period=period,
-            db_conn=db_conn,
-            temp_table=tmp_table_name,
-            batch_insert_lock=batch_insert_lock,
-        )) for account in accounts]
+
+        target_accounts = all_accounts
+        valid_results: list[SalesReportResultStatsByAccount] = []
+        exceptions = None
+
+        attempt_count = 5
+        for attempt in range(1, attempt_count + 1, 1):
+            logging.debug(f"Получаем отчеты с аккаунтов: [{attempt=}|{target_accounts=}]")
+            tasks = [asyncio.create_task(self.procces_account(
+                account=account,
+                date_from=date_from,
+                date_to=date_to,
+                period=period,
+                db_conn=db_conn,
+                temp_table=tmp_table_name,
+                batch_insert_lock=batch_insert_lock,
+            )) for account in target_accounts]
 
         # ожидаем выгрузки данных со всех отчетов во временную таблицу
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        logging.debug(f"Обработка всех аккаунтов завершена.")
-        valid_results: list[SalesReportResultStatsByAccount] = []
-        exceptions = []
-        for acc, res in zip(accounts, results):
-            if isinstance(res, Exception):
-                logging.exception(f"Обработка аккаунта '{acc}' завершена ошибкой: {res}")
-                exceptions.append({
-                    "account": acc,
-                    "error": str(res),
-                })
-                continue
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            logging.debug(f"Обработка аккаунтов завершена. {attempt=}|{target_accounts=}")
+            current_exceptions = []
+            for acc, res in zip(all_accounts, results):
+                if isinstance(res, Exception):
+                    logging.exception(f"Обработка аккаунта '{acc}' завершена ошибкой: {res}")
+                    current_exceptions.append({
+                        "account": acc,
+                        "error": str(res),
+                    })
+                    continue
 
-            valid_results.append(res)
+                valid_results.append(res)
+
+            exceptions = current_exceptions 
+
+            if not current_exceptions:
+                break
+
+            if attempt < attempt_count:
+                target_accounts = [exp["account"] for exp in current_exceptions]
 
         for valid_res in valid_results:
             logging.info(f"Выполнено успешно: account={valid_res.account}|rows_count={valid_res.report_rows_count}")
 
-        if len(valid_results) != len(results):
+        if len(valid_results) != len(all_accounts):
             raise RuntimeError(f"Во время обработки аккаунтов не все были завершены корректно. errors={exceptions}")
 
         logging.debug(f"Удаляем данные из {main_table_name} за период: {str(date_from)}-{str(date_to)}...")

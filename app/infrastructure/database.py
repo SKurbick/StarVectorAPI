@@ -19,7 +19,13 @@ async def init_postgres_db() -> Pool:
             password=settings.POSTGRES_PASSWORD,
             database=settings.POSTGRES_DB,
             host=settings.POSTGRES_HOST,
-            port=settings.POSTGRES_PORT
+            port=settings.POSTGRES_PORT,
+            min_size=settings.POSTGRES_MIN_CONN_COUNT,
+            max_size=settings.POSTGRES_MAX_CONN_COUNT,
+            max_inactive_connection_lifetime=settings.POSTGRES_MAX_CONN_INACTIVE_LIFETIME,
+            server_settings={
+                "application_name": settings.APP_NAME
+            }
         )
         logger.info(f"Соединение с базой данных PostgreSQL установлено.")
         return pool

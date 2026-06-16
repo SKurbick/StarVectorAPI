@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 async def init_client_session(
-    timeout: int = 30,
+    timeout: int = 60,
     max_connections: int = 100,
     ssl: bool = True
 ) -> Optional[ClientSession]:
@@ -23,7 +23,7 @@ async def init_client_session(
         connector = TCPConnector(
             limit=max_connections,
             ssl=ssl,
-            keepalive_timeout=30,
+            keepalive_timeout=60,
             force_close=False
         )
         
