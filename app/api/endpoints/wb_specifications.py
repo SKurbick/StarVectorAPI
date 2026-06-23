@@ -28,7 +28,7 @@ charcs_router = APIRouter(prefix="/charcs")
 
 @charcs_router.get("/list/{subject_id}", status_code=status.HTTP_200_OK, description="""
     **Получить доступные характеристики по ID предмета.**
-""")
+""", deprecated=True)
 async def get_charcs_by_subject_id(
         subject_id: int = Path(..., gt=0, description="id предмета"),
         user: UserPermissions = Depends(get_info_from_token),
@@ -52,7 +52,7 @@ async def get_charcs_by_subject_id(
 
 @charcs_router.get("/colors", status_code=status.HTTP_200_OK, description="""
     **Получить возможные значения характеристики предмета `Цвет`.**
-""")
+""", deprecated=True)
 async def get_colors(
         user: UserPermissions = Depends(get_info_from_token),
         service: WBCharcService = Depends(get_wb_charc_service),
@@ -70,7 +70,7 @@ async def get_colors(
 
 @charcs_router.get("/kinds", status_code=status.HTTP_200_OK, description="""
     **Получить возможные значения характеристики предмета `Пол`.**
-""")
+""", deprecated=True)
 async def get_kinds(
         user: UserPermissions = Depends(get_info_from_token),
         service: WBCharcService = Depends(get_wb_charc_service),
@@ -88,7 +88,7 @@ async def get_kinds(
 
 @charcs_router.get("/countries", status_code=status.HTTP_200_OK, description="""
     **Получить возможные значения характеристики предмета `Страна производства`.**
-""")
+""", deprecated=True)
 async def get_countries(
         user: UserPermissions = Depends(get_info_from_token),
         service: WBCharcService = Depends(get_wb_charc_service),
@@ -106,7 +106,7 @@ async def get_countries(
 
 @charcs_router.get("/seasons", status_code=status.HTTP_200_OK, description="""
     **Получить возможные значения характеристики предмета `Сезон`.**
-""")
+""", deprecated=True)
 async def get_seasons(
         user: UserPermissions = Depends(get_info_from_token),
         service: WBCharcService = Depends(get_wb_charc_service),
@@ -124,7 +124,7 @@ async def get_seasons(
 
 @charcs_router.get("/vat", status_code=status.HTTP_200_OK, description="""
     **Получить возможные значения характеристики предмета `Ставка НДС`.**
-""")
+""", deprecated=True)
 async def get_vat(
         user: UserPermissions = Depends(get_info_from_token),
         service: WBCharcService = Depends(get_wb_charc_service),
@@ -142,7 +142,7 @@ async def get_vat(
 
 @charcs_router.get("/brands/{subject_id}", status_code=status.HTTP_200_OK, description="""
     **Получить список брендов по ID предмета.**
-""")
+""", deprecated=True)
 async def get_brands(
         subject_id: int = Path(..., gt=0, description="id предмета"),
         limit: int = Query(1, ge=1, description="Лимит значений"),
@@ -168,7 +168,7 @@ async def get_brands(
 
 @charcs_router.get("/predifined", status_code=status.HTTP_200_OK, description="""
     **Получить id характеристик, по которым можно получить доступные значения.**
-""")
+""", deprecated=True)
 async def get_predifined_charc_ids(
         user: UserPermissions = Depends(get_info_from_token),
 ) -> dict[str, PredefinedWBCharcEnum]:
@@ -184,7 +184,7 @@ async def get_predifined_charc_ids(
 
 @categories_router.get("/", status_code=status.HTTP_200_OK, description="""
     **Получить все родительские категории.**
-""")
+""", deprecated=True)
 async def get_all_categories(
         user: UserPermissions = Depends(get_info_from_token),
         service: WBParentCategoryService = Depends(get_wb_parent_category_service),
@@ -201,7 +201,7 @@ async def get_all_categories(
 
 @subjects_router.get("/", status_code=status.HTTP_200_OK, description="""
     **Получить все предметы.**
-""")
+""", deprecated=True)
 async def get_subjects_by_filters(
         parent_id: Optional[int] = Query(None, gt=0, description="id родительской категории предметов"),
         user: UserPermissions = Depends(get_info_from_token),

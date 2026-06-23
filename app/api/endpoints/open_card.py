@@ -8,7 +8,7 @@ from app.domain.models import OpenCardsRequest, UserPermissions
 router  = APIRouter(prefix="/opening_cards", tags=["Открытие карточек"])
 
 
-@router.post("/open")
+@router.post("/open", deprecated=True)
 async def open_cards(
     data: OpenCardsRequest,
     user: UserPermissions = Depends(get_info_from_token),

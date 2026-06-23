@@ -15,7 +15,7 @@ from app.domain.models import (
 router = APIRouter(prefix="/closing_cards", tags=["Закрытие карточек"])
 
 
-@router.post("/preview")
+@router.post("/preview", deprecated=True)
 async def close_preview(
         data: CloseCardPreviewRequest = Body(..., description="Аккаунты c данными карточек к закрытию."),
         user: UserPermissions = Depends(get_info_from_token),
@@ -26,7 +26,7 @@ async def close_preview(
     return await service.close_cards_preview(data)
 
 
-@router.post("/close")
+@router.post("/close", deprecated=True)
 async def close_cards(
         data: CloseCardsRequest,
         user: UserPermissions = Depends(get_info_from_token),

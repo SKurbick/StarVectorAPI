@@ -10,7 +10,7 @@ router = APIRouter(prefix="/accounts", tags=["Аккаунты продавца"
 
 @router.get("/", description="""
     **Получить список аккаунтов продавца.**\n
-""")
+""", deprecated=True)
 async def get_all_wb_accounts(
     is_active: bool | None = Query(None, description=(
     "`true` - получить **активные** аккаунты<br>"

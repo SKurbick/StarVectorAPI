@@ -1,6 +1,6 @@
 from datetime import datetime
 import logging
-from typing import Annotated, Optional, Literal
+from typing import Optional, Literal
 import uuid
 
 from fastapi import APIRouter, Depends, Query, HTTPException, Path, UploadFile, File, Header, Body
@@ -13,7 +13,6 @@ from app.dependencies import (
     get_product_specifications_update_service,
 )
 from app.domain.models import (
-    SubjectDataWithProductsResponse,
     UserPermissions,
     ProductWBCards,
     ProductWBSpecificationResponse,
@@ -41,25 +40,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/products", tags=["Товары"])
 
 
-@router.get("/grouped_by_subjects", status_code=status.HTTP_200_OK)
-async def get_products_grouped_by_subjects(
-        service: Annotated[ProductService, Depends(get_product_service)],
-        limit: Annotated[int, Query(ge=1)] = 1000,
-        offset: Annotated[int, Query(ge=0)] = 0,
-        user: UserPermissions = Depends(get_info_from_token),
-) -> list[SubjectDataWithProductsResponse]:
-    if not user.viewing:
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
-    return await service.get_products_grouped_by_subjects(
-        limit=limit,
-        offset=offset,
-    )
-
-
 @router.get("/wb/subjects/{subject_id}", status_code=status.HTTP_200_OK, description="""
     **Получить список товаров по предмету WB.**
     subject_id: id предмета.
-""")
+""", deprecated=True)
 async def get_products_by_wb_subject(
     subject_id: int = Path(..., description="ID предмета"),
     service: ProductService = Depends(get_product_service),
@@ -76,7 +60,7 @@ async def get_products_by_wb_subject(
 
 @router.post("/subject", status_code=status.HTTP_200_OK, description="""
     **Присвоить предмет WB для товара.**
-""")
+""", deprecated=True)
 async def set_subject_id(
     product_id: str = Body(..., description="Артикул товара"),
     subject_id: int = Body(..., description="id предмета WB"),
@@ -106,7 +90,7 @@ async def set_subject_id(
 @router.get("/{id}/wb/group", status_code=status.HTTP_200_OK, description="""
     **Получить объединенные товары.**
     id: локальный артикул товара (wild).
-""")
+""", deprecated=True)
 async def get_product_wb_group(
     id: str = Path(..., description="Артикул товара."),
     user: UserPermissions = Depends(get_info_from_token),
@@ -132,7 +116,7 @@ async def get_product_wb_group(
 
 @router.post("/wb/groups/join", status_code=status.HTTP_200_OK, description="""
     **Объединить товары в группу для склеивания карточек на WB.**
-""")
+""", deprecated=True)
 async def join_products_to_wb_group(
     data: JoinProductsToWBGroupRequest,
     user: UserPermissions = Depends(get_info_from_token),
@@ -161,7 +145,7 @@ async def join_products_to_wb_group(
 
 @router.post("/wb/groups/split", status_code=status.HTTP_200_OK, description="""
     **Отделить товары из группы для склеивания карточек на WB.**
-""")
+""", deprecated=True)
 async def split_products_from_wb_group(
     data: SplitProductsFromWBGroupRequest,
     user: UserPermissions = Depends(get_info_from_token),
@@ -188,7 +172,7 @@ async def split_products_from_wb_group(
 @router.get("/{id}/cards", status_code=status.HTTP_200_OK, description="""
     **Получить все карточки товара**\n   
     id: локальный артикул товара (wild).
-""")
+""", deprecated=True)
 async def get_product_cards(
         id: str = Path(..., description="Локальный артикул товара."),
         user: UserPermissions = Depends(get_info_from_token),
@@ -209,7 +193,7 @@ async def get_product_cards(
 @router.get("/{id}/wb/specifications", status_code=status.HTTP_200_OK, description="""
     **Получить спецификации товара.**
     id: локальный артикул товара (wild).
-""")
+""", deprecated=True)
 async def get_product_wb_specifications(
     id: str = Path(..., description="Локальный артикул товара."),
     user: UserPermissions = Depends(get_info_from_token),
@@ -235,7 +219,8 @@ async def get_product_wb_specifications(
 @router.post(
         "/wb/specifications/update", 
         status_code=status.HTTP_202_ACCEPTED,
-        description="**Обновить спецификации товара.**"
+        description="**Обновить спецификации товара.**",
+        deprecated=True
 )
 async def update_product_wb_specifications(
     data: ProductWBSpecificationUpdate,
@@ -280,7 +265,7 @@ async def update_product_wb_specifications(
 @router.get("/{id}/wb/media/additionals", status_code=status.HTTP_200_OK, description="""
     **Получение дополнительных фотографий товара, которые являются общим набором для всех карточек на WB.**
     id: локальный артикул товара (wild).
-""")
+""", deprecated=True)
 async def get_additionals_photo_for_product(
     id: str = Path(..., description="Локальный артикул товара."),
     user: UserPermissions = Depends(get_info_from_token),
@@ -303,7 +288,7 @@ async def get_additionals_photo_for_product(
     Требования:
         - Максимум 25 изображений
         - Ссылки должны вести напрямую на файлы
-    """,
+    """, deprecated=True,
 )
 async def update_media_by_links(
     data: ProductWBMediaLinksUpdate,
@@ -359,6 +344,7 @@ async def update_media_by_links(
         - Форматы фото (JPG, PNG, BMP, GIF, WebP)
         - Размер фото: до 32 Мб
     """,
+    deprecated=True
 )
 async def upload_media_files(
     product_id: str = Header(..., description="Локальный артикул товара"),
@@ -425,6 +411,7 @@ async def upload_media_files(
         - формат видео (MP4, MOV)
         - Размер видео: до 50 Мб
     """,
+    deprecated=True
 )
 async def upload_default_video_file(
     product_id: str = Header(..., description="Локальный артикул товара"),
@@ -486,7 +473,7 @@ async def upload_default_video_file(
     )
 
 
-@router.get("/wb/health", status_code=status.HTTP_200_OK)
+@router.get("/wb/health", status_code=status.HTTP_200_OK, deprecated=True)
 async def get_product_wb_health(
     page: int = Query(default=1, ge=1, description="Номер страницы"),
     size: int = Query(default=50, ge=1, le=10000, description="Размер страницы"),

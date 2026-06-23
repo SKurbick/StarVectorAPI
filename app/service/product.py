@@ -2,7 +2,6 @@ from typing import Optional
 from collections import defaultdict
 
 from app.domain.models import (
-    SubjectDataWithProductsResponse, 
     ProductWBDimensionsResponse,
     ProductWBCardInfo,
     ProductWBCards,
@@ -56,14 +55,6 @@ class ProductService:
         self._seller_account_repo = seller_account_repo
         self._article_repo = article_repo
         self._wb_subject_repo = wb_subject_repo
-
-    async def get_products_grouped_by_subjects(
-        self,
-        limit: int = 1000,
-        offset: int = 0,
-    ) -> list[SubjectDataWithProductsResponse]:
-        """Получить товары, сгруппированные по предметам."""
-        return await self._product_repo.get_products_grouped_by_subjects(limit, offset)
 
     async def get_product_wb_group(self, product_id) -> list[ProductBase]:
         """Получить группу объединенных товаров."""

@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/cards", tags=["Карточки товаров"])
 
 
-@router.post("/wb/duplicate", description="Создание дубликата карточки товара на WB.")
+@router.post("/wb/duplicate", description="Создание дубликата карточки товара на WB.", deprecated=True)
 async def duplicate_wb_card(
     data: DuplicateWBProductCardRequest,
     user: UserPermissions = Depends(get_info_from_token),
@@ -65,7 +65,7 @@ async def duplicate_wb_card(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error.")
 
 
-@router.post("/wb/duplicate-to-accounts", description="Создание дубликата карточки товара на других аккаунтах WB.")
+@router.post("/wb/duplicate-to-accounts", description="Создание дубликата карточки товара на других аккаунтах WB.", deprecated=True)
 async def duplicate_wb_card_to_accounts(
     data: DuplicateCardToAccountsRequest,
     user: UserPermissions = Depends(get_info_from_token),
@@ -104,7 +104,7 @@ async def duplicate_wb_card_to_accounts(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error.")
 
 
-@router.post("/wb/update", description="Обновить информацию карточки товара на WB.")
+@router.post("/wb/update", description="Обновить информацию карточки товара на WB.", deprecated=True)
 async def update_wb_card(
     data: WBCardSpecificationUpdateRequest,
     user: UserPermissions = Depends(get_info_from_token),
@@ -132,7 +132,7 @@ async def update_wb_card(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Internal server error.")
 
 
-@router.post("/wb/upload", description="Создать карточку товара на WB.")
+@router.post("/wb/upload", description="Создать карточку товара на WB.", deprecated=True)
 async def upload_wb_card(
     data: WBCardUploadRequest,
     user: UserPermissions = Depends(get_info_from_token),
@@ -172,6 +172,7 @@ async def upload_wb_card(
         - Размер фото: до 32 Мб
         - Размер видео: до 50 Мб
     """,
+    deprecated=True
 )
 async def upload_media_file(
     nm_id: int = Header(..., description="Артикул WB"),
@@ -233,6 +234,7 @@ async def upload_media_file(
     description="""
     **Удалить видео для карточки товара на WB.**
     """,
+    deprecated=True
 )
 async def remove_video_file(
     nm_id: int = Path(..., description="Артикул карточки товара на WB"),
@@ -272,7 +274,7 @@ async def remove_video_file(
 
 @router.get("/banned", status_code=status.HTTP_200_OK, description="""
     **Получить список забаненых карточек на WB.**
-""")
+""", deprecated=True)
 async def get_banned_product(
     user: UserPermissions = Depends(get_info_from_token),
     service: BannedCardService = Depends(get_banned_card_service),
