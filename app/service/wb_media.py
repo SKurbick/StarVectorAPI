@@ -175,7 +175,7 @@ class WBMediaService:
         if source_nm_id:
             logger.debug(f"Текущая карточка для хранения допников товара {product_id}: {source_nm_id}")
             logger.debug(f"Статус карточки {source_nm_id}: {article_statuses.get(source_nm_id)}")
-            if article_statuses.get(source_nm_id) in {CardStatusEnum.active, CardStatusEnum.new}:
+            if article_statuses.get(source_nm_id, "active") in {CardStatusEnum.active, CardStatusEnum.new}:
                 current_article = next((a for a in sorted_articles if a["nm_id"] == source_nm_id), None)
 
                 if current_article:
@@ -209,7 +209,7 @@ class WBMediaService:
             if article["nm_id"] == source_nm_id:
                 continue
 
-            if not article_statuses.get(article["nm_id"]) in {CardStatusEnum.active, CardStatusEnum.new}:
+            if not article_statuses.get(article["nm_id"], "active") in {CardStatusEnum.active, CardStatusEnum.new}:
                 continue
 
             wb_client = CardsWBAPI(
