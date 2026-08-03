@@ -65,66 +65,66 @@ class ExcelParserEnum(Enum):
     comment = 29
 
 
-class PredefinedWBCharcEnum(int, Enum):
-    """ID характеристик WB для которых можно получить варианты значений."""
+# class PredefinedWBCharcEnum(int, Enum):
+#     """ID характеристик WB для которых можно получить варианты значений."""
 
-    VAT = 15001405
-    COUNTRY = 14177451
-    COLOR = 14177449
-    KIND = 204557
-    SEASON = 18769
-
-
-class CertificationCharсEnum(int, Enum):
-    "ID характеристик WB, которые хранят информацию о сертификатах и декларациях товаров."
-
-    EXPIRATION_DATE = 15001138  # Дата окончания действия сертификата/декларации
-    REGISTRATION_DATE = 15001137  # Дата регистрации сертификата/декларации
-    DECLARATION_NUMBER = 15001135  # Номер декларации соответствия
-    CERTIFICATE_NUMBER = 15001136  # Номер сертификата соответствия
+#     VAT = 15001405
+#     COUNTRY = 14177451
+#     COLOR = 14177449
+#     KIND = 204557
+#     SEASON = 18769
 
 
-class GlobalProductWBStatus(str, Enum):
-    """Статус товара по состоянию карточек на ВБ"""
+# class CertificationCharсEnum(int, Enum):
+#     "ID характеристик WB, которые хранят информацию о сертификатах и декларациях товаров."
 
-    OK = "ok"
-    HAS_WARNING = "has_warning"
-    HAS_ERROR = "has_error"
-
-
-class ProductAccountHealthWBStatus(str, Enum):
-    """Статус аккаунта по состоянию карточек на ВБ"""
-
-    OK = "ok"
-    WARNING = "warning"
-    ERROR = "error"
+#     EXPIRATION_DATE = 15001138  # Дата окончания действия сертификата/декларации
+#     REGISTRATION_DATE = 15001137  # Дата регистрации сертификата/декларации
+#     DECLARATION_NUMBER = 15001135  # Номер декларации соответствия
+#     CERTIFICATE_NUMBER = 15001136  # Номер сертификата соответствия
 
 
-class ProductWBIssueType(str, Enum):
-    """
-    Список проблемных состояний товара по карточкам на WB.
+# class GlobalProductWBStatus(str, Enum):
+#     """Статус товара по состоянию карточек на ВБ"""
 
-    Args:
-        PRICE_DEVIATION: Разброс цен выше порогового значения.
-    """
-
-    PRICE_DEVIATION = "price_deviation"
+#     OK = "ok"
+#     HAS_WARNING = "has_warning"
+#     HAS_ERROR = "has_error"
 
 
-class AccountWBIssueType(str, Enum):
-    """
-    Список проблемных состояний аккаунта по товару карточек на WB.
+# class ProductAccountHealthWBStatus(str, Enum):
+#     """Статус аккаунта по состоянию карточек на ВБ"""
+
+#     OK = "ok"
+#     WARNING = "warning"
+#     ERROR = "error"
+
+
+# class ProductWBIssueType(str, Enum):
+#     """
+#     Список проблемных состояний товара по карточкам на WB.
+
+#     Args:
+#         PRICE_DEVIATION: Разброс цен выше порогового значения.
+#     """
+
+#     PRICE_DEVIATION = "price_deviation"
+
+
+# class AccountWBIssueType(str, Enum):
+#     """
+#     Список проблемных состояний аккаунта по товару карточек на WB.
     
-    Args:
-        MULTIPLE_ACTIVE_CARDS: Несколько активных карточек товара.
-        VAT_MISMATCH: Расхождение НДС карточки и установленного для аккаунта.
-        LOW_RATING: Рейтинг карточки ниже порогового значения.
-        NO_ACTIVE_CARDS: Нет активных карточек.
-        READY_TO_ACTIVATE: Есть карточки, готовые стать активными.
-    """
+#     Args:
+#         MULTIPLE_ACTIVE_CARDS: Несколько активных карточек товара.
+#         VAT_MISMATCH: Расхождение НДС карточки и установленного для аккаунта.
+#         LOW_RATING: Рейтинг карточки ниже порогового значения.
+#         NO_ACTIVE_CARDS: Нет активных карточек.
+#         READY_TO_ACTIVATE: Есть карточки, готовые стать активными.
+#     """
 
-    MULTIPLE_ACTIVE_CARDS = "multiple_active_cards"
-    VAT_MISMATCH = "vat_mismatch"
-    LOW_RATING = "low_rating"
-    NO_ACTIVE_CARDS = "no_active_cards"
-    READY_TO_ACTIVATE = "ready_to_activate"
+#     MULTIPLE_ACTIVE_CARDS = "multiple_active_cards"
+#     VAT_MISMATCH = "vat_mismatch"
+#     LOW_RATING = "low_rating"
+#     NO_ACTIVE_CARDS = "no_active_cards"
+#     READY_TO_ACTIVATE = "ready_to_activate"

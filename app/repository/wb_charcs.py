@@ -1,105 +1,105 @@
-import json
-from typing import Optional
+# import json
+# from typing import Optional
 
-from asyncpg import Pool
+# from asyncpg import Pool
 
-from app.domain.models import ProductWBCharc
+# from app.domain.models import ProductWBCharc
 
 
-class WBCharcRepository:
-    """Репозиторий для характеристик WB."""
+# class WBCharcRepository:
+#     """Репозиторий для характеристик WB."""
 
-    def __init__(self, pool: Pool):
-        self.pool = pool
+#     def __init__(self, pool: Pool):
+#         self.pool = pool
 
-    async def get_charcs_by_product_id(self, product_id: int) -> list[ProductWBCharc]:
-        """
-        Получить список характеристик WB для товара.
+#     async def get_charcs_by_product_id(self, product_id: int) -> list[ProductWBCharc]:
+#         """
+#         Получить список характеристик WB для товара.
 
-        Args:
-            product_id: локальный ID товара.
-        """
-        query = """
-            WITH product_charc AS (
-                SELECT
-                    pch.product_id,
-                    pch.charc_id,
-                    pch.value
-                FROM wb_product_characteristics pch
-                WHERE pch.product_id = $1
-            )
-            SELECT
-                pch.charc_id AS id,
-                pch.product_id,
-                pch.value,
-                wch.name,
-                wch.unit_name,
-                wch.max_count,
-                wch.required,
-                wch.popular,
-                wch.charc_type
-            FROM product_charc pch
-            JOIN wb_characteristics wch
-                ON wch.id = pch.charc_id
-            ORDER BY wch.name
-        """
+#         Args:
+#             product_id: локальный ID товара.
+#         """
+#         query = """
+#             WITH product_charc AS (
+#                 SELECT
+#                     pch.product_id,
+#                     pch.charc_id,
+#                     pch.value
+#                 FROM wb_product_characteristics pch
+#                 WHERE pch.product_id = $1
+#             )
+#             SELECT
+#                 pch.charc_id AS id,
+#                 pch.product_id,
+#                 pch.value,
+#                 wch.name,
+#                 wch.unit_name,
+#                 wch.max_count,
+#                 wch.required,
+#                 wch.popular,
+#                 wch.charc_type
+#             FROM product_charc pch
+#             JOIN wb_characteristics wch
+#                 ON wch.id = pch.charc_id
+#             ORDER BY wch.name
+#         """
 
-        rows  = await self.pool.fetch(query, product_id)
-        result = []
+#         rows  = await self.pool.fetch(query, product_id)
+#         result = []
 
-        for row in rows:
-            data = dict(**row)
-            parsed_value = json.loads(data.pop("value"))
-            normalized_value = [parsed_value] if isinstance(parsed_value, str) else parsed_value
-            result.append(
-                ProductWBCharc(
-                    **data, value=normalized_value
-                )
-            )
+#         for row in rows:
+#             data = dict(**row)
+#             parsed_value = json.loads(data.pop("value"))
+#             normalized_value = [parsed_value] if isinstance(parsed_value, str) else parsed_value
+#             result.append(
+#                 ProductWBCharc(
+#                     **data, value=normalized_value
+#                 )
+#             )
 
-        return result
+#         return result
 
-    async def replace_product_charcs(
-        self,
-        product_id: str,
-        charcs: list[ProductWBCharc] | list[dict],
-        user_id: Optional[int] = None
-    ) -> None:
-        """
-        Полностью заменить характеристики товара в wb_product_characteristics.
-        Ожидает список с полями id и value (value будет сериализован в JSON).
-        """
-        delete_query = """
-            DELETE FROM wb_product_characteristics
-            WHERE product_id = $1
-        """
-        into_cols = "product_id, charc_id, value"
-        params_placeholders = "$1, $2, $3"
+#     async def replace_product_charcs(
+#         self,
+#         product_id: str,
+#         charcs: list[ProductWBCharc] | list[dict],
+#         user_id: Optional[int] = None
+#     ) -> None:
+#         """
+#         Полностью заменить характеристики товара в wb_product_characteristics.
+#         Ожидает список с полями id и value (value будет сериализован в JSON).
+#         """
+#         delete_query = """
+#             DELETE FROM wb_product_characteristics
+#             WHERE product_id = $1
+#         """
+#         into_cols = "product_id, charc_id, value"
+#         params_placeholders = "$1, $2, $3"
 
-        if user_id is not None:
-            into_cols += ", last_modified_by_user_id"
-            params_placeholders += ", $4"
+#         if user_id is not None:
+#             into_cols += ", last_modified_by_user_id"
+#             params_placeholders += ", $4"
 
-        insert_query = f"""
-            INSERT INTO wb_product_characteristics ({into_cols})
-            VALUES ({params_placeholders})
-        """
+#         insert_query = f"""
+#             INSERT INTO wb_product_characteristics ({into_cols})
+#             VALUES ({params_placeholders})
+#         """
 
-        async with self.pool.acquire() as conn:
-            async with conn.transaction():
-                await conn.execute(delete_query, product_id)
-                if not charcs:
-                    return
+#         async with self.pool.acquire() as conn:
+#             async with conn.transaction():
+#                 await conn.execute(delete_query, product_id)
+#                 if not charcs:
+#                     return
 
-                values = []
-                for item in charcs:
-                    charc_id = item.id if hasattr(item, "id") else item["id"]
-                    value = item.value if hasattr(item, "value") else item["value"]
-                    params = [product_id, charc_id, json.dumps(value, ensure_ascii=False)]
+#                 values = []
+#                 for item in charcs:
+#                     charc_id = item.id if hasattr(item, "id") else item["id"]
+#                     value = item.value if hasattr(item, "value") else item["value"]
+#                     params = [product_id, charc_id, json.dumps(value, ensure_ascii=False)]
                     
-                    if user_id is not None:
-                        params.append(user_id)
+#                     if user_id is not None:
+#                         params.append(user_id)
 
-                    values.append(tuple(params))
+#                     values.append(tuple(params))
 
-                await conn.executemany(insert_query, values)
+#                 await conn.executemany(insert_query, values)
