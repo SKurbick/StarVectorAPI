@@ -1,4 +1,3 @@
-version: "3.8"
 services:
 #  db:
 #    # env_file:
@@ -16,19 +15,7 @@ services:
 #    #      - ../backup02-10.sql:/docker-entrypoint-initdb.d/dummy_dump.sql
 #    networks:
 #        - custom
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "${REDIS_PORT}:6379"
-    command: redis-server --appendonly yes
-    healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-    networks:
-      - custom
+
 networks:
   custom:
     driver: bridge

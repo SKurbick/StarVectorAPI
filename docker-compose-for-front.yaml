@@ -1,30 +1,10 @@
-version: "3.8"
 services:
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "${REDIS_PORT}:6379"
-    command: redis-server --appendonly yes
-    healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-    networks:
-      - star-vector-network
   backend:
     env_file:
       - .env
     container_name: star-vector-api
     image: star-vector-api
     restart: always
-    depends_on:
-      redis:
-        condition: service_started
-    environment:
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
     build:
       context: .
       dockerfile: Dockerfile
@@ -33,6 +13,7 @@ services:
       - "${APP_PORT}:${APP_PORT}"
     networks:
       - star-vector-network
+
 networks:
   star-vector-network:
     driver: bridge
