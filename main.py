@@ -7,7 +7,6 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from app.infrastructure.API.rate_limiters.wb import global_wb_rate_limiter
-from app.infrastructure.redis_client import redis_client
 from app.infrastructure.http_client import init_client_session, close_client_session
 from app.infrastructure.database import (
     init_postgres_db,
@@ -26,22 +25,15 @@ from app.api.endpoints import (
     net_profit_router,
     percent_by_tax_router,
     stocks_quantity_router,
-    # product_router,
     fin_reports_router,
     sales_router,
     penalties_router,
-    # close_card_router,
-    # open_card_router,
     competitors_prices_router,
     orders_history_router,
     product_note_router,
-    # subject_data_router,
-    # product_cards_router,
     ic_net_profit_router,
     sales_management_router,
-    # seller_account_router,
     analytics_router,
-    # wb_specifications_router,
 )
 
 from app.config.settings import settings, get_wb_tokens
@@ -63,7 +55,6 @@ async def lifespan(app: FastAPI):
         postgres_task = task_group.create_task(init_postgres_db())
         clickhouse_task = task_group.create_task(init_clickhouse_client())
         wb_session = task_group.create_task(init_client_session())
-        # task_group.create_task(redis_client.connect())
         tokens = task_group.create_task(get_wb_tokens())
     
     # Добавление доступных аккаунтов WB в рейт-лимитер
@@ -76,7 +67,6 @@ async def lifespan(app: FastAPI):
     async with asyncio.TaskGroup() as task_group:
         task_group.create_task(close_postgres_db(app.state.pool))
         task_group.create_task(close_clickhouse_client(app.state.clickhouse_client))
-        # task_group.create_task(redis_client.disconnect())
         task_group.create_task(close_client_session(app.state.wb_session))
 
 
@@ -99,17 +89,10 @@ base_router.include_router(penalties_router)
 base_router.include_router(sales_router)
 base_router.include_router(competitors_prices_router)
 base_router.include_router(orders_history_router)
-# base_router.include_router(subject_data_router)
 base_router.include_router(product_note_router)
 base_router.include_router(ic_net_profit_router)
 base_router.include_router(sales_management_router)
 base_router.include_router(analytics_router)
-# base_router.include_router(seller_account_router)
-# base_router.include_router(product_router)
-# base_router.include_router(product_cards_router)
-# base_router.include_router(open_card_router)
-# base_router.include_router(close_card_router)
-# base_router.include_router(wb_specifications_router)
 
 app.include_router(base_router)
 app.include_router(favicon_router)

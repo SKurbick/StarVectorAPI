@@ -1,16 +1,9 @@
 import asyncio
-import json
-import time
 from pprint import pprint
 from typing import List
 
 import aiohttp
 from aiohttp import ClientSession
-
-
-class PricesAndDiscounts:
-    """API Цены и товары"""
-    pass
 
 
 class ListOfGoodsPricesAndDiscounts:

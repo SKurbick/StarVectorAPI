@@ -4,7 +4,6 @@ from starlette import status
 from app.dependencies import get_stocks_quantity_service, validate_edit_quantity_data, get_info_from_token
 from app.domain.models import (
     StocksQuantity,
-    ResponseMessageDetails,
     EditQuantityValidationResult,
     StocksEditResponse,
     UserPermissions
