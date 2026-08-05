@@ -1,9 +1,3 @@
-version: '3.8'
-
-volumes:
-  redis_data:
-  flower_data:
-
 services:
   star_vector_api:
     build: ./StarVectorAPI  # Путь к Dockerfile FastAPI

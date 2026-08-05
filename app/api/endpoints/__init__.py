@@ -8,22 +8,15 @@ from .percent_by_tax import router as percent_by_tax_router
 from .stocks_quantity import router as stocks_quantity_router
 from .favicon import router as favicon_router
 from .turnover import router as turnover_router
-from .product import router as product_router
 from .fin_reports import router as fin_reports_router
 from .penalties import router as penalties_router
 from .sales import router as sales_router
 from .competitors_prices import router as competitors_prices_router
-from .close_card import router as close_card_router
-from .open_card import router as open_card_router
 from .order_history import router as orders_history_router
 from .product_note import router as product_note_router
-from .subject_data import router as subject_data_router
-from .product_cards import router as product_cards_router
 from.ic_net_profit import router as ic_net_profit_router
 from .sales_management import router as sales_management_router
-from .seller_account import router as seller_account_router
 from .analytics import router as analytics_router
-from .wb_specifications import router as wb_specifications_router
 
 
 __all__ = [
@@ -37,20 +30,13 @@ __all__ = [
     'stocks_quantity_router',
     'favicon_router',
     'turnover_router',
-    'product_router',
     'fin_reports_router',
     'penalties_router',
     'sales_router',
     'competitors_prices_router',
-    'close_card_router',
-    'open_card_router',
     'orders_history_router',
-    'subject_data_router',
     'product_note_router',
-    'product_cards_router',
     'ic_net_profit_router',
     'sales_management_router',
-    'seller_account_router',
     'analytics_router',
-    'wb_specifications_router',
 ]

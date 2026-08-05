@@ -14,20 +14,11 @@ from .database import get_pool, get_clickhouse_client
 from .competitors_prices import get_competitor_price_service
 from .schedulers import verify_scheduler_api_key
 from .card_status import get_card_status_service
-from .close_card import get_close_card_service
-from .open_card import get_open_card_service
-from .stock_movement import get_stock_movement_service
 from .database import get_pool
-from .subject_data import get_subject_data_service
-from .product_cards import get_wb_cards_service, get_wb_card_create_service, get_wb_card_update_service
 from .sales_management import get_sales_management_service
 from .jwt_dep import get_info_from_token
-from .seller_account import get_seller_account_service
 from .analytics import get_analytics_service
-from .wb_specifications import get_wb_charc_service, get_wb_subject_service, get_wb_parent_category_service
 from .http_session import get_wb_http_session
-from .product import get_product_service, get_product_specifications_update_service
-from .wb_media import get_wb_media_service
 
 
 __all__ = [
@@ -59,22 +50,8 @@ __all__ = [
     "verify_scheduler_api_key",
     "validate_edit_quantity_data",
     "get_card_status_service",
-    "get_close_card_service",
-    "get_open_card_service",
-    "get_stock_movement_service",
-    "get_subject_data_service",
-    "get_wb_cards_service",
     "get_sales_management_service",
     "get_info_from_token",
-    "get_seller_account_service",
     "get_analytics_service",
-    "get_wb_charc_service",
-    "get_wb_subject_service",
-    "get_wb_parent_category_service",
     "get_wb_http_session",
-    "get_product_service",
-    "get_wb_media_service",
-    "get_product_specifications_update_service",
-    "get_wb_card_create_service",
-    "get_wb_card_update_service",
 ]

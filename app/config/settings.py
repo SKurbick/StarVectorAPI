@@ -27,19 +27,11 @@ class Settings(BaseSettings):
     FRONTEND_API_ADDRESS: str
     FRONTEND_PORT: int
     SCHEDULER_API_KEY: str
-    CELERY_BROKER_URL: str
-    CELERY_RESULT_BACKEND: str
-    REDIS_HOST: str
-    REDIS_PORT: int
-    REDIS_DB: int
-    REDIS_PASSWORD: str
-    REDIS_TIMEOUT: float
-    REDIS_MAX_CONNECTIONS: int
 
     JWT_ALGORITHM: str
     JWT_SECRET_KEY: str
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
 settings: Settings = Settings()
