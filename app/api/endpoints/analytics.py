@@ -17,7 +17,7 @@ router = APIRouter(prefix="/analytics", tags=["Аналитика"])
 """,
 )
 async def warehouse_time_execution_delivery(
-    _: WBAnalyticsWHDTViewer = Depends(),
+    # _: WBAnalyticsWHDTViewer = Depends(),
     service: AnalyticsService = Depends(get_analytics_service),
 ) -> list[AnalyticsTimeExecutingWithWBAccount]:
     """
