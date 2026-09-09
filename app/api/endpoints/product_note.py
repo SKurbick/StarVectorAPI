@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
+from app.auth import ProductsNotesEditor
 from starlette import status
 
-from app.dependencies import get_info_from_token
 from app.dependencies.product_note import get_product_note_service
-from app.domain.models import ProductNoteUpdate, ResponseMessage, UserPermissions
+from app.domain.models import ProductNoteUpdate, ResponseMessage
 from app.service.product_note import ProductNoteService
 
 
@@ -13,11 +13,9 @@ router = APIRouter(prefix="/product_note", tags=["Заметки к товара
             description="Обновление заметок к товару")
 async def update_note(
     data: ProductNoteUpdate,
-    user: UserPermissions = Depends(get_info_from_token),
+    _: ProductsNotesEditor = Depends(),
     service: ProductNoteService = Depends(get_product_note_service)
 ) -> ResponseMessage:
-    if not user.viewing:
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     await service.update_note(data=data)
     return ResponseMessage(
         status=status.HTTP_200_OK,

@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
+from app.auth import WBCompetitorsPricesViewer
 from starlette import status
 
-from app.dependencies import get_competitor_price_service, get_info_from_token
-from app.domain.models import CompetitorPriceResponse, UserPermissions
+from app.dependencies import get_competitor_price_service
+from app.domain.models import CompetitorPriceResponse
 from app.service.competitors_prices import CompetitorPriceService
 
 router = APIRouter(tags=["Цены конкурентов"])
@@ -11,9 +12,7 @@ router = APIRouter(tags=["Цены конкурентов"])
 @router.get("/competitors-prices", status_code=status.HTTP_200_OK,
             description="Цены конкурентов")
 async def get_all_competitor_prices(
-        user: UserPermissions = Depends(get_info_from_token),
+        _: WBCompetitorsPricesViewer = Depends(),
         service: CompetitorPriceService = Depends(get_competitor_price_service),
 ) -> list[CompetitorPriceResponse]:
-    if not user.crm_viewing_unit_economics:
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     return await service.get_all_competitor_prices()

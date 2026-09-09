@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
+from app.auth import WBStocksQuantityEditor, WBStocksQuantityViewer
 from starlette import status
 
-from app.dependencies import get_stocks_quantity_service, validate_edit_quantity_data, get_info_from_token
+from app.dependencies import get_stocks_quantity_service, validate_edit_quantity_data
 from app.domain.models import (
     StocksQuantity,
     EditQuantityValidationResult,
     StocksEditResponse,
-    UserPermissions
 )
 from app.service.stocks_quantity import StocksQuantityService
 
@@ -16,29 +16,26 @@ router = APIRouter(tags=['Состояние по остаткам'], prefix="/s
 
 @router.get("/quantity", response_model=list[StocksQuantity], description="Состояние остатков")
 async def stocks_quantity(
-        user: UserPermissions = Depends(get_info_from_token),
+        _: WBStocksQuantityViewer = Depends(),
         service: StocksQuantityService = Depends(get_stocks_quantity_service)
 ):
-    if not user.crm_viewing_unit_economics:
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     user_details = await service.get_all_data()
     if not user_details:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Articles data not found")
     return user_details
 
 
+# TODO: вынести в другой сервис
 @router.post(
     "/edit_quantity",
     response_model=StocksEditResponse,
     description="Изменение виртуальных остатков. Метод работает асинхронно, успешно отправленные остатки обновляются в течение 5 минут."
 )
 async def edit_stocks_quantity(
-        user: UserPermissions = Depends(get_info_from_token),
+        _: WBStocksQuantityEditor = Depends(),
         validation: EditQuantityValidationResult = Depends(validate_edit_quantity_data),
         service: StocksQuantityService = Depends(get_stocks_quantity_service),
 ):
-    if not user.crm_possibility_to_store_leftovers:
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     result = None
 
     if validation.allowed:

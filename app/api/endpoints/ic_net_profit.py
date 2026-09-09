@@ -1,8 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
-from starlette import status
+from fastapi import APIRouter, Depends
+from app.auth import WBFinanceICNetProfitViewer
 
-from app.dependencies import get_info_from_token
-from app.domain.models import ICNetProfitResponseModel, UserPermissions
+from app.domain.models import ICNetProfitResponseModel
 from app.dependencies.ic_net_profit import get_ic_net_profit_service
 from app.service.ic_net_profit_service import ICNetProfitService
 
@@ -10,9 +9,7 @@ router = APIRouter(tags=["IC Net Profit"])
 
 @router.get("/ic_net_profit", status_code=200, response_model=list[ICNetProfitResponseModel])
 async def get_ic_net_profit(
-        user: UserPermissions = Depends(get_info_from_token),
+        _: WBFinanceICNetProfitViewer = Depends(),
         service: ICNetProfitService = Depends(get_ic_net_profit_service)
 ) -> list[ICNetProfitResponseModel]:
-    if not user.crm_viewing_unit_economics:
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     return await service.get_net_profit()

@@ -2,7 +2,8 @@ import asyncio
 from contextlib import asynccontextmanager
 import logging
 
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, Request, status
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
@@ -35,8 +36,8 @@ from app.api.endpoints import (
     sales_management_router,
     analytics_router,
 )
-
 from app.config.settings import settings, get_wb_tokens
+from app.exceptions import NotAuthenticatedError, AccessForbiddenError
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -97,19 +98,37 @@ base_router.include_router(analytics_router)
 app.include_router(base_router)
 app.include_router(favicon_router)
 
-origins = [
-    # "http://192.168.2.49:5173",
-    "*",  # временное решение
-    f"http://{settings.FRONTEND_API_ADDRESS}:{settings.FRONTEND_PORT}"
-
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # Список разрешённых origin
+    allow_origins=settings.cors_allow_origins,
     allow_credentials=True,  # Разрешить передачу cookies и авторизационных данных
     allow_methods=["*"],  # Разрешить все HTTP методы (GET, POST, PUT, DELETE и т.д.)
     allow_headers=["*"],  # Разрешить все заголовки
 )
+
+
+@app.exception_handler(NotAuthenticatedError)
+def not_authenticated_handler(
+    _: Request,
+    exc: NotAuthenticatedError,
+):
+    return JSONResponse(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        content={"detail": str(exc)},
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+@app.exception_handler(AccessForbiddenError)
+def access_forbidden_handler(
+    _: Request,
+    exc: AccessForbiddenError,
+):
+    return JSONResponse(
+        status_code=status.HTTP_403_FORBIDDEN,
+        content={"detail": str(exc)},
+    )
+
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host=settings.APP_IP_ADDRESS, port=settings.APP_PORT, reload=True)

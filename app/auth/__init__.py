@@ -1,0 +1,54 @@
+"""
+Публичный интерфейс аутентификации StarVectorAPI.
+"""
+
+from .dependencies import (
+    AuthenticatedUser,
+    WBAnalyticsWHDTViewer,
+    WBCardsViewer,
+    WBCompetitorsPricesViewer,
+    WBFinanceReportsWeeklyViewer,
+    WBFinanceICNetProfitViewer,
+    WBFinanceNetProfitViewer,
+    WBOrderHistoryViewer,
+    WBOrderRevenuesViewer,
+    WBPenaltiesViewer,
+    WBPenaltiesAnnotationsEditor,
+    WBTaxesPercentEditor,
+    ProductsNotesEditor,
+    WBAnaliticsSalesRevenueViewer,
+    WBAnaliticsSalesICViewer,
+    WBAnaliticsSalesManagersViewer,
+    WBAnaliticsSalesCategoryViewer,
+    WBAnaliticsPromotionsViewer,
+    WBStocksQuantityEditor,
+    WBStocksQuantityViewer,
+    WBTurnoverFederalDistrictViewer,
+    WBUnitEconomicsViewer,
+)
+
+
+__all__ = [
+    "AuthenticatedUser",
+    "WBAnalyticsWHDTViewer",
+    "WBCardsViewer",
+    "WBCompetitorsPricesViewer",
+    "WBFinanceReportsWeeklyViewer",
+    "WBFinanceICNetProfitViewer",
+    "WBFinanceNetProfitViewer",
+    "WBOrderHistoryViewer",
+    "WBOrderRevenuesViewer",
+    "WBPenaltiesViewer",
+    "WBPenaltiesAnnotationsEditor",
+    "WBTaxesPercentEditor",
+    "ProductsNotesEditor",
+    "WBAnaliticsSalesRevenueViewer",
+    "WBAnaliticsSalesICViewer",
+    "WBAnaliticsSalesManagersViewer",
+    "WBAnaliticsSalesCategoryViewer",
+    "WBAnaliticsPromotionsViewer",
+    "WBStocksQuantityEditor",
+    "WBStocksQuantityViewer",
+    "WBTurnoverFederalDistrictViewer",
+    "WBUnitEconomicsViewer",
+]

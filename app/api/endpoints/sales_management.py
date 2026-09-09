@@ -3,16 +3,22 @@ from typing import Optional
 from http import HTTPStatus
 
 from fastapi import APIRouter, HTTPException
+from app.auth import (
+    WBAnaliticsSalesRevenueViewer,
+    WBAnaliticsSalesICViewer,
+    WBAnaliticsSalesManagersViewer,
+    WBAnaliticsSalesCategoryViewer,
+    WBAnaliticsPromotionsViewer,
+)
 from fastapi.params import Depends
-from starlette import status
 
-from app.dependencies import get_sales_management_service, get_info_from_token
+from app.dependencies import get_sales_management_service
 from app.service.sales_management import SalesManagementService
 from app.domain.models import (
     SalesManagementBaseSummWithDate,
     SalesManagementShares,
     SalesManagementSharesGood,
-    UserPermissions, SalesManagementSharesGoodWithMargin
+    SalesManagementSharesGoodWithMargin
 )
 
 router = APIRouter(prefix="/sales-management", tags=["Управление продажами"])
@@ -26,11 +32,9 @@ router = APIRouter(prefix="/sales-management", tags=["Управление пр�
 async def get_revenue_by_date(
         date: datetime.date,
         good_category: Optional[str] = None,
-        user: UserPermissions = Depends(get_info_from_token),
+        _: WBAnaliticsSalesRevenueViewer = Depends(),
         service: SalesManagementService = Depends(get_sales_management_service)
 ):
-    if not user.crm_viewing_crm_analytic:
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     return await service.get_sum_sales_category_by_date(date, good_category)
 
 
@@ -44,11 +48,9 @@ async def get_revenue_by_period(
         date_start: datetime.date,
         date_end: datetime.date,
         good_category: Optional[str] = None,
-        user: UserPermissions = Depends(get_info_from_token),
+        _: WBAnaliticsSalesRevenueViewer = Depends(),
         service: SalesManagementService = Depends(get_sales_management_service)
 ):
-    if not user.crm_viewing_crm_analytic:
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     if date_start < date_end:
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="reverse date")
     result = await service.get_sum_revenue_category_by_period_with_managers(
@@ -69,11 +71,9 @@ async def get_individual_condition_by_period(
         date_start: datetime.date,
         date_end: datetime.date,
         good_category: Optional[str] = None,
-        user: UserPermissions = Depends(get_info_from_token),
+        _: WBAnaliticsSalesICViewer = Depends(),
         service: SalesManagementService = Depends(get_sales_management_service)
 ):
-    if not user.crm_viewing_crm_analytic:
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     if date_start < date_end:
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="reverse date")
     result = await service.get_sums_individual_conditions_by_period_with_category(
@@ -94,11 +94,9 @@ async def get_browsing_by_period(
         date_start: datetime.date,
         date_end: datetime.date,
         good_category: Optional[str] = None,
-        user: UserPermissions = Depends(get_info_from_token),
+        _: WBAnaliticsSalesCategoryViewer = Depends(),
         service: SalesManagementService = Depends(get_sales_management_service)
 ):
-    if not user.crm_viewing_crm_analytic:
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     if date_start < date_end:
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="reverse date")
     result = await service.get_browsing_info_by_category_and_period(
@@ -119,11 +117,9 @@ async def get_outlay_by_period(
         date_start: datetime.date,
         date_end: datetime.date,
         good_category: Optional[str] = None,
-        user: UserPermissions = Depends(get_info_from_token),
+        _: WBAnaliticsSalesCategoryViewer = Depends(),
         service: SalesManagementService = Depends(get_sales_management_service)
 ):
-    if not user.crm_viewing_crm_analytic:
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     if date_start < date_end:
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="reverse date")
     result = await service.get_outlay_info_by_category_and_period(
@@ -144,11 +140,9 @@ async def get_penalty_by_period(
         date_start: datetime.date,
         date_end: datetime.date,
         good_category: Optional[str] = None,
-        user: UserPermissions = Depends(get_info_from_token),
+        _: WBAnaliticsSalesCategoryViewer = Depends(),
         service: SalesManagementService = Depends(get_sales_management_service)
 ):
-    if not user.crm_viewing_crm_analytic:
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     if date_start < date_end:
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="reverse date")
     result = await service.get_penalty_info_by_category_and_period(
@@ -167,11 +161,9 @@ async def get_penalty_by_period(
 async def get_managers_statistic_by_period(
         date_start: datetime.date,
         date_end: datetime.date,
-        user: UserPermissions = Depends(get_info_from_token),
+        _: WBAnaliticsSalesManagersViewer = Depends(),
         service: SalesManagementService = Depends(get_sales_management_service)
 ):
-    if not user.crm_viewing_crm_analytic:
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     if date_start < date_end:
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="reverse date")
     result = await service.get_revenue_and_ic_by_manager_and_period(
@@ -182,14 +174,12 @@ async def get_managers_statistic_by_period(
 
 
 @router.get("/sales/promotions/static", response_model=list[SalesManagementShares], description="""
-**Получить информацию по акциям у аккаунтов с процентным соотношением total\shares**\n
+**Получить информацию по акциям у аккаунтов с процентным соотношением total/shares**\n
 """)
 async def get_promotions_statistic(
-        user: UserPermissions = Depends(get_info_from_token),
+        _: WBAnaliticsPromotionsViewer = Depends(),
         service: SalesManagementService = Depends(get_sales_management_service)
 ):
-    if not user.crm_viewing_unit_economics:
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     result = await service.get_shares_total_items_by_accounts()
     return result
 
@@ -198,11 +188,9 @@ async def get_promotions_statistic(
 **Получить товары участвующие\неучавствующие в акциях**\n""")
 async def get_promotions_goods(
         is_promotion: bool,
-        user: UserPermissions = Depends(get_info_from_token),
+        _: WBAnaliticsPromotionsViewer = Depends(),
         service: SalesManagementService = Depends(get_sales_management_service)
 ):
-    if not user.crm_viewing_crm_analytic:
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     result = await service.get_shares_goods_with_bool(is_promotion)
     return result
 
@@ -213,10 +201,8 @@ async def get_promotions_goods(
 и плановой (при участии в акции), если имеется подходящая акция для участия.**\n
 """)
 async def get_best_marginality(
-        user: UserPermissions = Depends(get_info_from_token),
+        _: WBAnaliticsPromotionsViewer = Depends(),
         service: SalesManagementService = Depends(get_sales_management_service)
 ):
-    if not user.crm_viewing_crm_analytic:
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     result = await service.get_best_marginality_by_good_id()
     return result

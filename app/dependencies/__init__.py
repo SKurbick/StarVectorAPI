@@ -16,7 +16,6 @@ from .schedulers import verify_scheduler_api_key
 from .card_status import get_card_status_service
 from .database import get_pool
 from .sales_management import get_sales_management_service
-from .jwt_dep import get_info_from_token
 from .analytics import get_analytics_service
 from .http_session import get_wb_http_session
 
@@ -51,7 +50,6 @@ __all__ = [
     "validate_edit_quantity_data",
     "get_card_status_service",
     "get_sales_management_service",
-    "get_info_from_token",
     "get_analytics_service",
     "get_wb_http_session",
 ]

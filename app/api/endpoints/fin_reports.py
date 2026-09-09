@@ -3,18 +3,17 @@ from datetime import date
 import logging
 
 from fastapi import APIRouter, Depends, Query, HTTPException
+from app.auth import WBFinanceReportsWeeklyViewer
 from starlette import status
 
 from app.dependencies.sales_report import get_sales_reports_service, SalesReportsService
 from app.dependencies import (
     get_dates_period_filter,
     verify_scheduler_api_key,
-    get_info_from_token,
 )
 from app.domain.models import (
     WeeklyFinReportsAggregated,
     PeriodRequestModel,
-    UserPermissions,
     SalesReportFetchResponse,
 )
 
@@ -26,13 +25,11 @@ router = APIRouter(prefix="/fin_reports", tags=["Финансовые отчет
 @router.get("/weekly_aggregated", status_code=status.HTTP_200_OK,
             description="Еженедельные отчеты от WB по всем финансовым оперциям")
 async def get_weekly_fin_reports_agg(
-    user: UserPermissions = Depends(get_info_from_token),
+    _: WBFinanceReportsWeeklyViewer = Depends(),
     service: SalesReportsService = Depends(get_sales_reports_service),
     period: PeriodRequestModel = Depends(get_dates_period_filter),
     number_of_last_weeks: Optional[int] = Query(None, gt=0, example=1, description=reports_by_week_description),
 ) -> list[WeeklyFinReportsAggregated]:
-    if not user.crm_viewing_unit_economics:
-        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="permission locked")
     return await service.get_sales_reports_aggregated(period, number_of_last_weeks)
 
 
@@ -71,7 +68,6 @@ async def fetch_weekly_fin_reports(
     """
     Загрузить еженедельные отчеты о продажах
     """
-
     try:
         result = await service.fetch_sales_reports(
             date_from=date_from,
